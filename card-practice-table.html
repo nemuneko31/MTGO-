@@ -2303,7 +2303,8 @@ function onlineBadgeText(){
   if(online.roomCode){ let t=`Online: ${online.roomCode} / ${_olRoleDisp()} / rev ${online.rev} / View: ${_olViewLabel((state.settings||{}).handViewMode||"all")}`;
     if(online.pendingState) t+=` ／ 受信stateあり rev ${online.pendingRev!=null?online.pendingRev:"?"}（適用待ち・クリックで開く）`;
     if(online.autoBroadcastPending) t+=" ／ 自動同期待機中";
-    if(onlineAutoApplyOn()&&!online.isHost) t+=" ／ 自動追従ON";
+    if(onlineAutoApplyOn()&&(!online.isHost||_olCollabOn())) t+=" ／ 自動追従ON";
+    if(_olCollabOn()) t+=" ／ 双方向同期ON";
     return t; }
   return "Online: ルーム未参加";
 }
@@ -2401,10 +2402,12 @@ function _olSync(){
   }
   const lb=document.getElementById("olLock");
   if(lb){ const rs=online.roomSummary; lb.disabled=!(online.connected&&online.roomCode&&online.isHost); lb.textContent=(rs&&rs.locked)?"参加ロック解除":"参加ロック"; }
+  const cb2=document.getElementById("olCollab");
+  if(cb2){ cb2.disabled=!(online.connected&&online.roomCode&&online.isHost); cb2.textContent=_olCollabOn()?"双方向同期OFF":"双方向同期"; }
   const peers=document.getElementById("olPeers");
   if(peers){ const rs=online.roomSummary;
     peers.innerHTML = rs&&rs.clients&&rs.clients.length
-      ? `<span class="note">${rs.passwordProtected?"🔒鍵あり":"🔓鍵なし"}${rs.locked?" ・ ロック中":""}${typeof rs.clientCount==="number"?` ・ ${rs.clientCount}/${rs.maxClients||8}人`:""}</span><br>参加者: `+rs.clients.map(c=>`<span class="ol-peer">${esc(c.name||c.clientId)} [${c.isHost?"Host("+esc(c.role)+")":(c.role==="spectator"?"Spectator":esc(c.role))}]</span>`).join(" ")
+      ? `<span class="note">${rs.passwordProtected?"🔒鍵あり":"🔓鍵なし"}${rs.locked?" ・ ロック中":""}${rs.collaborativeMode?" ・ 双方向同期ON":""}${typeof rs.clientCount==="number"?` ・ ${rs.clientCount}/${rs.maxClients||8}人`:""}</span><br>参加者: `+rs.clients.map(c=>`<span class="ol-peer">${esc(c.name||c.clientId)} [${c.isHost?"Host("+esc(c.role)+")":(c.role==="spectator"?"Spectator":esc(c.role))}]</span>`).join(" ")
       : '<span class="note">参加者情報なし</span>'; }
   const rc=document.getElementById("olReconn");
   if(rc){ rc.disabled=online.connected||online.connecting||online.reconnecting; rc.textContent=online.reconnecting?"再接続中...":(online.connected?"接続中":"再接続"); }
@@ -2680,6 +2683,11 @@ function _olMaybeAutoView(){
 }
 /* ---- 自動broadcast（第5段階・ホストのみ・既定OFF・デバウンス） ---- */
 function onlineAutoBroadcastOn(){ return (state.settings||{}).onlineAutoBroadcastEnabled===true; }
+function _olCollabOn(){ return !!(online.roomSummary && online.roomSummary.collaborativeMode); } // 双方向同期（ホストが許可した信頼相手用の共有卓）
+function _olCanBroadcast(){ // hostは常に。collab ONなら role A/B の非hostも送信可（spectatorは不可）
+  if(online.isHost) return true;
+  return _olCollabOn() && (online.role==="A"||online.role==="B");
+}
 function _olHash(str){ let h=0x811c9dc5; for(let i=0;i<str.length;i++){ h^=str.charCodeAt(i); h=(h*0x01000193)>>>0; } return h; } // 全文字FNV-1a（サンプリングだと同一長の小差分を取りこぼすため）
 function _olSig(raw){ return raw.length+":"+_olHash(raw); }
 function _olSigOfState(raw){ // 保存メタ＋各クライアント固有のローカルUI設定を除外して同一内容判定（UI操作だけでは送信しない）
@@ -2694,7 +2702,7 @@ function maybeScheduleOnlineBroadcast(){
     if(!onlineAutoBroadcastOn()) return;
     if(online.suppressBroadcast) return;            // 受信state適用中などの内部処理
     if(!online.connected||!online.ws||online.ws.readyState!==1) return;
-    if(!online.roomCode||!online.isHost) return;    // 非host/spectator/未参加は送らない
+    if(!online.roomCode||!_olCanBroadcast()) return;    // 非host/spectator/未参加は送らない（collab ONなら role A/B も送信可）
     online.autoBroadcastPending=true;
     clearTimeout(online.autoBroadcastTimer);
     online.autoBroadcastTimer=setTimeout(_olAutoBroadcastNow, 800); // 連続操作は最後の1回だけ
@@ -2705,7 +2713,7 @@ function _olAutoBroadcastNow(){
   online.autoBroadcastPending=false; online.autoBroadcastTimer=null;
   try{
     if(!onlineAutoBroadcastOn()||online.suppressBroadcast){ _olSync(); return; }
-    if(!online.connected||!online.ws||online.ws.readyState!==1||!online.roomCode||!online.isHost){ _olSync(); return; }
+    if(!online.connected||!online.ws||online.ws.readyState!==1||!online.roomCode||!_olCanBroadcast()){ _olSync(); return; }
     const raw=serialize();
     const sig=_olSigOfState(raw);
     if(sig===online.lastBroadcastSig){ _olSync(); return; } // 直前送信と同一内容なら送らない
@@ -2724,7 +2732,7 @@ function _olMaybeAutoApply(){
   try{
     if(!onlineAutoApplyOn()) return;
     if(!online.connected||!online.roomCode) return;
-    if(online.isHost) return;                                    // hostは自動適用しない
+    if(online.isHost && !_olCollabOn()) return;                  // 通常hostは自動適用しない（collab ONなら他プレイヤーの更新を適用）
     if(!online.pendingState) return;
     if(online._autoApplying||online.suppressBroadcast) return;   // 適用中/抑止中は再入しない
     const pr=online.pendingRev;
@@ -2785,6 +2793,7 @@ function openOnlineModal(){
       <button class="btn" id="olSetRole">role変更</button>
       <button class="btn" id="olReqState" title="現在のstate/revを問い合わせ（表示のみ）">state問い合わせ</button>
       <button class="btn" id="olLock" title="ホストのみ・新規参加を停止">参加ロック</button>
+      <button class="btn" id="olCollab" title="ホストのみ・信頼相手の操作も同期（共有卓）">双方向同期</button>
       <button class="btn primary" id="olSendState" title="ホストのみ・自動同期はしません">現在stateを送信（ホストのみ）</button>
     </div>
     <div class="row-inline" style="gap:6px;flex-wrap:wrap;margin-top:6px">
@@ -2826,6 +2835,11 @@ function openOnlineModal(){
   $("#olCreate").onclick=()=>{ saveConn(); onlineSend({type:"createRoom", name:online.name, role:$("#olRole").value, password:($("#olCreatePw").value||"")}); };
   $("#olJoin").onclick=()=>{ saveConn(); const code=($("#olCode").value||"").trim().toUpperCase(); if(!code){ _olErr("ルームコードを入力してください"); return; } online.lastJoinPw=($("#olJoinPw").value||""); onlineSend({type:"joinRoom", roomCode:code, name:online.name, role:$("#olRole").value, password:online.lastJoinPw}); };
   $("#olLock").onclick=()=>{ if(!online.isHost){ _olErr("ロックはホストのみ操作できます"); return; } const cur=!!(online.roomSummary&&online.roomSummary.locked); onlineSend({type:"setLock", locked:!cur}); };
+  $("#olCollab").onclick=()=>{ if(!online.isHost){ _olErr("双方向同期の切替はホストのみ可能です"); return; }
+    const cur=_olCollabOn();
+    if(!cur){ confirmDlg("双方向同期（共有卓モード）をONにします。信頼できる相手（role A/B）の操作もホストを含む全員の盤面に反映され、現在の盤面が上書きされることがあります。手札・ライブラリー順など全情報がstateに含まれるため、知らない相手とは使わないでください。よろしいですか？",()=>{ onlineSend({type:"setCollaborativeMode", collaborativeMode:true}); }); }
+    else onlineSend({type:"setCollaborativeMode", collaborativeMode:false});
+  };
   $("#olLeave").onclick=()=>onlineSend({type:"leaveRoom"});
   $("#olSetRole").onclick=()=>onlineSend({type:"setRole", role:$("#olRole").value});
   $("#olReqState").onclick=()=>onlineSend({type:"requestState", roomCode:online.roomCode});
@@ -9203,6 +9217,7 @@ const HELP_SECTIONS=[
     "能力テンプレは辞書に手動登録します（起動型/誘発型/手動/マナ等）。公式ルールの自動判定や効果の自動処理はしません。",
     "「誘発候補リマインド」設定をONにすると、戦場（creatures/others/lands・A/B両方）の登録済み triggered 能力を確認キューに「誘発候補があります（N件）」として表示し、「候補確認」で一覧を開けます。timing が現在フェーズと関連する場合は「関連」表示が付きます（厳密判定ではありません）。",
     "共有ライブラリ（第13回）: 同一サーバーに DATABASE_URL（Postgres）と SHARED_ADMIN_PASSWORD が設定されている場合のみ、ツールバー「共有」からカード辞書とデッキをサーバーに共有保存/読み込みできます。保存は管理パスワードを知っている人だけ、読み込みは誰でも可能です。読み込みは「マージ」（既存に統合）か「上書き」（強い確認あり）を選べ、既存のsave/render流儀で反映され Undo/Redo は汚しません。DATABASE_URL が無い場合は共有UIが『無効（DB未設定）』表示になるだけで、オフライン/オンライン対戦を含む既存機能はすべて従来どおり動きます。カード辞書には画像URL（imageUrl・任意）を持てます。表示優先度は ①ローカル画像(画像ID) ②画像URL ③画像なし で、画像URLは共有辞書に含まれます（外部URL参照のみ・画像本体やIndexedDB画像は共有されず、リンク切れ時はテキスト表示）。これは身内向けで、本格運用にはユーザー認証・権限管理・画像ストレージが必要です。",
+    "双方向同期モード（第14回・既定OFF）: 通常はホスト操作だけがゲストへ同期されますが、ホストがオンラインモーダルの「双方向同期」をONにすると（強い確認あり）、信頼できる role A/B の相手の操作もホストを含む全員へ同期される共有卓モードになります（spectatorは送信不可）。各クライアントは自分の「ホスト操作後に自動同期」をONにすると盤面操作を送信し、「受信stateを自動適用」をONにすると相手の更新を自動反映します（ホストも collab 中は自動適用対象）。UI位置・パネル・チャット・視点は従来どおり同期されず、スタックは中身のみ同期（UI位置は各自）。競合は厳密解決せず、サーバーのrevが一致した更新だけを採用し、rev不一致は拒否→再同期/手動適用になります（同時に細かく操作しすぎないでください）。これは信頼相手向けの共有卓であり、秘匿対戦・不正防止ではありません（stateには手札/ライブラリー順など全情報が含まれます）。",
     "簡易入室制限（第12回）: ルーム作成時に任意のパスワードを設定でき（作成pw欄）、参加時は同じパスワードが必要になります（参加pw欄）。パスワードはサーバーで平文保持せず sha256+ソルトのハッシュのみを保持し、参加者一覧やroomSummaryにも生の値は流れません。ホストは「参加ロック」で新規参加を停止/再開でき、満員（最大8人）でも参加が拒否されます。拒否時は joinRejected（password/locked/full）を受け取り、既存の接続・ルームは維持されます（別room参加や再試行が可能）。参加者一覧には🔒鍵あり/🔓鍵なし・ロック状態・人数を表示し、招待情報（URL/Room/鍵の有無）のコピーもできます（パスワードは自動で含めません）。これは身内向けの簡易入室制限で完全な認証ではなく、stateには手札/ライブラリー順など全情報が含まれるため、URLとパスワードは信頼できる相手にだけ共有してください。遠隔公開には引き続き TLS/トンネル/常設サーバー等の対応が別途必要です。",
     "オンラインUX修正（第11回）: ホスト自動同期は、これまで一部操作でしか走らなかったのを改め、ライフ・ドロー・カード移動・タップ・スタック操作・対象指定・トークン・カウンター・マナ・墓地/追放/ライブラリー操作・フェーズ/ターン進行など盤面を変える操作すべてで走るようにしました（デバウンス/重複スキップは維持。UI位置変更・パネル開閉・チャット・視点切替では送信しません）。スタックUIの位置/サイズや各種パネル位置・視点などの各クライアント固有UIは同期対象から除外され、受信state適用時も自分の設定が維持されます（スタックの中身＝カード/能力/順番/対象は従来どおり同期）。オンライン接続中は相手（上側）カードを180°回転せず正立表示にしました（rotateOpponent設定は従来どおりオフラインに適用）。メニュー操作パネルは「メニュー浮動」ボタンでドラッグ移動・リサイズ・⟲リセット・⤢でサイドバーに戻せる浮動パネルにできます。プレイヤー情報欄（ライフ/山札/手札/墓地/追放/マナ）はサイドバー内で上下に固定表示され、スクロールしても見失いません（role A/Bの手前表示に追従）。これらUIは表示のみで盤面stateを変えず、Undo/Redoにも影響しません。",
     "オンラインUX修正（第10回）: role B で参加中はライフ・プレイヤー名・手札/山札/墓地/追放枚数・マナ・各操作ボタンを含むサイドバーHUDも盤面と同じ基準で上下が入れ替わり、手前＝自分側になります（データのA/B・ログ表記は不変）。チャットはサーバーが送信者へ2通返す仕様に対しクライアント側で重複排除し、1送信につき各画面1件表示になりました。右サイドチャットは見出しのドラッグで移動・右下ハンドルでサイズ変更・⟲で位置リセットでき、位置とサイズは設定に保存されます（画面外へ出ない簡易制限つき）。フローティングHUD（既定OFF・オンラインモーダルでON）は手前/相手のライフ・手札/山札/墓地/追放枚数と roomCode/role/View/受信state有無を固定表示する小型パネルで、同様に移動・リサイズ・リセット・×で非表示にできます。これらは表示補助のみで盤面stateを変えず、Undo/Redoにも影響しません。",

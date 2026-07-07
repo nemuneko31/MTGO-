@@ -167,7 +167,7 @@ function roomSummary(room) {
   return {
     roomCode: room.roomCode, rev: room.rev, hostId: room.hostId,
     createdAt: room.createdAt, updatedAt: room.updatedAt, hasState: room.state != null,
-    passwordProtected: !!room.passwordHash, locked: !!room.locked, maxClients: MAX_ROOM_CLIENTS,
+    passwordProtected: !!room.passwordHash, locked: !!room.locked, collaborativeMode: !!room.collaborativeMode, maxClients: MAX_ROOM_CLIENTS,
     clientCount: room.clients.size,
     clients: [...room.clients.values()].map(c => ({ clientId: c.clientId, role: c.role, name: c.name, isHost: c.clientId === room.hostId }))
   };
@@ -245,7 +245,7 @@ const handlers = {
     const room = {
       roomCode: genRoomCode(), createdAt: now(), updatedAt: now(),
       hostId: client.clientId, clients: new Map(), state: null, rev: 0, log: [], _deleteTimer: null,
-      passwordSalt: null, passwordHash: null, locked: false
+      passwordSalt: null, passwordHash: null, locked: false, collaborativeMode: false
     };
     setRoomPassword(room, msg.password); // 空なら鍵なし。ハッシュのみ保持しクライアントへは配信しない
     client.name = sanitizeName(msg.name != null ? msg.name : client.name);
@@ -299,6 +299,17 @@ const handlers = {
     send(client.ws, { type: "roomUpdate", roomSummary: roomSummary(room) });
   },
 
+  setCollaborativeMode(client, msg) {
+    const room = getRoomOf(client);
+    if (!room) { sendError(client.ws, "roomに参加していません"); return; }
+    if (client.clientId !== room.hostId) { sendError(client.ws, "双方向同期の切替はホストのみ可能です"); return; }
+    room.collaborativeMode = !!msg.collaborativeMode;
+    pushRoomLog(room, { kind: "setCollaborativeMode", on: room.collaborativeMode });
+    log(`room ${room.roomCode} collaborativeMode=${room.collaborativeMode}`);
+    broadcast(room, { type: "roomUpdate", roomSummary: roomSummary(room) });
+    send(client.ws, { type: "roomUpdate", roomSummary: roomSummary(room) });
+  },
+
   setPassword(client, msg) {
     const room = getRoomOf(client);
     if (!room) { sendError(client.ws, "roomに参加していません"); return; }
@@ -326,10 +337,16 @@ const handlers = {
     if (!room || (msg.roomCode && String(msg.roomCode).toUpperCase() !== room.roomCode)) {
       sendError(client.ws, "roomに参加していません / roomCode不一致"); return;
     }
-    // 第1段階: host authoritative（非hostは拒否）
-    if (!ALLOW_NON_HOST_STATE_UPDATE && client.clientId !== room.hostId) {
-      send(client.ws, { type: "stateRejected", reason: "nonHost", serverRev: room.rev, state: room.state });
-      return;
+    // host authoritative が既定。ただし collaborativeMode ON のときは role A/B の非hostも受け付ける（spectator不可）
+    if (client.clientId !== room.hostId) {
+      if (!ALLOW_NON_HOST_STATE_UPDATE && !room.collaborativeMode) {
+        send(client.ws, { type: "stateRejected", reason: "nonHost", serverRev: room.rev, state: room.state });
+        return;
+      }
+      if (room.collaborativeMode && client.role !== "A" && client.role !== "B") { // spectatorは送信不可
+        send(client.ws, { type: "stateRejected", reason: "spectator", serverRev: room.rev, state: room.state });
+        return;
+      }
     }
     // rev 検証: クライアントは「自分が知っている現在の rev」を送る。古い/不正なら拒否＋現状を返す
     if (typeof msg.rev !== "number" || msg.rev !== room.rev) {
