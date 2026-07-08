@@ -2176,7 +2176,7 @@ const online={ enabled:false, connected:false, connecting:false, ws:null, client
   autoBroadcastPending:false, autoBroadcastTimer:null, lastBroadcastAt:null, lastBroadcastRev:null, lastBroadcastSize:null, lastBroadcastError:"", lastBroadcastSig:"", suppressBroadcast:false, lastAutoViewRole:"",
   lastServerUrl:"", lastRoomCode:"", lastName:"", lastRole:"", lastWasInRoom:false, lastDisconnectReason:"",
   wasConnected:false, intentionalDisconnect:false, reconnecting:false, reconnectAttempt:0, maxReconnectAttempts:4, reconnectTimer:null, pendingRejoin:false,
-  lastAutoApplyRev:null, lastAutoApplyAt:null, lastAutoApplyError:"", _autoApplying:false, lastJoinPw:"" };
+  lastAutoApplyRev:null, lastAutoApplyAt:null, lastAutoApplyError:"", _autoApplying:false, lastJoinPw:"", staleRevStreak:0 };
 /* ---- 共有ライブラリ（同一サーバーのDBがある時だけ有効。DB未設定でも既存機能は不変） ---- */
 const sharedState={ enabled:null, reason:"", adminConfigured:false, lastMsg:"" };
 function _sharedApiBase(){ try{ if(location && /^https?:$/.test(location.protocol)) return ""; }catch(_){}; return null; }
@@ -2305,6 +2305,7 @@ function onlineBadgeText(){
     if(online.autoBroadcastPending) t+=" ／ 自動同期待機中";
     if(onlineAutoApplyOn()&&(!online.isHost||_olCollabOn())) t+=" ／ 自動追従ON";
     if(_olCollabOn()) t+=" ／ 双方向同期ON";
+    if((online.staleRevStreak||0)>=2) t+=" ／ 再同期が必要（state問い合わせ→適用）";
     return t; }
   return "Online: ルーム未参加";
 }
@@ -2359,11 +2360,12 @@ function _olHandle(msg){
         } else _olog("参加者情報を更新");
       } break;
     case "stateSync": if(typeof msg.rev==="number") online.rev=msg.rev;
-      if(msg.state!=null && msg.from===online.clientId){ online.stateNote=`stateSync受信: rev ${msg.rev}（自分の送信のACK）`; }
+      if(msg.state!=null && msg.from===online.clientId){ online.staleRevStreak=0; online.stateNote=`stateSync受信: rev ${msg.rev}（自分の送信のACK）`; }
       else if(msg.state!=null){ _olSetPending(msg.state,msg.rev,msg.from||"server",false); online.stateNote=`stateSync受信: rev ${msg.rev}（受信stateに保持・自動適用しません）`; }
       else online.stateNote=`stateSync受信: rev ${msg.rev}（rev通知のみ）`;
       _olog(online.stateNote); break; // 自動適用しない（手動適用ボタンから）
     case "stateRejected": online.rev=(typeof msg.serverRev==="number")?msg.serverRev:online.rev;
+      if(msg.reason==="staleRev") online.staleRevStreak=(online.staleRevStreak||0)+1; // 連続なら「再同期が必要」表示
       online.lastBroadcastSig=""; // rev是正後の再送を可能にする
       if(msg.state!=null) _olSetPending(msg.state,msg.serverRev,"拒否応答に含まれるサーバーstate",true);
       _olog(`stateRejected: ${msg.reason}（serverRev ${msg.serverRev}）`); break;
@@ -2453,6 +2455,13 @@ function _olLocalUIKey(k){
 function _olValidStateObj(o){ return !!(o && typeof o==="object" && !Array.isArray(o) && o.players && o.players.A && o.players.B && o.turn && typeof o.turn==="object"); }
 function _olSetPending(st,rev,from,rejected){
   if(st==null) return;
+  try{ // no-op判定: 受信stateが現在盤面と同一内容（ローカルUI設定・保存メタ除外）なら適用も再送信も不要
+    if(_olValidStateObj(st) && _olSigOfState(JSON.stringify(st))===_olSigOfState(serialize())){
+      online.staleRevStreak=0;
+      if(typeof rev==="number"){ online.lastBroadcastSig=_olSigOfState(serialize()); } // 同内容の送り返しも封じる
+      _olClearPending(); _olSync(); return; // ログなし・Undoなし・pendingは安全にクリア
+    }
+  }catch(_){}
   online.pendingState=st; online.pendingRev=(typeof rev==="number")?rev:null;
   online.pendingFrom=String(from||"-"); online.pendingReceivedAt=Date.now(); online.pendingRejected=!!rejected;
   _olSync();
@@ -2480,8 +2489,9 @@ function _olApplyPendingConfirmed(auto){
   const prevRaw=localStorage.getItem(LS_KEY);
   const prevSer=serialize();
   const keepLocal={}; try{ for(const k in (state.settings||{})){ if(_olLocalUIKey(k)) keepLocal[k]=state.settings[k]; } }catch(_){} // 各クライアント固有UI（スタックUI位置/パネル/視点/online系）は受信stateで上書きしない
+  online.suppressBroadcast=true; // 適用中の自動broadcastを抑止（pushUndo内フックより先に立てる）
+  clearTimeout(online.autoBroadcastTimer); online.autoBroadcastPending=false; online.autoBroadcastTimer=null; // 予約済み送信も破棄
   pushUndo("オンラインstate適用"); // 適用前盤面(players/stack/turn)を1件積む
-  online.suppressBroadcast=true; // 適用中の自動broadcastを抑止
   try{
     // 既存の loadState 正規化経路を完全再利用: LSへ一時書込→loadState(true)→LS復元（永続化しない）
     localStorage.setItem(LS_KEY, JSON.stringify(pending));
@@ -2492,12 +2502,13 @@ function _olApplyPendingConfirmed(auto){
     try{ for(const k in keepLocal){ state.settings[k]=keepLocal[k]; } }catch(_){}
     if(typeof pRev==="number") online.rev=pRev;
     _olClearPending();
-    online.lastBroadcastSig=_olSigOfState(serialize()); // 適用直後のautosaveで同内容を再送しない
-    online.suppressBroadcast=false;
+    online.staleRevStreak=0;
     if(auto){ online.lastAutoApplyRev=(typeof pRev==="number")?pRev:online.lastAutoApplyRev; online.lastAutoApplyAt=Date.now(); online.lastAutoApplyError="";
-      _olog("受信state rev "+(pRev!=null?pRev:"?")+" を自動適用しました"); }
-    else _olog("オンラインstateを盤面に適用しました（rev "+(pRev!=null?pRev:"?")+"）");
-    try{ addLog("オンラインstateを盤面に適用しました"); }catch(_){}
+      _olog("受信state rev "+(pRev!=null?pRev:"?")+" を自動適用しました"); } // 自動適用はオンラインログのみ（処理履歴には追記しない＝stateを変えない）
+    else { _olog("オンラインstateを盤面に適用しました（rev "+(pRev!=null?pRev:"?")+"）");
+      try{ addLog("オンラインstateを盤面に適用しました"); }catch(_){} } // 手動適用のみ処理履歴に残す
+    online.lastBroadcastSig=_olSigOfState(serialize()); // 全変更が終わった後のsigを記録＝適用直後に同内容を送り返さない
+    online.suppressBroadcast=false;
     render(); renderLog(); _olSync();
   }catch(e){
     try{ if(prevRaw==null) localStorage.removeItem(LS_KEY); else localStorage.setItem(LS_KEY, prevRaw); }catch(_){}
@@ -9217,7 +9228,7 @@ const HELP_SECTIONS=[
     "能力テンプレは辞書に手動登録します（起動型/誘発型/手動/マナ等）。公式ルールの自動判定や効果の自動処理はしません。",
     "「誘発候補リマインド」設定をONにすると、戦場（creatures/others/lands・A/B両方）の登録済み triggered 能力を確認キューに「誘発候補があります（N件）」として表示し、「候補確認」で一覧を開けます。timing が現在フェーズと関連する場合は「関連」表示が付きます（厳密判定ではありません）。",
     "共有ライブラリ（第13回）: 同一サーバーに DATABASE_URL（Postgres）と SHARED_ADMIN_PASSWORD が設定されている場合のみ、ツールバー「共有」からカード辞書とデッキをサーバーに共有保存/読み込みできます。保存は管理パスワードを知っている人だけ、読み込みは誰でも可能です。読み込みは「マージ」（既存に統合）か「上書き」（強い確認あり）を選べ、既存のsave/render流儀で反映され Undo/Redo は汚しません。DATABASE_URL が無い場合は共有UIが『無効（DB未設定）』表示になるだけで、オフライン/オンライン対戦を含む既存機能はすべて従来どおり動きます。カード辞書には画像URL（imageUrl・任意）を持てます。表示優先度は ①ローカル画像(画像ID) ②画像URL ③画像なし で、画像URLは共有辞書に含まれます（外部URL参照のみ・画像本体やIndexedDB画像は共有されず、リンク切れ時はテキスト表示）。これは身内向けで、本格運用にはユーザー認証・権限管理・画像ストレージが必要です。",
-    "双方向同期モード（第14回・既定OFF）: 通常はホスト操作だけがゲストへ同期されますが、ホストがオンラインモーダルの「双方向同期」をONにすると（強い確認あり）、信頼できる role A/B の相手の操作もホストを含む全員へ同期される共有卓モードになります（spectatorは送信不可）。各クライアントは自分の「ホスト操作後に自動同期」をONにすると盤面操作を送信し、「受信stateを自動適用」をONにすると相手の更新を自動反映します（ホストも collab 中は自動適用対象）。UI位置・パネル・チャット・視点は従来どおり同期されず、スタックは中身のみ同期（UI位置は各自）。競合は厳密解決せず、サーバーのrevが一致した更新だけを採用し、rev不一致は拒否→再同期/手動適用になります（同時に細かく操作しすぎないでください）。これは信頼相手向けの共有卓であり、秘匿対戦・不正防止ではありません（stateには手札/ライブラリー順など全情報が含まれます）。",
+    "双方向同期モード（第14回・既定OFF）: 通常はホスト操作だけがゲストへ同期されますが、ホストがオンラインモーダルの「双方向同期」をONにすると（強い確認あり）、信頼できる role A/B の相手の操作もホストを含む全員へ同期される共有卓モードになります（spectatorは送信不可）。各クライアントは自分の「ホスト操作後に自動同期」をONにすると盤面操作を送信し、「受信stateを自動適用」をONにすると相手の更新を自動反映します（ホストも collab 中は自動適用対象）。UI位置・パネル・チャット・視点は従来どおり同期されず、スタックは中身のみ同期（UI位置は各自）。競合は厳密解決せず、サーバーのrevが一致した更新だけを採用し、rev不一致は拒否→再同期/手動適用になります（同時に細かく操作しすぎないでください）。これは信頼相手向けの共有卓であり、秘匿対戦・不正防止ではありません（stateには手札/ライブラリー順など全情報が含まれます）。同一内容のstateを受信した場合は適用も再送信もスキップされ（no-op判定・ログ/Undoなし）、自動適用の成功はオンラインログのみに記録され処理履歴には追記されません（反射ループ防止）。staleRev拒否が続くとバッジに「再同期が必要」と表示されるので、state問い合わせ→適用で復帰してください。",
     "簡易入室制限（第12回）: ルーム作成時に任意のパスワードを設定でき（作成pw欄）、参加時は同じパスワードが必要になります（参加pw欄）。パスワードはサーバーで平文保持せず sha256+ソルトのハッシュのみを保持し、参加者一覧やroomSummaryにも生の値は流れません。ホストは「参加ロック」で新規参加を停止/再開でき、満員（最大8人）でも参加が拒否されます。拒否時は joinRejected（password/locked/full）を受け取り、既存の接続・ルームは維持されます（別room参加や再試行が可能）。参加者一覧には🔒鍵あり/🔓鍵なし・ロック状態・人数を表示し、招待情報（URL/Room/鍵の有無）のコピーもできます（パスワードは自動で含めません）。これは身内向けの簡易入室制限で完全な認証ではなく、stateには手札/ライブラリー順など全情報が含まれるため、URLとパスワードは信頼できる相手にだけ共有してください。遠隔公開には引き続き TLS/トンネル/常設サーバー等の対応が別途必要です。",
     "オンラインUX修正（第11回）: ホスト自動同期は、これまで一部操作でしか走らなかったのを改め、ライフ・ドロー・カード移動・タップ・スタック操作・対象指定・トークン・カウンター・マナ・墓地/追放/ライブラリー操作・フェーズ/ターン進行など盤面を変える操作すべてで走るようにしました（デバウンス/重複スキップは維持。UI位置変更・パネル開閉・チャット・視点切替では送信しません）。スタックUIの位置/サイズや各種パネル位置・視点などの各クライアント固有UIは同期対象から除外され、受信state適用時も自分の設定が維持されます（スタックの中身＝カード/能力/順番/対象は従来どおり同期）。オンライン接続中は相手（上側）カードを180°回転せず正立表示にしました（rotateOpponent設定は従来どおりオフラインに適用）。メニュー操作パネルは「メニュー浮動」ボタンでドラッグ移動・リサイズ・⟲リセット・⤢でサイドバーに戻せる浮動パネルにできます。プレイヤー情報欄（ライフ/山札/手札/墓地/追放/マナ）はサイドバー内で上下に固定表示され、スクロールしても見失いません（role A/Bの手前表示に追従）。これらUIは表示のみで盤面stateを変えず、Undo/Redoにも影響しません。",
     "オンラインUX修正（第10回）: role B で参加中はライフ・プレイヤー名・手札/山札/墓地/追放枚数・マナ・各操作ボタンを含むサイドバーHUDも盤面と同じ基準で上下が入れ替わり、手前＝自分側になります（データのA/B・ログ表記は不変）。チャットはサーバーが送信者へ2通返す仕様に対しクライアント側で重複排除し、1送信につき各画面1件表示になりました。右サイドチャットは見出しのドラッグで移動・右下ハンドルでサイズ変更・⟲で位置リセットでき、位置とサイズは設定に保存されます（画面外へ出ない簡易制限つき）。フローティングHUD（既定OFF・オンラインモーダルでON）は手前/相手のライフ・手札/山札/墓地/追放枚数と roomCode/role/View/受信state有無を固定表示する小型パネルで、同様に移動・リサイズ・リセット・×で非表示にできます。これらは表示補助のみで盤面stateを変えず、Undo/Redoにも影響しません。",
