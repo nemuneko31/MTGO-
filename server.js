@@ -30,6 +30,13 @@ const MAX_PASSWORD_LEN = 64;
 const DATABASE_URL = process.env.DATABASE_URL || "";
 const SHARED_ADMIN_PASSWORD = process.env.SHARED_ADMIN_PASSWORD || "";
 const MAX_BODY_BYTES = 6 * 1024 * 1024; // 共有保存POSTの上限
+const IMG_S3_ENDPOINT = process.env.IMG_S3_ENDPOINT || "";
+const IMG_S3_BUCKET = process.env.IMG_S3_BUCKET || "";
+const IMG_S3_ACCESS_KEY_ID = process.env.IMG_S3_ACCESS_KEY_ID || "";
+const IMG_S3_SECRET_ACCESS_KEY = process.env.IMG_S3_SECRET_ACCESS_KEY || "";
+const IMG_PUBLIC_BASE_URL = (process.env.IMG_PUBLIC_BASE_URL || "").replace(/\/+$/, ""); // 末尾スラッシュ正規化
+const IMG_MAX_BYTES = 2 * 1024 * 1024; // 画像1枚の上限 2MB
+const IMG_ALLOWED_TYPES = { "image/png": "png", "image/jpeg": "jpg", "image/webp": "webp", "image/gif": "gif" }; // SVGは不可
 const EMPTY_ROOM_TTL_MS = 60 * 1000;       // 空roomの削除猶予
 const HEARTBEAT_MS = 30 * 1000;
 
@@ -106,6 +113,81 @@ async function handleSharedApi(req, res, pathname) {
 }
 
 /* ============================================================
+   画像ストア（任意・IMG_S3_* 5変数が揃った時だけ有効。無くてもアプリは起動）
+   秘密値（キー/Endpoint全文）はログにもレスポンスにも出さない。
+   ============================================================ */
+const imageStore = { enabled: false, client: null, PutObjectCommand: null, reason: "environment variables are not configured" };
+function initImageStore() {
+  if (!(IMG_S3_ENDPOINT && IMG_S3_BUCKET && IMG_S3_ACCESS_KEY_ID && IMG_S3_SECRET_ACCESS_KEY && IMG_PUBLIC_BASE_URL)) {
+    log("image store: disabled (environment variables are not configured)"); return;
+  }
+  let sdk;
+  try { sdk = require("@aws-sdk/client-s3"); }
+  catch (e) { imageStore.reason = "s3 sdk not installed"; log("image store: disabled (s3 sdk not installed)"); return; }
+  try {
+    imageStore.client = new sdk.S3Client({
+      region: "auto", endpoint: IMG_S3_ENDPOINT, forcePathStyle: true,
+      credentials: { accessKeyId: IMG_S3_ACCESS_KEY_ID, secretAccessKey: IMG_S3_SECRET_ACCESS_KEY },
+    });
+    imageStore.PutObjectCommand = sdk.PutObjectCommand;
+    imageStore.enabled = true; imageStore.reason = "";
+    log("image store: enabled (R2)");
+  } catch (e) { imageStore.enabled = false; imageStore.reason = "init failed"; log("image store: disabled (init failed)"); }
+}
+function _imgMagicOk(buf, type) { // Content-Typeを信用せずマジックバイト検査
+  if (!buf || buf.length < 12) return false;
+  if (type === "image/png") return buf[0] === 0x89 && buf[1] === 0x50 && buf[2] === 0x4e && buf[3] === 0x47 && buf[4] === 0x0d && buf[5] === 0x0a && buf[6] === 0x1a && buf[7] === 0x0a;
+  if (type === "image/jpeg") return buf[0] === 0xff && buf[1] === 0xd8 && buf[2] === 0xff;
+  if (type === "image/gif") return buf[0] === 0x47 && buf[1] === 0x49 && buf[2] === 0x46 && buf[3] === 0x38; // GIF8
+  if (type === "image/webp") return buf.toString("latin1", 0, 4) === "RIFF" && buf.toString("latin1", 8, 12) === "WEBP";
+  return false;
+}
+function readRawBody(req, maxBytes) { // 生バイナリ受信。上限超過は即座に安全停止
+  return new Promise((resolve, reject) => {
+    let size = 0; const chunks = [];
+    req.on("data", (c) => {
+      size += c.length;
+      if (size > maxBytes) { const e = new Error("too large"); e.code = "TOO_LARGE"; req.removeAllListeners("data"); req.pause(); reject(e); return; } // destroyは応答送信後に呼び出し側で行う
+      chunks.push(c);
+    });
+    req.on("end", () => resolve(Buffer.concat(chunks)));
+    req.on("error", reject);
+  });
+}
+async function handleImageUpload(req, res) {
+  if (!imageStore.enabled) { sendJson(res, 503, { ok: false, disabled: true, reason: imageStore.reason || "image store disabled" }); return; }
+  if (req.method !== "POST") { sendJson(res, 405, { ok: false, error: "method not allowed" }); return; }
+  if (!adminOk(req, null)) { sendJson(res, 401, { ok: false, error: "管理パスワードが必要です（または誤り）" }); return; }
+  const ctype = String(req.headers["content-type"] || "").split(";")[0].trim().toLowerCase();
+  const ext = IMG_ALLOWED_TYPES[ctype];
+  if (!ext) { sendJson(res, 415, { ok: false, error: "対応形式は png/jpeg/webp/gif のみです" }); return; }
+  let buf;
+  try { buf = await readRawBody(req, IMG_MAX_BYTES); }
+  catch (e) {
+    if (e && e.code === "TOO_LARGE") {
+      try {
+        const s = JSON.stringify({ ok: false, error: "画像は最大" + IMG_MAX_BYTES + "バイト（2MB）までです" });
+        res.writeHead(413, { "Content-Type": "application/json; charset=utf-8", "Connection": "close" });
+        res.end(s, () => { try { req.destroy(); } catch (_) {} }); // 413を送り切ってから受信を安全停止
+      } catch (_) {}
+      return;
+    }
+    try { sendJson(res, 400, { ok: false, error: "本文の受信に失敗しました" }); } catch (_) {} return;
+  }
+  if (!buf.length) { sendJson(res, 400, { ok: false, error: "本文が空です" }); return; }
+  if (!_imgMagicOk(buf, ctype)) { sendJson(res, 400, { ok: false, error: "ファイル内容がContent-Typeと一致しません" }); return; }
+  const sha256 = crypto.createHash("sha256").update(buf).digest("hex");
+  const key = "images/" + sha256 + "." + ext; // 内容ハッシュキー＝同一画像は同一キー（重複保存回避）
+  try {
+    await imageStore.client.send(new imageStore.PutObjectCommand({ Bucket: IMG_S3_BUCKET, Key: key, Body: buf, ContentType: ctype }));
+    sendJson(res, 200, { ok: true, key, imageUrl: IMG_PUBLIC_BASE_URL + "/" + key, sha256, size: buf.length, contentType: ctype });
+  } catch (e) {
+    log("image upload failed (" + ((e && e.name) || "error") + ")"); // 詳細/秘密値はログに出さない
+    sendJson(res, 500, { ok: false, error: "アップロードに失敗しました" });
+  }
+}
+
+/* ============================================================
    HTTPサーバー（静的配信・最低限）
    ============================================================ */
 const MIME = {
@@ -122,6 +204,12 @@ const MIME = {
 const httpServer = http.createServer((req, res) => {
   try {
     let urlPath = decodeURIComponent((req.url || "/").split("?")[0]);
+    if (urlPath === "/api/shared-images-status") {
+      if (imageStore.enabled) sendJson(res, 200, { enabled: true, provider: "R2", maxBytes: IMG_MAX_BYTES, allowedTypes: Object.keys(IMG_ALLOWED_TYPES) });
+      else sendJson(res, 200, { enabled: false, reason: imageStore.reason || "environment variables are not configured" });
+      return;
+    }
+    if (urlPath === "/api/shared-images") { handleImageUpload(req, res).catch(() => { try { sendJson(res, 500, { ok: false, error: "internal" }); } catch (_) {} }); return; }
     if (urlPath === "/api/shared-status") { sendJson(res, 200, { ok: true, enabled: shared.enabled, reason: shared.reason, adminConfigured: !!SHARED_ADMIN_PASSWORD }); return; }
     if (SHARED_KEYS[urlPath] !== undefined) { handleSharedApi(req, res, urlPath).catch(() => { try { sendJson(res, 500, { ok: false, error: "internal" }); } catch (_) {} }); return; }
     if (urlPath === "/") urlPath = "/card-practice-table.html";
@@ -430,6 +518,7 @@ process.on("uncaughtException", (e) => { log(`uncaughtException: ${e && e.messag
 process.on("unhandledRejection", (e) => { log(`unhandledRejection: ${e && (e.message || e)}`); });
 
 initSharedStore().catch((e) => log("shared store init error: " + (e && e.message)));
+initImageStore();
 httpServer.listen(PORT, HOST, () => {
   const shown = (HOST === "0.0.0.0" || HOST === "::") ? "localhost" : HOST;
   log(`listening on http://${shown}:${PORT}/ (bind ${HOST} / WebSocket 同ポート)`);
