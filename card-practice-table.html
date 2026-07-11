@@ -1743,7 +1743,7 @@ function openCardMenu(id){
 function cardHTML(c){
   if(typeof _isMaskedHandCard==="function" && _isMaskedHandCard(c)) return viewMaskedHandCardHTML(c);
   const _d = getCardDisplayInfo(c);
-  const img = _cardImgSrc(_d);
+  const {src:img, fb:_ifb} = _cardImgSrcs({imageId:_d.imageId, imageUrl:(c.imageUrl||""), name:c.name}); // 照合は識別名（表示名では照合しない）
   const badges=[];
   { const _chip=colorChipHTML(c); if(_chip) badges.push(_chip); }
   if(_d.faceActive) badges.push(`<span class="badge face">${esc(faceShort(_d.faceName))}</span>`);
@@ -1763,7 +1763,7 @@ function cardHTML(c){
   const _pt=_ptInfo(c);
   return `<div class="card${c.tapped?" tapped":""}${selectedCardId===c.id?" selected":""}${combatCls}${tgtCls}${_cc?(" "+_cc):""}" data-card-id="${c.id}" data-type="${c.type}"${_cck}>
     ${flag}
-    ${img?`<img class="img" src="${img}" alt="">`:""}
+    ${img?`<img class="img" src="${esc(img)}" alt=""${_ifb?` data-fb="${esc(_ifb)}"`:""} onerror="if(this.dataset.fb){var f=this.dataset.fb;this.removeAttribute('data-fb');this.src=f;}else{this.remove();}">`:""}
     <span class="ct">${TYPE_JP[_d.type]?TYPE_JP[_d.type][0]:"?"}</span>
     ${c.tapped?'<span class="tapmark">TAP</span>':''}
     <span class="menu-dot">\u22ee</span>
@@ -2069,12 +2069,12 @@ function renderPreview(){
   if(!f){ el.className="preview"; el.innerHTML=""; return; }
   const c=f.card;
   if(typeof _isMaskedHandCard==="function" && _isMaskedHandCard(c)){ el.className="preview show"; el.innerHTML=`<button class="pvclose" data-app="pvclose">×</button><div class="pvimg">非公開</div><div class="pvbody"><div class="pvname">非公開カード</div><div class="note">相手の手札（${viewMode()}視点）。表示マスク中のため内容は表示しません。</div></div>`; return; }
-  const img=_cardImgSrc(c);
+  const {src:img, fb:_pfb}=_cardImgSrcs(c);
   const showPT=(c.power!==""&&c.power!=null)||(c.toughness!==""&&c.toughness!=null);
   const src=[c.importedSource,c.originalLine].filter(Boolean).join(" / ");
   el.className="preview show";
   el.innerHTML=`<button class="pvclose" data-app="pvclose">×</button>
-    <div class="pvimg">${_imgTag(img)}</div>
+    <div class="pvimg">${_imgTag(img,_pfb)}</div>
     <div class="pvbody">
       <div class="pvname">${esc(getCardDisplayInfo(c).name)}${getCardDisplayInfo(c).faceActive?` <span class="note">（元:${esc(c.name)}）</span>`:""}</div>
       <div class="pvquick">
@@ -2274,16 +2274,26 @@ function openSharedModal(){
   _sharedRender(); sharedRefreshStatus();
 }
 function _validImgUrl(u){ return typeof u==="string" && /^https?:\/\//i.test(u.trim()); }
-function _cardImgSrc(c){
+function _cardImgSrc(c,ignoreSetting){ // 照合は識別名(canonical)/aliasesのみ。displayNameでは照合しない
   try{
-    if(!state.settings.showImages) return null;
+    if(!ignoreSetting && !state.settings.showImages) return null;
     if(c && c.imageId && imgCache[c.imageId]) return imgCache[c.imageId];
     if(c && _validImgUrl(c.imageUrl)) return c.imageUrl.trim();
     if(c && c.name){ const d=(typeof dictGet==="function")?dictGet(c.name):null; if(d && _validImgUrl(d.imageUrl)) return d.imageUrl.trim(); }
+    if(c && c.repName && c.repName!==c.name){ const d2=(typeof dictGet==="function")?dictGet(c.repName):null; if(d2 && _validImgUrl(d2.imageUrl)) return d2.imageUrl.trim(); } // 表示情報オブジェクトが渡された場合の防御（repName=識別名）
   }catch(_){}
   return null;
 }
-function _imgTag(src){ if(!src) return "画像なし"; return '<img src="'+esc(src)+'" alt="" onerror="this.outerHTML=String.fromCharCode(0x753b,0x50cf,0x8aad,0x8fbc,0x4e0d,0x53ef)">'; }
+function _cardImgSrcs(c,ignoreSetting){ // {src, fb}: srcの読込失敗時に辞書imageUrlへ1回だけフォールバック
+  const src=_cardImgSrc(c,ignoreSetting); let fb=null;
+  try{ if(src && c && (c.name||c.repName)){ const d=(typeof dictGet==="function")?(dictGet(c.name)||(c.repName?dictGet(c.repName):null)):null;
+    if(d && _validImgUrl(d.imageUrl)){ const u=d.imageUrl.trim(); if(u!==src) fb=u; } } }catch(_){}
+  return {src,fb};
+}
+function _imgTag(src,fb){ if(!src) return "画像なし";
+  const errJs="this.outerHTML=String.fromCharCode(0x753b,0x50cf,0x8aad,0x8fbc,0x4e0d,0x53ef)";
+  const oe=fb?("if(this.dataset.fb){var f=this.dataset.fb;this.removeAttribute('data-fb');this.src=f;}else{"+errJs+"}"):errJs;
+  return '<img src="'+esc(src)+'" alt=""'+(fb?' data-fb="'+esc(fb)+'"':'')+' onerror="'+oe+'">'; }
 function onlineDefaultUrl(){
   const st=state.settings||{};
   if(st.onlineServerUrl) return st.onlineServerUrl; // 手動入力（保存済み）が最優先
@@ -4616,7 +4626,9 @@ function openDictEditor(name){
           if(!obj.targetRequired) delete obj.targetRequired;
         }
         dictSet(obj);
-        saveState(true); openDictionary();
+        saveState(true);
+        try{ render(); }catch(_){} // 同じ識別名の既存カード（手札/盤面/スタック/墓地/追放）へ即反映
+        openDictionary();
       }); };
       const exExact=dictAll()[dictKey(nm)];
       if(!exExact){
@@ -5991,10 +6003,10 @@ function ohTypeCounts(hand){
 }
 function ohCardHTML(c, opt){
   opt=opt||{};
-  const img = state.settings.showImages ? imgCache[c.imageId] : null;
+  const {src:img, fb:_ofb} = _cardImgSrcs(c);
   const showPT=(c.type==="Creature"||c.type==="Token")&&(c.power!==""||c.toughness!=="");
   const inner = img
-    ? `<div class="cimg"><img src="${img}" alt="${esc(c.name)}"></div>`
+    ? `<div class="cimg"><img src="${esc(img)}" alt="${esc(c.name)}"${_ofb?` data-fb="${esc(_ofb)}"`:""} onerror="if(this.dataset.fb){var f=this.dataset.fb;this.removeAttribute('data-fb');this.src=f;}else{this.remove();}"></div>`
     : `<div class="ctext"><div class="cname">${esc(c.name)}</div><div class="ctype">${TYP(c.type)}</div></div>`;
   const sel=opt.selectable?` oh-pick${opt.selected?" oh-sel":""}`:"";
   const attr=opt.selectable?` data-ohbottom="${opt.idx}"`:"";
@@ -7108,7 +7120,7 @@ function fsCardMini(c, idx, topIdx){
   const cnt=tgtCount(c);
   const need=getCardDisplayInfo(c).targetRequired && cnt===0;
   const _d=getCardDisplayInfo(c);
-  const img=fsImagesOn()?imgCache[_d.imageId]:null;
+  const img=fsImagesOn()?_cardImgSrc({imageId:_d.imageId, imageUrl:(c.imageUrl||""), name:c.name},true):null;
   const thumb=img?`<img class="fs-thumb" src="${img}" alt="">`:`<div class="fs-mini">${esc(_d.name.slice(0,10))}<small>${TYPE_JP[_d.type]?TYPE_JP[_d.type][0]:"?"}</small></div>`;
   const _pst=(c.paymentStatus&&c.paymentStatus!=="none")?`<span class="badge pay ${c.paymentStatus}">${PAY_JP[c.paymentStatus]||""}</span>${consumedDisplayHTML(c)}`:"";
   const badges=`${cnt?`<span class="badge tgt">対象${cnt}</span>`:""}${need?'<span class="badge tgtneed">未指定</span>':""}${_pst}${rcBadgeHTML(c)}`;
@@ -7390,7 +7402,7 @@ function srwRender(){
   const unspec=s.filter(c=>{ ensureTgtFields(c); return c.targetRequired&&tgtCount(c)===0; }).length;
   const withT=s.filter(c=>tgtCount(c)>0).length;
   const warnN=s.filter(c=>{ const w=srwCheckCard(c); return w.danger.length||w.warning.length; }).length;
-  const img=(state.settings.showImages!==false)?imgCache[top.imageId]:null;
+  const img=(state.settings.showImages!==false)?_cardImgSrc(top,true):null;
   const preview=img?`<img class="srw-img" src="${img}" alt="">`:`<div class="srw-textcard"><div class="srw-tc-name">${esc(top.name)}</div><div class="srw-tc-type">${TYPE_JP[top.type]||top.type}${top.subtype?" — "+esc(top.subtype):""}</div></div>`;
   const tnames=srwTargetNames(top);
   const by=idx.byCard[top.id]||[];
