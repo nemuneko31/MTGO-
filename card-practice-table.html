@@ -1616,7 +1616,7 @@ function openCardMenu(id){
     <button class="btn" data-cm="ctrl">コントローラー変更</button>` : "";
   const playOp = inHand ? `<button class="btn primary" data-cm="play" style="grid-column:1/-1">標準アクション（${esc(smartActionLabel(c))}）</button>` : `<button class="btn primary" data-cm="std" style="grid-column:1/-1">標準操作</button>`;
   const _menuMasked=(typeof _isMaskedHandCard==="function" && _isMaskedHandCard(c));
-  openModal(`${_menuMasked?"非公開カード":esc(c.name)} <span style="font-size:12px;color:var(--muted)">[${_menuMasked?"相手の手札":(TYPE_JP[c.type]||c.type)+" / "+ZONE_JP[f.zone]+(f.player?" / "+pname(f.player):"")}]</span>`,`
+  openModal(`${_menuMasked?"非公開カード":esc(dispName(c.name))} <span style="font-size:12px;color:var(--muted)">[${_menuMasked?"相手の手札":(TYPE_JP[c.type]||c.type)+" / "+ZONE_JP[f.zone]+(f.player?" / "+pname(f.player):"")}]</span>`,`
     <div class="cardprev">
       <div class="pv">${cur?`<img src="${cur}">`:`<div style="padding:8px;text-align:center">${esc(c.name)}<br><small>${TYPE_JP[c.type]||c.type}</small></div>`}</div>
       <div style="flex:1">
@@ -1664,6 +1664,7 @@ function openCardMenu(id){
       <button class="btn" data-cm="type">タイプ変更</button>
       <button class="btn" data-cm="memo">メモ編集</button>
       <button class="btn" data-cm="img">画像設定</button>
+      ${dictGet(c.name)?"":`<button class="btn" data-cm="dicteditreg">このカードを辞書に登録（詳細編集）</button>`}
       <button class="btn" data-cm="dictreg">辞書に登録</button>
       <button class="btn" data-cm="dictupd">辞書を更新(上書き)</button>
       <button class="btn" data-cm="dictapply">辞書を適用</button>
@@ -1717,6 +1718,7 @@ function openCardMenu(id){
       case "tokvanish": closeModal(); removeTemporaryTokens([id]); return;
       case "type": closeModal(); changeType(id); return;
       case "memo": editMemo(id); break;
+      case "dicteditreg": closeModal(); openDictEditor(c.name); return; // 識別名(canonical)を保持したまま辞書編集を開く
       case "dictreg": dictFromCard(c,false); toast("辞書に登録しました"); break;
       case "dictupd": dictFromCard(c,true); toast("辞書を更新しました"); break;
       case "dictapply": if(dictApplyToCard(c)){ render(); renderPreview(); toast("辞書を適用しました"); } break;
@@ -1954,7 +1956,7 @@ function stackListHTML(){
   const items=s.slice().reverse().map((c,ri)=>{ const idx=s.length-1-ri;
     return `<div class="stack-item">
       <div class="si-main">
-        <div class="si-name">${esc(c.name)} <small style="color:var(--muted)">[${TYPE_JP[c.type]||c.type} / ${pname(c.owner)}]</small></div>
+        <div class="si-name">${esc(dispName(c.name))} <small style="color:var(--muted)">[${TYPE_JP[c.type]||c.type} / ${pname(c.owner)}]</small></div>
         <div class="si-meta">#${idx+1}${idx===s.length-1?" (最上段)":""}</div>
         <input type="text" placeholder="対象メモ" value="${esc(c._target||"")}" data-stm="target" data-i="${idx}">
         <input type="text" placeholder="解決メモ" value="${esc(c._resolve||"")}" data-stm="resolve" data-i="${idx}">
@@ -4063,7 +4065,7 @@ function resetMatchDo(shuf){
 function mgCardHTML(c,i){
   const pt=(c.power!==""||c.toughness!=="")?` ${esc(c.power)}/${esc(c.toughness)}`:"";
   return `<label class="mgcard"><input type="checkbox" class="mgchk" data-i="${i}">
-    <span class="mgc-name">${esc(c.name)}</span><span class="mgc-type">${TYPE_JP[c.type]||c.type}${pt}</span></label>`;
+    <span class="mgc-name">${esc(dispName(c.name))}</span><span class="mgc-type">${TYPE_JP[c.type]||c.type}${pt}</span></label>`;
 }
 function mulliganOpen(p){ renderMulli(p); }
 function renderMulli(p){
@@ -4173,7 +4175,7 @@ function dictGet(name){
   return null;
 }
 function dictEntryFrom(o){
-  return { name:dictKey(o.name), type:o.type||"Unknown", subtype:o.subtype||"",
+  return { name:dictKey(o.name), displayName:(typeof o.displayName==="string"?o.displayName.trim():""), type:o.type||"Unknown", subtype:o.subtype||"",
     power:(o.power!=null?String(o.power):""), toughness:(o.toughness!=null?String(o.toughness):""),
     memo:o.memo||"", imageId:o.imageId||null, imageUrl:(typeof o.imageUrl==="string"?o.imageUrl.trim():""), defaultZone:o.defaultZone||"",
     colors:dedupColors(o.colors||[]), manaValue:mvNorm(o.manaValue), produces:dedupProduce(o.produces||[]),
@@ -4186,6 +4188,7 @@ function dictSet(o,silent){
   const k=dictKey(o.name); if(!k){ if(!silent) toast("カード名がありません"); return false; }
   const all=dictAll(); const ex=all[k];
   const ent=dictEntryFrom(o);
+  if(o.displayName===undefined && ex) ent.displayName=ex.displayName||"";
   if(o.aliases===undefined && ex) ent.aliases=ex.aliases||[];
   if(o.colors===undefined && ex) ent.colors=ex.colors||[];
   if(o.manaValue===undefined && ex) ent.manaValue=ex.manaValue!=null?ex.manaValue:"";
@@ -4208,6 +4211,51 @@ function dictSet(o,silent){
 }
 function dictDelete(name,silent){ const k=dictKey(name); if(dictAll()[k]){ delete dictAll()[k]; if(!silent) addLog(`辞書削除: ${k}`); return true; } return false; }
 function dictClearAll(){ state.cardDictionary={}; addLog("辞書を全削除"); }
+function dictMergeInto(srcName,dstName){ // 別登録カード(src)を元カード(dst)へ統合。srcは削除・名前は別名に保持・参照置換
+  const all=dictAll(); const sE=dictGet(srcName), dE=dictGet(dstName);
+  if(!sE){ toast("統合元カードが辞書に見つかりません: "+srcName); return false; }
+  if(!dE){ toast("統合先カードが辞書に見つかりません: "+dstName); return false; }
+  if(sE.name===dE.name){ toast("同じカードです（統合不要）"); return false; }
+  const FILL=["subtype","power","toughness","memo","imageUrl","defaultZone","priorityNote","defaultTargetMemo"];
+  for(const f of FILL){ if((dE[f]===""||dE[f]==null)&&sE[f]) dE[f]=sE[f]; }
+  if((dE.type==="Unknown"||!dE.type)&&sE.type&&sE.type!=="Unknown") dE.type=sE.type;
+  if(!dE.imageId&&sE.imageId) dE.imageId=sE.imageId;
+  if(!dE.displayName) dE.displayName=sE.displayName||sE.name; // 日本語名側を表示名として引き継ぐ
+  if(dE.manaCost==null&&sE.manaCost!=null) dE.manaCost=sE.manaCost;
+  if((dE.manaValue==null||dE.manaValue==="")&&sE.manaValue!=null&&sE.manaValue!=="") dE.manaValue=sE.manaValue;
+  ["colors","produces","roleTags","customTags","targetKinds"].forEach(k=>{ if((!dE[k]||!dE[k].length)&&sE[k]&&sE[k].length) dE[k]=sE[k].slice(); });
+  ["faces","abilities","resolveChecklist"].forEach(k=>{ if((!dE[k]||!dE[k].length)&&sE[k]&&sE[k].length) dE[k]=JSON.parse(JSON.stringify(sE[k])); });
+  dE.aliases=dedupAliases((dE.aliases||[]).concat([sE.name], sE.aliases||[]), dE.name);
+  dE.updatedAt=nowISO();
+  delete all[sE.name];
+  let deckRef=0;
+  for(const deck of (state.decks||[])){
+    ["mainboard","sideboard","maybeboard"].forEach(bk=>{
+      const arr=deck[bk]; if(!Array.isArray(arr)) return;
+      let hit=false;
+      for(const row of arr){ if(row&&row.name===sE.name){ row.name=dE.name; hit=true; deckRef++; } }
+      if(hit){
+        for(let i=arr.length-1;i>=0;i--){ const r0=arr[i]; if(!r0) continue;
+          let j=-1; for(let k2=0;k2<i;k2++){ const x=arr[k2]; if(x&&x.name===r0.name){ j=k2; break; } }
+          if(j>=0){ arr[j].qty=(arr[j].qty||0)+(r0.qty||0); arr.splice(i,1); } }
+        deck.updatedAt=nowISO();
+      }
+    });
+  }
+  const zonesM=["library","hand","creatures","lands","others","graveyard","exile","sideboard"];
+  let boardHits=0;
+  try{ ["A","B"].forEach(p=>zonesM.forEach(z=>(state.players[p][z]||[]).forEach(c=>{ if(c&&c.name===sE.name) boardHits++; })));
+    (state.stack||[]).forEach(c=>{ if(c&&c.name===sE.name) boardHits++; }); }catch(_){}
+  if(boardHits>0){
+    act("辞書統合(盤面カード名置換)",()=>{ try{
+      ["A","B"].forEach(p=>zonesM.forEach(z=>(state.players[p][z]||[]).forEach(c=>{ if(c&&c.name===sE.name) c.name=dE.name; })));
+      (state.stack||[]).forEach(c=>{ if(c&&c.name===sE.name) c.name=dE.name; });
+    }catch(_){} });
+  }
+  addLog(`辞書統合: ${sE.name} → ${dE.name}（デッキ${deckRef}行/盤面${boardHits}枚を置換・元名は別名に保持）`);
+  saveState(true); try{ render(); }catch(_){}
+  return true;
+}
 
 /* カード → 辞書 */
 function dictFromCard(c,upd){
@@ -4241,6 +4289,7 @@ function applyDictToRows(rows){
     r.headingType=r.type;
     const e=dictGet(r.name);
     if(!e){ r.candidates=dictCandidates(r.name); continue; }
+    if(e.name && r.name!==e.name){ r.origName=r.name; r.name=e.name; } // 別名/表記ゆれ一致は正準名(canonical)へ統一＝同一カード扱い
     r.dictApplied=true; r.dictType=e.type; r.candidates=[]; applied++;
     if(e.subtype) r.subtype=e.subtype;
     if(e.power!=="") r.power=e.power;
@@ -4435,11 +4484,12 @@ function openDictQualityCheck(){
 }
 function openDictEditor(name){
   const ex = name?dictGet(name):null;
-  const e = ex || {name:"",type:"Unknown",subtype:"",power:"",toughness:"",memo:"",imageId:null,imageUrl:"",defaultZone:""};
+  const e = ex || {name:(typeof name==="string"?dictKey(name):""),displayName:"",type:"Unknown",subtype:"",power:"",toughness:"",memo:"",imageId:null,imageUrl:"",defaultZone:""};
   const zones=["","library","hand","creatures","lands","others","graveyard","exile","sideboard"];
   openModal(ex?`辞書編集 — ${esc(e.name)}`:"辞書 新規登録",`
     <div class="grid2">
-      <label class="field">カード名<input type="text" id="deName" value="${esc(e.name)}"${ex?" readonly":""}></label>
+      <label class="field">カード名（識別名・照合用${ex?"・変更不可":""}）<input type="text" id="deName" value="${esc(e.name)}"${ex?" readonly":""}></label>
+      <label class="field">表示名（任意・画面表示のみ／照合には使いません）<input type="text" id="deDispName" value="${esc(e.displayName||"")}" placeholder="例: 稲妻（空欄なら識別名を表示）"></label>
       <label class="field">タイプ<select id="deType">${DICT_TYPES.map(t=>`<option value="${t}"${t===e.type?" selected":""}>${TYP(t)}</option>`).join("")}</select></label>
     </div>
     <div class="grid2">
@@ -4461,7 +4511,15 @@ function openDictEditor(name){
     <div id="deAliasList" style="margin:6px 0"></div>
     <details style="margin-bottom:6px"><summary class="note" style="cursor:pointer">テキストで一括編集（1行に1つ）</summary>
       <textarea id="deAlias" rows="3">${esc((e.aliases||[]).join("\n"))}</textarea></details>
+    ${ex?`<div class="row-inline" style="gap:6px;margin-top:4px"><button class="btn sm" id="deMerge" type="button">別登録カードをこのカードへ統合…</button><span class="note" style="font-size:10px">日本語名等で分裂したカードを1枚に統合（元名は別名に保持・デッキ/盤面参照も置換・画像URL等は欠けている側へ補完）</span></div>`:""}
     <label class="field">画像URL（共有用・任意）<input type="text" id="deImgUrl" value="${esc(e.imageUrl||"")}" placeholder="https://... （外部URLを参照。画像本体は保存/共有しません）"></label>
+    <div class="row-inline" style="gap:6px;flex-wrap:wrap;align-items:center">
+      <button class="btn sm" id="deUpBtn" type="button">画像をアップロード</button>
+      <input type="file" id="deUpFile" accept=".png,.jpg,.jpeg,.webp,.gif,image/png,image/jpeg,image/webp,image/gif" style="display:none">
+      <input type="password" id="deUpPw" placeholder="管理pw（保存しません）" autocomplete="off" style="width:150px">
+      <span class="note" id="deUpNote"></span>
+    </div>
+    <div class="note" id="deImgPrev" style="min-height:20px"></div>
     <div class="note">画像ID: ${e.imageId?esc(e.imageId):"(なし)"} ／ 画像本体は辞書に保存しません。表示優先度: ①ローカル画像(画像ID) ②画像URL ③画像なし。画像URLは共有辞書に含まれます（外部URL参照のみ・リンク切れ時はテキスト表示）。</div>`,
     `<button class="btn" data-app="closem">キャンセル</button><button class="btn primary" id="deSave">保存</button>`);
   function _readAliases(){ return ($("#deAlias").value||"").split(/\r?\n/).map(x=>x.trim()).filter(Boolean); }
@@ -4473,18 +4531,102 @@ function openDictEditor(name){
   $("#deAliasAdd").onclick=()=>{ const v=$("#deAliasNew").value.trim(); if(!v) return; const arr=_readAliases(); arr.push(v); $("#deAlias").value=arr.join("\n"); $("#deAliasNew").value=""; _renderAliasList(); };
   $("#deAliasNew").onkeydown=(ev)=>{ if(ev.key==="Enter"){ ev.preventDefault(); $("#deAliasAdd").click(); } };
   _renderAliasList(); dictExtBind(); dictFacesInit(e); dictFacesBind(); dictAbilitiesInit(e); dictAbilitiesBind(); dictChecklistBind();
+  (function(){ const mg=$("#deMerge"); if(!mg) return; // 別登録カード統合（編集中カードが統合先）
+    mg.onclick=()=>{ openModal("カード統合 — "+esc(e.name),
+      `<div class="note">別登録されたカード（例: 日本語名で新規作成してしまったカード）を「${esc(e.name)}」へ統合します。統合元の辞書項目は削除され、その名前は別名として保持、デッキ/盤面の参照も置換されます。画像URL等の欠けている情報は統合元から補完されます。<br>※未保存の編集内容は破棄されます。</div><label class="field">統合元カード名<input type="text" id="dmSrc" placeholder="統合するカード名（例: 稲妻）"></label>`,
+      `<button class="btn" data-app="closem">キャンセル</button><button class="btn warn" id="dmGo">統合する</button>`);
+      $("#dmGo").onclick=()=>{ const src=($("#dmSrc").value||"").trim(); if(!src){ toast("統合元カード名を入力してください"); return; }
+        confirmDlg(`「${src}」を「${e.name}」へ統合します。統合元の辞書項目は削除され、元に戻せません。よろしいですか？`,()=>{ if(dictMergeInto(src, e.name)){ closeModal(); openDictEditor(e.name); } });
+      };
+    };
+  })();
+  (function(){ // 画像アップロード（第2段階）: R2有効時のみ。成功でURL自動入力・辞書保存は既存の保存ボタンで確定
+    const btn=$("#deUpBtn"), inp=$("#deUpFile"), pwEl=$("#deUpPw"), note=$("#deUpNote"), prev=$("#deImgPrev");
+    if(!btn||!inp) return;
+    const IMG_TYPES={"image/png":1,"image/jpeg":1,"image/webp":1,"image/gif":1};
+    const IMG_MAX=2*1024*1024;
+    const setNote=(t,isErr)=>{ if(note){ note.textContent=t||""; note.style.color=isErr?"#f88":""; } };
+    const updPrev=()=>{ if(!prev) return; const u=($("#deImgUrl")&&$("#deImgUrl").value.trim())||"";
+      prev.innerHTML=_validImgUrl(u)?_imgTag(u):""; const im=prev.querySelector("img"); if(im){ im.style.maxWidth="120px"; im.style.maxHeight="90px"; } };
+    if($("#deImgUrl")) $("#deImgUrl").addEventListener("input",updPrev);
+    updPrev();
+    let busy=false, imgEnabled=false;
+    btn.disabled=true; setNote("画像ストレージの状態を確認中...");
+    (async()=>{ try{
+        const {json}=await _sharedFetch("/api/shared-images-status");
+        if(json&&json.enabled){ imgEnabled=true; btn.disabled=false; setNote(""); }
+        else setNote("画像ストレージが無効です（"+((json&&json.reason)||"未設定")+"）。URL手入力は利用できます。");
+      }catch(e){ setNote("画像ストレージが無効です（この開き方では確認できません）。URL手入力は利用できます。"); }
+    })();
+    btn.onclick=()=>{ if(busy||!imgEnabled) return; inp.value=""; inp.click(); };
+    inp.onchange=async()=>{
+      if(busy) return;
+      const f=inp.files&&inp.files[0]; if(!f) return;
+      const type=(f.type||"").toLowerCase();
+      if(!IMG_TYPES[type]){ setNote("対応画像ではありません（png/jpeg/webp/gifのみ・SVG不可）",true); return; }
+      if(f.size>IMG_MAX){ setNote("画像は2MB以下にしてください（選択: "+Math.ceil(f.size/1024)+"KB）",true); return; }
+      const pw=(pwEl&&pwEl.value)||""; if(!pw){ setNote("管理パスワードを入力してください（アップロードに必要）",true); return; }
+      busy=true; btn.disabled=true; setNote("アップロード中…");
+      try{
+        const r=await fetch("/api/shared-images",{method:"POST",headers:{"x-admin-password":pw,"Content-Type":type},body:f});
+        let j=null; try{ j=await r.json(); }catch(_){}
+        if(r.status===200&&j&&j.ok&&j.imageUrl){
+          if($("#deImgUrl")) $("#deImgUrl").value=j.imageUrl;
+          updPrev(); setNote("アップロードしました（URLを自動入力。辞書への確定は保存ボタンで）");
+        }
+        else if(r.status===401) setNote("管理パスワードが違います",true);
+        else if(r.status===413) setNote("画像は2MB以下にしてください",true);
+        else if(r.status===415||r.status===400) setNote("対応画像ではありません（png/jpeg/webp/gifのみ）",true);
+        else if(r.status===503) setNote("画像ストレージが無効です",true);
+        else setNote("アップロードに失敗しました",true);
+      }catch(e){ setNote("アップロードに失敗しました（通信エラー）",true); }
+      busy=false; btn.disabled=!imgEnabled;
+    };
+  })();
   $("#deSave").onclick=()=>{
     safe(()=>{
       const nm=$("#deName").value.trim(); if(!nm){ toast("カード名を入力してください"); return; }
+      // 確認ダイアログでエディタDOMが消えるため、先に全フィールドをスナップショット
       const _ext=dictExtRead(); const _tg=dictTargetRead(); const _fc=dictFacesRead();
-      dictSet({name:nm,type:$("#deType").value,subtype:$("#deSub").value.trim(),
-        power:$("#dePow").value.trim(),toughness:$("#deTou").value.trim(),memo:$("#deMemo").value,
-        imageId:e.imageId,imageUrl:($("#deImgUrl")?$("#deImgUrl").value.trim():""),defaultZone:$("#deZone").value,
+      const snap={ displayName:($("#deDispName")?$("#deDispName").value.trim():""), type:$("#deType").value, subtype:$("#deSub").value.trim(),
+        power:$("#dePow").value.trim(), toughness:$("#deTou").value.trim(), memo:$("#deMemo").value,
+        imageUrl:($("#deImgUrl")?$("#deImgUrl").value.trim():""), defaultZone:$("#deZone").value,
         aliases:($("#deAlias").value||"").split(/\r?\n/),
-        colors:_ext.colors,manaValue:_ext.manaValue,produces:_ext.produces,roleTags:_ext.roleTags,customTags:_ext.customTags,priorityNote:_ext.priorityNote,manaCost:_ext.manaCost,
-        canTarget:_tg.canTarget,targetRequired:_tg.targetRequired,targetKinds:_tg.targetKinds,defaultTargetMemo:_tg.defaultTargetMemo,
-        layout:_fc.layout,faces:_fc.faces,abilities:dictAbilitiesRead(),resolveChecklist:dictChecklistRead()});
-      saveState(true); openDictionary();
+        abilities:dictAbilitiesRead(), resolveChecklist:dictChecklistRead() };
+      const doSave=(saveName,mergeAliasName)=>{ safe(()=>{
+        const als=snap.aliases.slice(); if(mergeAliasName) als.push(mergeAliasName);
+        const obj={name:saveName,displayName:snap.displayName,type:snap.type,subtype:snap.subtype,
+          power:snap.power,toughness:snap.toughness,memo:snap.memo,
+          imageId:e.imageId,imageUrl:snap.imageUrl,defaultZone:snap.defaultZone,
+          aliases:als,
+          colors:_ext.colors,manaValue:_ext.manaValue,produces:_ext.produces,roleTags:_ext.roleTags,customTags:_ext.customTags,priorityNote:_ext.priorityNote,manaCost:_ext.manaCost,
+          canTarget:_tg.canTarget,targetRequired:_tg.targetRequired,targetKinds:_tg.targetKinds,defaultTargetMemo:_tg.defaultTargetMemo,
+          layout:_fc.layout,faces:_fc.faces,abilities:snap.abilities,resolveChecklist:snap.resolveChecklist};
+        if(mergeAliasName){ // 既存カードへの統合保存: 空欄の入力で既存情報を消さない
+          const exE=dictAll()[saveName]||{}; // preserve規則がないフィールドは既存値をコピーして維持
+          obj.aliases=(exE.aliases||[]).concat(obj.aliases||[]); // 既存の別名を消さず結合（dictEntryFromで重複除去）
+          ["subtype","power","toughness","memo","imageUrl","defaultZone","displayName","priorityNote","defaultTargetMemo"].forEach(k=>{ if(obj[k]===""&&exE[k]) obj[k]=exE[k]; });
+          if(obj.type==="Unknown"&&exE.type&&exE.type!=="Unknown") obj.type=exE.type;
+          if(obj.imageId==null&&exE.imageId) obj.imageId=exE.imageId;
+          ["colors","produces","roleTags","customTags","targetKinds","faces","abilities","resolveChecklist"].forEach(k=>{ if(Array.isArray(obj[k])&&!obj[k].length) delete obj[k]; }); // これらはdictSetのpreserve規則あり
+          if(obj.manaValue===""||obj.manaValue==null) delete obj.manaValue;
+          if(obj.manaCost==null) delete obj.manaCost;
+          if(obj.layout==="normal") delete obj.layout;
+          if(!obj.canTarget) delete obj.canTarget;
+          if(!obj.targetRequired) delete obj.targetRequired;
+        }
+        dictSet(obj);
+        saveState(true); openDictionary();
+      }); };
+      const exExact=dictAll()[dictKey(nm)];
+      if(!exExact){
+        const exNorm=dictGet(nm); // 正規化・別名で既存カードに一致 → 別カードを作らず既存を更新
+        if(exNorm && exNorm.name!==dictKey(nm)){
+          confirmDlg(`「${nm}」は既存カード「${exNorm.name}」と同一（正規化/別名一致）と判定されました。別カードを新規作成せず「${exNorm.name}」を更新します（入力名は別名に追加・空欄項目は既存値を維持）。よろしいですか？`,()=>{ doSave(exNorm.name, nm); });
+          return;
+        }
+      }
+      doSave(nm, null);
     });
   };
 }
@@ -5141,7 +5283,7 @@ function openLethalCheck(){
   const body=dead.length?`
     <div class="note">damage ≥ 表示タフネス のカードです。破壊不能/再生などは自動判定しません。墓地へ送るカードを選んでください。</div>
     <div class="lcgrid">${dead.map(c=>`<label class="mgcard"><input type="checkbox" class="lcChk" data-id="${c.id}" checked>
-      <span class="mgc-name">${esc(c.name)}</span><span class="mgc-type">${effPow(c)}/${effTou(c)} dmg${c.damage||0} (${pname(c.controller||c.owner)})</span></label>`).join("")}</div>`
+      <span class="mgc-name">${esc(dispName(c.name))}</span><span class="mgc-type">${effPow(c)}/${effTou(c)} dmg${c.damage||0} (${pname(c.controller||c.owner)})</span></label>`).join("")}</div>`
     :`<div class="note">致死状態（damage ≥ 表示タフネス）のクリーチャーはありません。</div>`;
   openModal("致死カードを確認", body,
     dead.length?`<button class="btn" data-app="closem">キャンセル</button><button class="btn warn" id="lcSend">選択を墓地へ</button>`
@@ -5339,7 +5481,7 @@ function cewRender(step){
       const role=c.attacking?"攻撃側":(c.blocking?"防御側":"-");
       const ck=_cew.lethalChecked.has(c.id)?" checked":"";
       return `<label class="mgcard"><input type="checkbox" class="cewLethalChk" data-id="${c.id}"${ck}>
-        <span class="mgc-name">${esc(c.name)} <small>(${role}/${pname(c.controller||c.owner)})</small></span>
+        <span class="mgc-name">${esc(dispName(c.name))} <small>(${role}/${pname(c.controller||c.owner)})</small></span>
         <span class="mgc-type">${effPow(c)}/${effTou(c)} dmg${c.damage||0}</span></label>`;
     }).join(""):'<div class="note">致死候補（damage ≥ 表示タフネス）はありません。</div>';
     body=`<div class="cew-step">Step 1 / 4 ・ 致死カード確認</div>
@@ -5474,7 +5616,7 @@ function crwRender(step){
     const rows=lethal.length?lethal.map(x=>{ const c=x.card; const role=c.attacking?"攻撃側":(c.blocking?"防御側":"-");
       const ck=_crw.lethalChecked.has(c.id)?" checked":"";
       return `<label class="mgcard"><input type="checkbox" class="crwLethalChk" data-id="${c.id}"${ck}>
-        <span class="mgc-name">${esc(c.name)} <small>(${role}/${pname(c.controller||c.owner)})</small></span>
+        <span class="mgc-name">${esc(dispName(c.name))} <small>(${role}/${pname(c.controller||c.owner)})</small></span>
         <span class="mgc-type">${effPow(c)}/${effTou(c)} → dmg${x.after}/${effTou(c)}</span></label>`;
     }).join(""):'<div class="note">適用後に致死となるカードはありません。</div>';
     body=`${stepLabel}<div class="note">ダメージ適用後に damage ≥ 表示タフネス になるカードです。破壊不能・再生・置換効果などはユーザー判断です。残すカードはチェックを外してください。</div><div class="lcgrid">${rows}</div>`;
@@ -9227,7 +9369,8 @@ const HELP_SECTIONS=[
   ["起動型/誘発型能力テンプレ", [
     "能力テンプレは辞書に手動登録します（起動型/誘発型/手動/マナ等）。公式ルールの自動判定や効果の自動処理はしません。",
     "「誘発候補リマインド」設定をONにすると、戦場（creatures/others/lands・A/B両方）の登録済み triggered 能力を確認キューに「誘発候補があります（N件）」として表示し、「候補確認」で一覧を開けます。timing が現在フェーズと関連する場合は「関連」表示が付きます（厳密判定ではありません）。",
-    "共有ライブラリ（第13回）: 同一サーバーに DATABASE_URL（Postgres）と SHARED_ADMIN_PASSWORD が設定されている場合のみ、ツールバー「共有」からカード辞書とデッキをサーバーに共有保存/読み込みできます。保存は管理パスワードを知っている人だけ、読み込みは誰でも可能です。読み込みは「マージ」（既存に統合）か「上書き」（強い確認あり）を選べ、既存のsave/render流儀で反映され Undo/Redo は汚しません。DATABASE_URL が無い場合は共有UIが『無効（DB未設定）』表示になるだけで、オフライン/オンライン対戦を含む既存機能はすべて従来どおり動きます。カード辞書には画像URL（imageUrl・任意）を持てます。表示優先度は ①ローカル画像(画像ID) ②画像URL ③画像なし で、画像URLは共有辞書に含まれます（外部URL参照のみ・画像本体やIndexedDB画像は共有されず、リンク切れ時はテキスト表示）。これは身内向けで、本格運用にはユーザー認証・権限管理・画像ストレージが必要です。",
+    "識別名と表示名の分離（第15回）: カード辞書に『表示名（displayName）』と統合機能を追加しました。カード名（識別名=canonical）はインポート照合・重複判定・エクスポートに使われ、既存カードでは変更できません。表示名を設定すると盤面・手札・スタック・カード詳細では表示名（例: 稲妻）で表示され、照合とエクスポートは識別名（例: Lightning Bolt）のままです。インポート時は識別名と別名（エイリアス・大文字小文字/全半角/前後空白は正規化）で照合し、一致したら正準名に統一するため同じカードが分裂しません。未登録カードは右クリック→『このカードを辞書に登録（詳細編集）』で識別名を保持したまま辞書登録できます。辞書保存時に既存カードと正規化/別名一致する名前を付けた場合は、別カードを作らず既存カードを更新するか確認します（入力名は別名に追加・空欄項目は既存値を維持）。すでに日本語名で別登録してしまったカードは、統合先カードの辞書編集画面の『別登録カードをこのカードへ統合…』で1枚に統合できます（元名は別名保持・画像URL等は補完・デッキ/盤面参照も置換・盤面置換分はUndo可）。デッキ編集欄とエクスポートは従来どおり識別名を使います。",
+    "共有ライブラリ（第13回）: 同一サーバーに DATABASE_URL（Postgres）と SHARED_ADMIN_PASSWORD が設定されている場合のみ、ツールバー「共有」からカード辞書とデッキをサーバーに共有保存/読み込みできます。保存は管理パスワードを知っている人だけ、読み込みは誰でも可能です。読み込みは「マージ」（既存に統合）か「上書き」（強い確認あり）を選べ、既存のsave/render流儀で反映され Undo/Redo は汚しません。DATABASE_URL が無い場合は共有UIが『無効（DB未設定）』表示になるだけで、オフライン/オンライン対戦を含む既存機能はすべて従来どおり動きます。カード辞書には画像URL（imageUrl・任意）を持てます。表示優先度は ①ローカル画像(画像ID) ②画像URL ③画像なし で、画像URLは共有辞書に含まれます（外部URL参照のみ・画像本体やIndexedDB画像は共有されず、リンク切れ時はテキスト表示）。R2等の画像ストレージが有効な場合は、辞書編集画面の「画像をアップロード」から画像（png/jpeg/webp/gif・2MBまで・要管理パスワード）を上げて画像URLを自動入力できます（辞書への確定は保存ボタン・パスワードは保存しません）。これは身内向けで、本格運用にはユーザー認証・権限管理・画像ストレージが必要です。",
     "双方向同期モード（第14回・既定OFF）: 通常はホスト操作だけがゲストへ同期されますが、ホストがオンラインモーダルの「双方向同期」をONにすると（強い確認あり）、信頼できる role A/B の相手の操作もホストを含む全員へ同期される共有卓モードになります（spectatorは送信不可）。各クライアントは自分の「ホスト操作後に自動同期」をONにすると盤面操作を送信し、「受信stateを自動適用」をONにすると相手の更新を自動反映します（ホストも collab 中は自動適用対象）。UI位置・パネル・チャット・視点は従来どおり同期されず、スタックは中身のみ同期（UI位置は各自）。競合は厳密解決せず、サーバーのrevが一致した更新だけを採用し、rev不一致は拒否→再同期/手動適用になります（同時に細かく操作しすぎないでください）。これは信頼相手向けの共有卓であり、秘匿対戦・不正防止ではありません（stateには手札/ライブラリー順など全情報が含まれます）。同一内容のstateを受信した場合は適用も再送信もスキップされ（no-op判定・ログ/Undoなし）、自動適用の成功はオンラインログのみに記録され処理履歴には追記されません（反射ループ防止）。staleRev拒否が続くとバッジに「再同期が必要」と表示されるので、state問い合わせ→適用で復帰してください。",
     "簡易入室制限（第12回）: ルーム作成時に任意のパスワードを設定でき（作成pw欄）、参加時は同じパスワードが必要になります（参加pw欄）。パスワードはサーバーで平文保持せず sha256+ソルトのハッシュのみを保持し、参加者一覧やroomSummaryにも生の値は流れません。ホストは「参加ロック」で新規参加を停止/再開でき、満員（最大8人）でも参加が拒否されます。拒否時は joinRejected（password/locked/full）を受け取り、既存の接続・ルームは維持されます（別room参加や再試行が可能）。参加者一覧には🔒鍵あり/🔓鍵なし・ロック状態・人数を表示し、招待情報（URL/Room/鍵の有無）のコピーもできます（パスワードは自動で含めません）。これは身内向けの簡易入室制限で完全な認証ではなく、stateには手札/ライブラリー順など全情報が含まれるため、URLとパスワードは信頼できる相手にだけ共有してください。遠隔公開には引き続き TLS/トンネル/常設サーバー等の対応が別途必要です。",
     "オンラインUX修正（第11回）: ホスト自動同期は、これまで一部操作でしか走らなかったのを改め、ライフ・ドロー・カード移動・タップ・スタック操作・対象指定・トークン・カウンター・マナ・墓地/追放/ライブラリー操作・フェーズ/ターン進行など盤面を変える操作すべてで走るようにしました（デバウンス/重複スキップは維持。UI位置変更・パネル開閉・チャット・視点切替では送信しません）。スタックUIの位置/サイズや各種パネル位置・視点などの各クライアント固有UIは同期対象から除外され、受信state適用時も自分の設定が維持されます（スタックの中身＝カード/能力/順番/対象は従来どおり同期）。オンライン接続中は相手（上側）カードを180°回転せず正立表示にしました（rotateOpponent設定は従来どおりオフラインに適用）。メニュー操作パネルは「メニュー浮動」ボタンでドラッグ移動・リサイズ・⟲リセット・⤢でサイドバーに戻せる浮動パネルにできます。プレイヤー情報欄（ライフ/山札/手札/墓地/追放/マナ）はサイドバー内で上下に固定表示され、スクロールしても見失いません（role A/Bの手前表示に追従）。これらUIは表示のみで盤面stateを変えず、Undo/Redoにも影響しません。",
@@ -10015,13 +10158,17 @@ function getCardActiveFace(c){
   if(typeof i!=="number" || i<0 || i>=faces.length) return null;
   return faces[i];
 }
+function dispName(name){ // 画面表示専用の表示名（照合・重複判定・エクスポートには使わない）
+  try{ const e=dictGet(name); if(e&&e.displayName) return e.displayName; }catch(_){}
+  return name;
+}
 function getCardDisplayInfo(c){
   const f=getCardActiveFace(c);
-  if(!f){ return { name:c.name, type:c.type, subtype:c.subtype, power:c.power, toughness:c.toughness, imageId:c.imageId, memo:c.memo,
+  if(!f){ return { name:dispName(c.name), type:c.type, subtype:c.subtype, power:c.power, toughness:c.toughness, imageId:c.imageId, memo:c.memo,
     targetRequired:c.targetRequired, targetKinds:undefined, colors:undefined, manaValue:undefined, roleTags:undefined,
     faceActive:false, faceName:null, faceIndex:null, repName:c.name }; }
   return {
-    name: f.name||c.name, type: f.type||c.type, subtype: f.subtype||c.subtype,
+    name: (f.name?f.name:dispName(c.name)), type: f.type||c.type, subtype: f.subtype||c.subtype,
     power: (f.power!=null&&f.power!=="")?f.power:c.power,
     toughness: (f.toughness!=null&&f.toughness!=="")?f.toughness:c.toughness,
     imageId: f.imageId||c.imageId, memo: f.memo||c.memo,
