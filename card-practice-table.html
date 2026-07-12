@@ -5754,6 +5754,10 @@ function bo3Start(aId,bId,first,draw,memo){
   m.deck.B={deckId:db.deckId,deckName:db.deckName,mainboard:cloneDeckEntries(db.mainboard),sideboard:cloneDeckEntries(db.sideboard)};
   m.preSideboard.A={mainboard:cloneDeckEntries(m.deck.A.mainboard),sideboard:cloneDeckEntries(m.deck.A.sideboard)};
   m.preSideboard.B={mainboard:cloneDeckEntries(m.deck.B.mainboard),sideboard:cloneDeckEntries(m.deck.B.sideboard)};
+  m.original={A:{mainboard:cloneDeckEntries(m.deck.A.mainboard),sideboard:cloneDeckEntries(m.deck.A.sideboard)},
+              B:{mainboard:cloneDeckEntries(m.deck.B.mainboard),sideboard:cloneDeckEntries(m.deck.B.sideboard)}}; // マッチ終了時の復元用（保存済みデッキ本体は最初からクローンで不変）
+  m.mainCount={A:deckCount(m.deck.A.mainboard),B:deckCount(m.deck.B.mainboard)}; // 同数交換方式の基準メイン枚数
+  m.sbReady={A:false,B:false}; m.voidReplay=false;
   state.match=m;
   loadGameBoard(draw);
   state.turn={number:1,active:first,phase:0,priority:first,combatDamagePlan:{}};
@@ -5766,8 +5770,9 @@ function bo3Start(aId,bId,first,draw,memo){
 /* ゲーム終了 */
 function openGameEnd(){
   const m=curMatch(); if(!m.matchActive){ toast("BO3マッチが開始されていません"); return; }
+  if(online.roomCode && !online.isHost){ toast("ゲーム結果の記録はホストのみ可能です"); return; }
   openModal(`ゲーム終了 (Game ${m.gameNumber})`,`
-    <label class="field">勝者<select id="geWin"><option value="A">Player A</option><option value="B">Player B</option><option value="draw">引き分け</option></select></label>
+    <label class="field">勝者<select id="geWin"><option value="A">Player A</option><option value="B">Player B</option><option value="draw">引き分け</option><option value="void">ゲームを無効にする（ノーカウント・同番号で再戦）</option></select></label>
     <label class="field">メモ<input type="text" id="geMemo" placeholder="任意"></label>
     <label class="field">次へ<select id="geNext">
       <option value="side">サイドボードへ進む</option>
@@ -5781,13 +5786,14 @@ function gameEnd(winner,memo,next){
   const m=curMatch();
   m.gameResults.push({gameNumber:m.gameNumber,winner,startingPlayer:m.startingPlayer,notes:memo||"",endedAt:nowISO()});
   if(winner==="A") m.playerAWins++; else if(winner==="B") m.playerBWins++;
-  addLog(`Game${m.gameNumber} 結果: ${winner==="draw"?"引き分け":pname(winner)+"勝利"} (A ${m.playerAWins} - ${m.playerBWins} B)`);
-  const matchOver = m.playerAWins>=2 || m.playerBWins>=2 || next==="end";
+  if(winner==="void"){ m.voidReplay=true; addLog(`Game${m.gameNumber} を無効にしました（ノーカウント・同じゲーム番号で再戦）`); }
+  else addLog(`Game${m.gameNumber} 結果: ${winner==="draw"?"引き分け":pname(winner)+"勝利"} (A ${m.playerAWins} - ${m.playerBWins} B)`);
+  const matchOver = m.playerAWins>=2 || m.playerBWins>=2 || (next==="end" && winner!=="void");
   if(matchOver){ finishMatch(); }
-  else if(next==="side"){ m.sideboardPhase=true; addLog("サイドボードフェーズへ"); }
+  else if(next==="side"||winner==="void"){ m.sideboardPhase=true; m.sbReady={A:false,B:false}; addLog("サイドボードフェーズへ"); }
   clearUndo(); saveState(true); closeModal(); render();
   if(m.matchActive && m.sideboardPhase) openSideboard();
-  else if(!m.matchActive) toast("マッチ終了");
+  else if(!m.matchActive) openMatchEnd();
 }
 function finishMatch(){
   cptAutoBackup("before-match-end");
@@ -5799,12 +5805,64 @@ function finishMatch(){
   addLog(`マッチ終了: A ${m.playerAWins} - ${m.playerBWins} B (${res})`);
 }
 function pushMatchHistory(rec){ if(!Array.isArray(state.matchHistory)) state.matchHistory=[]; state.matchHistory.unshift(rec); if(state.matchHistory.length>20) state.matchHistory.length=20; }
+function bo3RestoreOriginal(silent){ // マッチ用作業コピー(matchMain/matchSideboard)を元デッキ構成へ復元。保存済みデッキ本体は元々不変
+  const m=curMatch(); if(!m.original||!m.deck.A||!m.deck.B){ return false; }
+  for(const p of ["A","B"]){ m.deck[p].mainboard=cloneDeckEntries(m.original[p].mainboard); m.deck[p].sideboard=cloneDeckEntries(m.original[p].sideboard); }
+  if(!silent) addLog("サイド変更を破棄し、元デッキ構成に戻しました");
+  saveState(true); return true;
+}
+function openMatchEnd(){
+  const m=curMatch();
+  const win = m.playerAWins>m.playerBWins?"A":(m.playerBWins>m.playerAWins?"B":null);
+  openModal("マッチ終了",`
+    <div style="text-align:center;padding:8px 0">
+      <div style="font-size:20px;font-weight:bold">${win?esc(pname(win)):"引き分け"}</div>
+      ${win?'<div style="font-size:15px">マッチ勝利</div>':""}
+      <div style="font-size:22px;margin-top:4px"><b>${m.playerAWins}</b> - <b>${m.playerBWins}</b></div>
+      <div class="note">${esc(m.deck.A?m.deck.A.deckName:"")} vs ${esc(m.deck.B?m.deck.B.deckName:"")}</div>
+    </div>`,
+    `<button class="btn" id="meRestore">元デッキに戻して終了</button>
+     <button class="btn" id="meRematch">同じデッキで再戦</button>
+     <button class="btn primary" data-app="closem">結果を閉じる</button>`);
+  $("#meRestore").onclick=()=>{ bo3RestoreOriginal(); closeModal(); render(); toast("元デッキ構成に戻しました"); };
+  $("#meRematch").onclick=()=>{ openBo3Rematch(); };
+}
+function openBo3Rematch(){
+  const m=curMatch(); if(!m.original||!m.deck.A||!m.deck.B){ toast("元デッキ情報がありません"); return; }
+  if(online.roomCode && !online.isHost){ toast("再戦の開始はホストのみ可能です"); return; }
+  openModal("同じデッキで再戦",`
+    <div class="note">まずサイド変更を破棄して元デッキに戻し、新しいBO3マッチ（Game1）を開始します。</div>
+    <label class="field">Game1 先手<select id="rmFirst"><option value="A">Player A</option><option value="B">Player B</option><option value="rand">ランダム</option></select></label>
+    <label class="field">初期手札<select id="rmDraw"><option value="7">すぐ7枚引く</option><option value="0">山札だけセット</option></select></label>`,
+    `<button class="btn" data-app="closem">キャンセル</button><button class="btn primary" id="rmOk">再戦開始</button>`);
+  $("#rmOk").onclick=()=>{ let first=$("#rmFirst").value; if(first==="rand") first=Math.random()<0.5?"A":"B";
+    const draw=parseInt($("#rmDraw").value,10);
+    confirmDlg("元デッキに戻して新しいBO3を開始します。現在の盤面とUndo履歴はクリアされます。よろしいですか？",()=>{
+      const m2=curMatch(); bo3RestoreOriginal(true); cptAutoBackup("before-bo3-rematch");
+      m2.mode="bo3"; m2.matchActive=true; m2.gameNumber=1; m2.playerAWins=0; m2.playerBWins=0; m2.gameResults=[];
+      m2.sideboardPhase=false; m2.startingPlayer=first; m2.sbReady={A:false,B:false}; m2.voidReplay=false;
+      m2.preSideboard.A={mainboard:cloneDeckEntries(m2.deck.A.mainboard),sideboard:cloneDeckEntries(m2.deck.A.sideboard)};
+      m2.preSideboard.B={mainboard:cloneDeckEntries(m2.deck.B.mainboard),sideboard:cloneDeckEntries(m2.deck.B.sideboard)};
+      m2.mainCount={A:deckCount(m2.deck.A.mainboard),B:deckCount(m2.deck.B.mainboard)};
+      loadGameBoard(draw);
+      state.turn={number:1,active:first,phase:0,priority:first,combatDamagePlan:{}};
+      state.game={firstPlayer:first,started:true};
+      clearUndo();
+      addLog(`再戦: BO3開始 (Game1先手 ${pname(first)})`);
+      saveState(true); closeModal(); render(); toast("再戦開始");
+    });
+  };
+}
 
 /* 次ゲーム */
 function lastLoser(){ const gr=curMatch().gameResults; if(!gr.length) return null; const w=gr[gr.length-1].winner; if(w==="draw") return null; return w==="A"?"B":"A"; }
 function openNextGame(){
   const m=curMatch(); const loser=lastLoser();
-  openModal(`Game${m.gameNumber+1} 開始`,`
+  if(m.matchActive && m.sideboardPhase){
+    if(online.roomCode && !online.isHost){ toast("次のゲーム開始はホストのみ可能です"); return; }
+    if(!(m.sbReady&&m.sbReady.A&&m.sbReady.B)){ toast(`両者の「サイドボード準備完了」が必要です（A:${(m.sbReady&&m.sbReady.A)?"完了":"未"} / B:${(m.sbReady&&m.sbReady.B)?"完了":"未"}）`); return; }
+  }
+  openModal(`Game${m.voidReplay?m.gameNumber:m.gameNumber+1} 開始${m.voidReplay?"（無効ゲームの再戦）":""}`,`
     <label class="field">先手<select id="ngFirst">
       <option value="loser">前ゲーム敗者${loser?`（${pname(loser)}）`:"（なし）"}</option>
       <option value="A">Player A</option><option value="B">Player B</option><option value="rand">ランダム</option></select></label>
@@ -5817,7 +5875,7 @@ function openNextGame(){
     confirmDlg("次ゲームを開始します。盤面はリセットされ、Undo履歴もクリアされます。", ()=>nextGame(fv,draw)); };
 }
 function nextGame(first,draw){
-  const m=curMatch(); m.gameNumber++; m.sideboardPhase=false; m.startingPlayer=first;
+  const m=curMatch(); if(m.voidReplay){ m.voidReplay=false; } else { m.gameNumber++; } m.sideboardPhase=false; m.startingPlayer=first; m.sbReady={A:false,B:false};
   m.preSideboard.A={mainboard:cloneDeckEntries(m.deck.A.mainboard),sideboard:cloneDeckEntries(m.deck.A.sideboard)};
   m.preSideboard.B={mainboard:cloneDeckEntries(m.deck.B.mainboard),sideboard:cloneDeckEntries(m.deck.B.sideboard)};
   loadGameBoard(draw);
@@ -5837,17 +5895,20 @@ function sbDiff(p){
   return {inList,outList};
 }
 function sbMove(p,name,fromKey,toKey,all){
+  if(!_sbCanEdit(p)){ toast("この列は本人のみ編集できます"); return; }
   const dk=curMatch().deck[p]; const from=dk[fromKey], to=dk[toKey];
   const fe=from.find(e=>e.name===name); if(!fe) return;
   const n=all?fe.qty:1; if(n<=0) return;
   fe.qty-=n; if(fe.qty<=0){ from.splice(from.indexOf(fe),1); }
   const te=to.find(e=>e.name===name);
   if(te) te.qty+=n; else to.push({name:fe.name,qty:n,type:fe.type,subtype:fe.subtype,power:fe.power,toughness:fe.toughness,memo:fe.memo,imageId:fe.imageId,defaultZone:fe.defaultZone});
+  if(curMatch().sbReady) curMatch().sbReady[p]=false; // 編集したら準備完了を解除
   saveState(true); openSideboard();
 }
 function sbRevert(p){ const m=curMatch(); if(!m.preSideboard[p]) return;
   m.deck[p].mainboard=cloneDeckEntries(m.preSideboard[p].mainboard);
   m.deck[p].sideboard=cloneDeckEntries(m.preSideboard[p].sideboard);
+  if(curMatch().sbReady) curMatch().sbReady[p]=false;
   addLog(`${pname(p)} サイドボードを開始時に戻す`); saveState(true); openSideboard(); }
 function sbLogSwap(p){ const {inList,outList}=sbDiff(p);
   addLog(`${pname(p)} 入れ替え: IN[${inList.map(x=>x.name+"×"+x.qty).join(", ")||"なし"}] / OUT[${outList.map(x=>x.name+"×"+x.qty).join(", ")||"なし"}]`);
@@ -5862,24 +5923,52 @@ function sbSavePlan(p){
 }
 function sbApplyPlan(idx,p){ const plan=state.sideboardPlans[idx]; if(!plan) return; const m=curMatch();
   m.deck[p].mainboard=cloneDeckEntries(plan.mainboard); m.deck[p].sideboard=cloneDeckEntries(plan.sideboard);
+  if(curMatch().sbReady) curMatch().sbReady[p]=false;
   addLog(`サイドプラン適用(${pname(p)}): ${plan.planName}`); saveState(true); openSideboard(); }
 function sbDeletePlan(idx){ const plan=state.sideboardPlans[idx]; if(!plan) return;
   confirmDlg(`サイドプラン「${plan.planName}」を削除します（実行前に自動バックアップを作成します）。よろしいですか？`, ()=>{ cptAutoBackup("before-sideboard-plan-delete"); state.sideboardPlans.splice(idx,1); addLog(`サイドプラン削除: ${plan.planName}`); saveState(true); openSideboard(); }); }
 
 let _sbTab="A", _sbQ="", _sbType="";
+function _sbCanEdit(p){ // オフライン: 両方可 / オンライン: 自分のrole(A/B)のみ・観戦者不可
+  if(!online.roomCode) return true;
+  if(online.role!=="A"&&online.role!=="B") return false;
+  return online.role===p;
+}
+function _sbCanView(p){ // 相手のサイド内容は通常UIに表示しない（準備状態のみ）。オフラインは両方表示
+  if(!online.roomCode) return true;
+  return online.role===p;
+}
+function sbToggleReady(p){
+  const m=curMatch(); if(!m.matchActive) return;
+  if(!_sbCanEdit(p)){ toast(`準備完了は本人（Player ${p}）のみ操作できます`); return; }
+  if(!m.sbReady) m.sbReady={A:false,B:false};
+  if(!m.sbReady[p]){
+    const cnt=deckCount(m.deck[p].mainboard), base=(m.mainCount&&m.mainCount[p])!=null?m.mainCount[p]:cnt;
+    if(cnt!==base){ toast(`メイン枚数が開始時と一致しません（開始 ${base} / 現在 ${cnt}）。入れた枚数と抜いた枚数を同数にしてください`); return; }
+    m.sbReady[p]=true; addLog(`${pname(p)} サイドボード準備完了`);
+    if(m.sbReady.A&&m.sbReady.B) addLog("両者サイドボード準備完了");
+  } else { m.sbReady[p]=false; addLog(`${pname(p)} 準備完了を解除`); }
+  saveState(true); openSideboard();
+}
 function openSideboard(){
   const m=curMatch();
   if(!m.deck.A||!m.deck.B){ toast("BO3マッチがありません"); return; }
   const p=_sbTab, dk=m.deck[p];
   const filt=(list)=>list.filter(e=>(!_sbQ||e.name.toLowerCase().includes(_sbQ.toLowerCase()))&&(!_sbType||e.type===_sbType))
     .sort((a,b)=>a.name.localeCompare(b.name,"ja"));
-  const row=(e,dir)=>`<div class="sb-row"><span class="sb-n">${esc(e.name)} <small>×${e.qty}</small></span>
+  const canEdit=_sbCanEdit(p), canView=_sbCanView(p);
+  const row=(e,dir)=>{ const dn=dispName(e.name); const isrc=_cardImgSrc({imageId:e.imageId,imageUrl:"",name:e.name});
+    return `<div class="sb-row">${isrc?`<img src="${esc(isrc)}" alt="" style="width:22px;height:auto;border-radius:2px;flex:none;margin-right:4px" onerror="this.remove()">`:""}<span class="sb-n">${esc(dn)}${dn!==e.name?` <small style="color:var(--muted)">${esc(e.name)}</small>`:""} <small>×${e.qty}</small></span>
     <span class="sb-t">${TYP(e.type)}</span>
-    <span class="sb-mv"><button class="btn tiny" data-sbmv="${dir}" data-name="${esc(e.name)}">${dir==="m2s"?"→サイド":"→メイン"}</button>
-      <button class="btn tiny" data-sbmv="${dir}" data-name="${esc(e.name)}" data-all="1">全部</button></span></div>`;
+    <span class="sb-mv">${canEdit?`<button class="btn tiny" data-sbmv="${dir}" data-name="${esc(e.name)}">${dir==="m2s"?"−1→サイド":"+1→メイン"}</button>
+      <button class="btn tiny" data-sbmv="${dir}" data-name="${esc(e.name)}" data-all="1">全部</button>`:""}</span></div>`; };
   const mainList=filt(dk.mainboard).map(e=>row(e,"m2s")).join("")||'<div class="note">なし</div>';
   const sideList=filt(dk.sideboard).map(e=>row(e,"s2m")).join("")||'<div class="note">なし</div>';
   const {inList,outList}=sbDiff(p);
+  const inN=inList.reduce((a,b)=>a+b.qty,0), outN=outList.reduce((a,b)=>a+b.qty,0);
+  const curCnt=deckCount(dk.mainboard), base=(m.mainCount&&m.mainCount[p])!=null?m.mainCount[p]:curCnt;
+  const mainOk=curCnt===base;
+  const rdy=(m.sbReady&&m.sbReady[p]);
   const plans=(state.sideboardPlans||[]).map((pl,i)=>({pl,i})).filter(x=>x.pl.deckId===dk.deckId);
   const planRows=plans.length?plans.map(x=>`<div class="sb-row"><span class="sb-n">${esc(x.pl.planName)} <small>${esc(x.pl.opponentDeckName||"")}</small></span>
     <span class="sb-mv"><button class="btn tiny" data-sbplan="apply" data-i="${x.i}">適用</button>
@@ -5887,32 +5976,38 @@ function openSideboard(){
       <button class="btn tiny warn" data-sbplan="del" data-i="${x.i}">削除</button></span></div>`).join("")
     :'<div class="note">保存済みプランなし</div>';
   openModal("サイドボード",`
-    <div class="sb-tabs"><button class="btn sm${p==="A"?" primary":""}" data-sb="tabA">Player A</button>
-      <button class="btn sm${p==="B"?" primary":""}" data-sb="tabB">Player B</button>
+    <div class="sb-tabs"><button class="btn sm${p==="A"?" primary":""}" data-sb="tabA">Player A${m.sbReady&&m.sbReady.A?" ✔":""}</button>
+      <button class="btn sm${p==="B"?" primary":""}" data-sb="tabB">Player B${m.sbReady&&m.sbReady.B?" ✔":""}</button>
       <span class="sb-deck">${esc(dk.deckName)}</span></div>
+    <div class="sb-diff">状態: A <b>${m.sbReady&&m.sbReady.A?"準備完了":"未確定"}</b> ・ B <b>${m.sbReady&&m.sbReady.B?"準備完了":"未確定"}</b>${online.roomCode?'<span class="note">（オンライン: 自分のrole分だけ編集・相手の内容は非表示）</span>':""}</div>
+    ${canView?`
     <div class="row-inline" style="gap:6px;margin:6px 0;flex-wrap:wrap">
       <input type="text" id="sbQ" placeholder="カード名検索" value="${esc(_sbQ)}" style="flex:1;min-width:120px">
       <select id="sbType" style="width:auto"><option value="">全タイプ</option>${DICT_TYPES.map(t=>`<option value="${t}"${t===_sbType?" selected":""}>${TYP(t)}</option>`).join("")}</select></div>
     <div class="sb-cols">
-      <div class="sb-col"><div class="sb-h">メイン (${deckCount(dk.mainboard)})</div><div class="sb-list">${mainList}</div></div>
-      <div class="sb-col"><div class="sb-h">サイド (${deckCount(dk.sideboard)})</div><div class="sb-list">${sideList}</div></div>
+      <div class="sb-col"><div class="sb-h">メイン 合計 ${deckCount(dk.mainboard)}枚</div><div class="sb-list">${mainList}</div></div>
+      <div class="sb-col"><div class="sb-h">サイド 合計 ${deckCount(dk.sideboard)}枚</div><div class="sb-list">${sideList}</div></div>
     </div>
-    <div class="sb-diff">入れ替え: <b>IN</b> ${inList.map(x=>esc(x.name)+"×"+x.qty).join("、")||"なし"} ／ <b>OUT</b> ${outList.map(x=>esc(x.name)+"×"+x.qty).join("、")||"なし"}（IN ${inList.reduce((a,b)=>a+b.qty,0)} / OUT ${outList.reduce((a,b)=>a+b.qty,0)}）</div>
+    <div class="sb-diff">入れ替え: <b>IN</b> ${inList.map(x=>esc(dispName(x.name))+"×"+x.qty).join("、")||"なし"} ／ <b>OUT</b> ${outList.map(x=>esc(dispName(x.name))+"×"+x.qty).join("、")||"なし"}（入れた ${inN} / 抜いた ${outN}）</div>
+    <div class="sb-diff">${mainOk&&inN===outN?`<span style="color:#7ec97e">✔ 同数交換OK（メイン ${curCnt}枚）</span>`:`<span style="color:#e0a83c">メイン枚数 開始時${base}枚 / 現在${curCnt}枚${inN!==outN?`（入れた${inN} ≠ 抜いた${outN}）`:""} — 同数になるまで準備完了できません</span>`}</div>
     <details class="sb-plans"><summary>サイドプラン</summary>
-      <div class="row-inline" style="gap:6px;margin:4px 0"><button class="btn sm" data-sb="saveplan">現在をプラン保存</button></div>
-      ${planRows}</details>
+      <div class="row-inline" style="gap:6px;margin:4px 0">${canEdit?`<button class="btn sm" data-sb="saveplan">現在をプラン保存</button>`:""}</div>
+      ${planRows}</details>`:`
+    <div class="note" style="margin:10px 0">相手のサイドボード内容は表示されません（準備状態のみ共有）。自分のタブで入れ替えを行ってください。</div>`}
     <div class="sb-actions">
-      <button class="btn sm" data-sb="revert">サイド前に戻す</button>
-      <button class="btn sm" data-sb="logswap">入れ替えをログ</button>
-      <button class="btn sm" data-sb="ohpractice">この構成で初手練習</button>
-      <button class="btn sm primary" data-sb="nextgame">次ゲーム開始 ▶</button>
+      ${canView&&canEdit?`<button class="btn sm" data-sb="revert">変更を取り消す（開始時へ）</button>`:""}
+      ${canView&&canEdit&&!online.roomCode?`<button class="btn sm" data-sb="logswap">入れ替えをログ</button>`:""}
+      ${canView&&canEdit?`<button class="btn sm" data-sb="ohpractice">この構成で初手練習</button>`:""}
+      ${canEdit?`<button class="btn sm ${rdy?"":"primary"}" data-sb="ready">${rdy?"準備完了を解除":"サイドボード準備完了"}</button>`:""}
+      <button class="btn sm primary" data-sb="nextgame" title="両者準備完了後${online.roomCode?"・ホストのみ":""}">次のゲームを開始 ▶</button>
     </div>`,
     `<button class="btn" data-app="closem">閉じる</button>`);
-  $("#sbQ").oninput=()=>{ _sbQ=$("#sbQ").value; const v=_sbQ; openSideboard(); const el=$("#sbQ"); if(el){ el.focus(); try{el.setSelectionRange(v.length,v.length);}catch(_){} } };
-  $("#sbType").onchange=()=>{ _sbType=$("#sbType").value; openSideboard(); };
+  if($("#sbQ")) $("#sbQ").oninput=()=>{ _sbQ=$("#sbQ").value; const v=_sbQ; openSideboard(); const el=$("#sbQ"); if(el){ el.focus(); try{el.setSelectionRange(v.length,v.length);}catch(_){} } };
+  if($("#sbType")) $("#sbType").onchange=()=>{ _sbType=$("#sbType").value; openSideboard(); };
   document.querySelectorAll("[data-sb]").forEach(b=>b.onclick=()=>{ const a=b.getAttribute("data-sb");
     if(a==="tabA"){ _sbTab="A"; openSideboard(); }
     else if(a==="tabB"){ _sbTab="B"; openSideboard(); }
+    else if(a==="ready"){ sbToggleReady(p); }
     else if(a==="revert"){ sbRevert(p); }
     else if(a==="logswap"){ sbLogSwap(p); }
     else if(a==="saveplan"){ sbSavePlan(p); }
@@ -5950,7 +6045,7 @@ function matchHistoryText(h){
 function bo3InfoHTML(){
   const m=state.match; if(!m||!m.matchActive) return "";
   return `<div class="bo3info">
-    <div class="bo3-row"><b>BO3</b> Game ${m.gameNumber}/3${m.sideboardPhase?' <span class="bo3-sb">サイド中</span>':""}</div>
+    <div class="bo3-row"><b>BO3</b>・第${m.gameNumber}ゲーム（2本先取）${m.sideboardPhase?' <span class="bo3-sb">サイド中</span>':""}</div>
     <div class="bo3-row">A <b>${m.playerAWins}</b> − <b>${m.playerBWins}</b> B ／ 先手 ${pname(m.startingPlayer)}</div>
     <div class="bo3-btns">
       ${m.sideboardPhase?'<button class="btn tiny primary" data-app="sideboard">サイドボード</button>':'<button class="btn tiny primary" data-app="gameend">ゲーム終了</button>'}
@@ -9381,6 +9476,7 @@ const HELP_SECTIONS=[
   ["起動型/誘発型能力テンプレ", [
     "能力テンプレは辞書に手動登録します（起動型/誘発型/手動/マナ等）。公式ルールの自動判定や効果の自動処理はしません。",
     "「誘発候補リマインド」設定をONにすると、戦場（creatures/others/lands・A/B両方）の登録済み triggered 能力を確認キューに「誘発候補があります（N件）」として表示し、「候補確認」で一覧を開けます。timing が現在フェーズと関連する場合は「関連」表示が付きます（厳密判定ではありません）。",
+    "BO3サイドボード（第16回）: ツールバー「BO3開始」でBO3マッチを開始できます（従来のBO1相当＝マッチ無しの通常対戦も従来どおり）。マッチ中は右上のBO3表示からホストが「ゲーム終了」で結果（A勝利/B勝利/引き分け/ゲームを無効）を記録し、サイドボード画面が開きます。サイドは同数交換方式で、入れた枚数と抜いた枚数が一致（メイン枚数が開始時と同数）になるまで「サイドボード準備完了」にできません。オンラインでは自分のrole（A/B）の列だけ編集でき、相手のサイド内容は画面に表示されず準備状態のみ共有、観戦者は操作不可、両者準備完了後にホストが先手（前敗者/A/B/ランダム）を選んで「次のゲームを開始」します（サイド後のメインからライブラリーを再生成・マッチスコア/チャット/接続は維持・開始はUndo不可）。どちらかが2勝するとマッチ終了画面が出て「元デッキに戻して終了」「同じデッキで再戦」（いずれも元デッキ構成へ復元）を選べます。保存済みデッキ本体はマッチ開始時にクローンされるため一切書き換わりません。注意: 現在の共有卓は完全な秘匿通信ではないため、相手のサイド内容の技術的な完全秘匿は保証されません（stateには全情報が含まれます）。ログにはゲーム開始/勝敗/両者準備完了/マッチ終了のみ記録され、入れ替えたカード内容は自動では記録されません。",
     "識別名と表示名の分離（第15回）: カード辞書に『表示名（displayName）』と統合機能を追加しました。カード名（識別名=canonical）はインポート照合・重複判定・エクスポートに使われ、既存カードでは変更できません。表示名を設定すると盤面・手札・スタック・カード詳細では表示名（例: 稲妻）で表示され、照合とエクスポートは識別名（例: Lightning Bolt）のままです。インポート時は識別名と別名（エイリアス・大文字小文字/全半角/前後空白は正規化）で照合し、一致したら正準名に統一するため同じカードが分裂しません。未登録カードは右クリック→『このカードを辞書に登録（詳細編集）』で識別名を保持したまま辞書登録できます。辞書保存時に既存カードと正規化/別名一致する名前を付けた場合は、別カードを作らず既存カードを更新するか確認します（入力名は別名に追加・空欄項目は既存値を維持）。すでに日本語名で別登録してしまったカードは、統合先カードの辞書編集画面の『別登録カードをこのカードへ統合…』で1枚に統合できます（元名は別名保持・画像URL等は補完・デッキ/盤面参照も置換・盤面置換分はUndo可）。デッキ編集欄とエクスポートは従来どおり識別名を使います。",
     "共有ライブラリ（第13回）: 同一サーバーに DATABASE_URL（Postgres）と SHARED_ADMIN_PASSWORD が設定されている場合のみ、ツールバー「共有」からカード辞書とデッキをサーバーに共有保存/読み込みできます。保存は管理パスワードを知っている人だけ、読み込みは誰でも可能です。読み込みは「マージ」（既存に統合）か「上書き」（強い確認あり）を選べ、既存のsave/render流儀で反映され Undo/Redo は汚しません。DATABASE_URL が無い場合は共有UIが『無効（DB未設定）』表示になるだけで、オフライン/オンライン対戦を含む既存機能はすべて従来どおり動きます。カード辞書には画像URL（imageUrl・任意）を持てます。表示優先度は ①ローカル画像(画像ID) ②画像URL ③画像なし で、画像URLは共有辞書に含まれます（外部URL参照のみ・画像本体やIndexedDB画像は共有されず、リンク切れ時はテキスト表示）。R2等の画像ストレージが有効な場合は、辞書編集画面の「画像をアップロード」から画像（png/jpeg/webp/gif・2MBまで・要管理パスワード）を上げて画像URLを自動入力できます（辞書への確定は保存ボタン・パスワードは保存しません）。これは身内向けで、本格運用にはユーザー認証・権限管理・画像ストレージが必要です。",
     "双方向同期モード（第14回・既定OFF）: 通常はホスト操作だけがゲストへ同期されますが、ホストがオンラインモーダルの「双方向同期」をONにすると（強い確認あり）、信頼できる role A/B の相手の操作もホストを含む全員へ同期される共有卓モードになります（spectatorは送信不可）。各クライアントは自分の「ホスト操作後に自動同期」をONにすると盤面操作を送信し、「受信stateを自動適用」をONにすると相手の更新を自動反映します（ホストも collab 中は自動適用対象）。UI位置・パネル・チャット・視点は従来どおり同期されず、スタックは中身のみ同期（UI位置は各自）。競合は厳密解決せず、サーバーのrevが一致した更新だけを採用し、rev不一致は拒否→再同期/手動適用になります（同時に細かく操作しすぎないでください）。これは信頼相手向けの共有卓であり、秘匿対戦・不正防止ではありません（stateには手札/ライブラリー順など全情報が含まれます）。同一内容のstateを受信した場合は適用も再送信もスキップされ（no-op判定・ログ/Undoなし）、自動適用の成功はオンラインログのみに記録され処理履歴には追記されません（反射ループ防止）。staleRev拒否が続くとバッジに「再同期が必要」と表示されるので、state問い合わせ→適用で復帰してください。",
