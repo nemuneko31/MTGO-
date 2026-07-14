@@ -921,10 +921,55 @@
   .imgprev img{max-width:100%;max-height:56vh;width:auto;height:auto;object-fit:contain;border-radius:8px}
   .db-row img,.db-n{cursor:zoom-in}
   /* 初手練習: 上部/カード領域/操作領域を分離。操作ボタンはカードの背後に置かない */
-  .oh-hand{max-height:40vh;overflow:auto;flex:1 1 auto;position:relative;z-index:1}
+  /* 初手練習: 均一サイズ・横一列・縦スクロールなし（枚数に応じて自動縮小・狭い画面は横スクロール） */
+  .oh-hand{flex-wrap:nowrap !important;justify-content:flex-start !important;overflow-x:auto;overflow-y:hidden;max-height:none;flex:0 0 auto;position:relative;z-index:1;scroll-snap-type:x proximity}
+  .oh-hand .oh-card{flex:0 0 auto;width:var(--ohw,88px);height:var(--ohh,152px);max-width:none;scroll-snap-align:start;display:flex;flex-direction:column;overflow:hidden}
+  .oh-hand .oh-card .cimg{height:calc(var(--ohh,152px) - 26px);min-height:0;display:flex;align-items:center;justify-content:center;overflow:hidden}
+  .oh-hand .oh-card .cimg img{max-width:100%;max-height:100%;width:auto;height:auto;object-fit:contain}
+  .oh-hand .oh-card .ctext{height:calc(var(--ohh,152px) - 8px);overflow:hidden}
   .oh-results{position:sticky;bottom:0;background:var(--panel);border-top:1px solid var(--line);padding:6px 2px;z-index:7;flex-shrink:0;display:flex;gap:6px;flex-wrap:wrap}
   .oh-card{cursor:zoom-in;max-width:100%}
-  @media (max-width:640px){ .oh-hand{flex-wrap:nowrap;overflow-x:auto;justify-content:flex-start;max-height:34vh} .oh-card{flex:0 0 auto} }
+  /* フローティングパネル（操作/カードプレビュー・端末ローカル設定のみ） */
+  .uifloat{position:fixed;display:flex;flex-direction:column;background:var(--panel,#191922);border:1px solid var(--line,#333);border-radius:8px;box-shadow:0 3px 16px rgba(0,0,0,.55);min-width:160px;padding-bottom:env(safe-area-inset-bottom,0px)}
+  /* z-indexはbringFloatToFrontがJSで管理（帯域120〜: モーダル200より下・モーダル内から呼んだプレビュー等はabovemodalで+200＝確認レイヤー320より下） */
+  #detailDock{display:contents}
+  #detailFloat .ufb{padding:0}
+  #detailFloat .preview{position:static;right:auto;bottom:auto;width:auto;max-width:none;box-shadow:none;border:none;border-radius:0;z-index:auto}
+  #detailFloat .preview .pvclose{display:none} /* フロート側の×を使用 */
+  .uifloat .ufh{display:flex;align-items:center;gap:4px;padding:4px 6px;cursor:move;user-select:none;touch-action:none;border-bottom:1px solid var(--line);flex:0 0 auto}
+  .uifloat .ufh .t{font-size:11px;flex:1;min-width:0;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+  .uifloat .ufh .btn{min-width:28px;min-height:28px;padding:2px 6px}
+  .uifloat .ufb{flex:1 1 auto;overflow:auto;min-height:0}
+  .uifloat .ufr{position:absolute;right:0;bottom:0;width:20px;height:20px;cursor:nwse-resize;touch-action:none;background:linear-gradient(135deg,transparent 55%,rgba(255,255,255,.28) 55%);border-bottom-right-radius:8px}
+  .uifloat.ufmin .ufb,.uifloat.ufmin .ufr{display:none}
+  .uifloat.ufmin{min-height:0;height:auto !important}
+  .uifloat.ufpin .ufh{cursor:default}
+  #footerDock{display:contents}
+  #cmdFloat .footer{border-top:none;background:transparent}
+  #prevFloat .ufb{display:flex;flex-direction:column;padding:4px}
+  #prevFloat .pvimg{flex:1 1 auto;min-height:0;display:flex;align-items:center;justify-content:center;overflow:hidden}
+  #prevFloat .pvimg img{max-width:100%;max-height:100%;width:auto;height:auto;object-fit:contain}
+  #prevFloat .pvname{flex:0 0 auto;font-size:11px;text-align:center;padding:3px 2px}
+  /* ゾーン高さ指定時: 縦スクロール廃止・カード自動フィット（折返し→最終手段で横スクロール） */
+  .field.zcustom{overflow:hidden;position:relative}
+  /* 高さ指定ゾーン: カードは縦横比固定のポートレート枠（高さ基準で幅を決定・幅だけ伸ばさない） */
+  .field.zcustom .fieldcards{overflow:hidden;align-content:flex-start;align-items:flex-start;height:calc(100% - 24px);box-sizing:border-box;padding:2px 2px 16px} /* 下16px=リサイズ線と重ねない余白 */
+  .field.zcustom .card{width:var(--zcw,64px);height:var(--zch,88px);min-height:0;display:flex;flex-direction:column}
+  .field.zcustom .card .img{flex:1 1 auto;min-height:0;height:auto;width:100%;object-fit:contain}
+  .field.zcustom .card .ctext{flex:1 1 auto;min-height:0;overflow:hidden}
+  .field.zcustom .zresize{position:absolute;left:6px;right:6px;bottom:2px;margin-top:0} /* ゾーン最下端の独立レイヤー（ドラッグ専用） */
+  .field.zcustom.zhs .fieldcards{flex-wrap:nowrap;overflow-x:auto;overflow-y:hidden}
+  .field.zcustom.zovl .fieldcards .card+.card{margin-left:calc(var(--zovl,0px) * -1)} /* カード多数時の重ね表示 */
+  /* 手札: 高さ/サイズを端末ローカルで調整（上端ハンドル・縦横比固定・横スクロールのみ） */
+  .handzone{position:relative}
+  .handzone.hzcustom{max-height:none}
+  .hzresize{position:absolute;left:6px;right:6px;top:0;height:8px;border-radius:4px;background:rgba(255,255,255,.06);cursor:ns-resize;touch-action:none;z-index:5}
+  .hzresize:hover,.hzresize.on{background:rgba(224,168,60,.4)}
+  .handstrip .card{width:var(--hcw,var(--cw));height:var(--hch,auto);min-height:0;display:flex;flex-direction:column}
+  .handstrip .card .img{flex:1 1 auto;min-height:0;height:auto;width:100%;object-fit:contain}
+  .handstrip .card .ctext{flex:1 1 auto;min-height:0;overflow:hidden}
+  .handstrip{overflow-x:auto;overflow-y:hidden;flex-wrap:nowrap;align-items:flex-start}
+  @media (max-width:640px){ .oh-card{flex:0 0 auto} }
   .x{background:none;border:none;color:var(--muted);font-size:22px;line-height:1}
   .x:hover{color:var(--text)}
   label.field{display:flex;flex-direction:column;gap:4px;font-size:12px;color:var(--muted)}
@@ -983,11 +1028,32 @@
       <svg class="combat-svg" id="combatSVG" preserveAspectRatio="none"></svg>
       <svg class="target-svg" id="targetSVG" preserveAspectRatio="none"></svg>
       <div class="combatpanel-wrap" id="combatPanelWrap"></div>
-      <div class="preview" id="preview"></div>
+      <div id="detailDock"><div class="preview" id="preview"></div></div>
     </div>
     <div class="handzone" id="handzone"></div>
-    <div class="footer" id="footer"></div>
+    <div id="footerDock"><div class="footer" id="footer"></div></div>
   </main>
+<aside id="cmdFloat" class="uifloat" data-flkey="cmd" style="display:none" aria-label="操作パネル">
+  <div class="ufh"><span class="t">操作パネル（ドラッグで移動）</span>
+    <button class="btn tiny" data-fl="home" title="初期位置へ戻す" aria-label="初期位置へ戻す">⌂</button>
+    <button class="btn tiny" data-fl="pin" title="位置固定ON/OFF" aria-label="位置固定">📌</button>
+    <button class="btn tiny" data-fl="min" title="最小化/展開" aria-label="最小化/展開">－</button></div>
+  <div class="ufb"></div><div class="ufr" title="ドラッグでサイズ変更"></div></aside>
+<aside id="prevFloat" class="uifloat" data-flkey="prev" style="display:none" aria-label="カードプレビュー">
+  <div class="ufh"><span class="t">カードプレビュー</span>
+    <button class="btn tiny" data-fl="home" title="初期位置へ戻す" aria-label="初期位置へ戻す">⌂</button>
+    <button class="btn tiny" data-fl="pin" title="位置固定ON/OFF" aria-label="位置固定">📌</button>
+    <button class="btn tiny" data-fl="min" title="最小化/展開" aria-label="最小化/展開">－</button>
+    <button class="btn tiny" data-fl="close" title="閉じる" aria-label="閉じる">×</button></div>
+  <div class="ufb"><div class="pvimg"></div><div class="pvname"></div></div>
+  <div class="ufr" title="ドラッグでサイズ変更"></div></aside>
+<aside id="detailFloat" class="uifloat" data-flkey="detail" style="display:none" aria-label="カード詳細・操作">
+  <div class="ufh"><span class="t">カード詳細・操作（ドラッグで移動）</span>
+    <button class="btn tiny" data-fl="home" title="初期位置へ戻す" aria-label="初期位置へ戻す">⌂</button>
+    <button class="btn tiny" data-fl="pin" title="位置固定ON/OFF" aria-label="位置固定">📌</button>
+    <button class="btn tiny" data-fl="min" title="最小化/展開" aria-label="最小化/展開">－</button>
+    <button class="btn tiny" data-fl="close" title="閉じる" aria-label="閉じる">×</button></div>
+  <div class="ufb"></div><div class="ufr" title="ドラッグでサイズ変更"></div></aside>
 </div>
 
 <aside class="sidechat" id="sideChat" style="display:none">
@@ -1942,12 +2008,181 @@ function opponentHandHTML(p){
 }
 
 // ===== 盤面レイアウト（端末ローカルのみ・オンライン同期/Undo/保存stateに含めない） =====
-let boardLayout=(function(){ try{ const j=JSON.parse(localStorage.getItem("cpt_layout_v1")||"{}");
-  return {scale:(typeof j.scale==="number"&&j.scale>=0.7&&j.scale<=1.5)?j.scale:1, cardSize:j.cardSize||null, preset:j.preset||"standard", zoneH:(j.zoneH&&typeof j.zoneH==="object")?{A:j.zoneH.A||{},B:j.zoneH.B||{}}:{A:{},B:{}}};
-}catch(_){ return {scale:1,cardSize:null,preset:"standard",zoneH:{A:{},B:{}}}; } })();
+let boardLayout=(function(){ try{ const j=JSON.parse(localStorage.getItem("cpt_layout_v1")||"{}"); // 旧設定(float無し)も安全に読み込む
+  return {scale:(typeof j.scale==="number"&&j.scale>=0.7&&j.scale<=1.5)?j.scale:1, cardSize:j.cardSize||null, preset:j.preset||"standard", zoneH:(j.zoneH&&typeof j.zoneH==="object")?{A:j.zoneH.A||{},B:j.zoneH.B||{}}:{A:{},B:{}},
+    float:(j.float&&typeof j.float==="object")?j.float:{}, hand:(j.hand&&typeof j.hand==="object")?j.hand:{}};
+}catch(_){ return {scale:1,cardSize:null,preset:"standard",zoneH:{A:{},B:{}},float:{},hand:{}}; } })();
 function _blSave(){ try{ localStorage.setItem("cpt_layout_v1",JSON.stringify(boardLayout)); }catch(_){} }
 function _blSet(p,z,h){ boardLayout.zoneH[p]=boardLayout.zoneH[p]||{}; boardLayout.zoneH[p][z]=h; boardLayout.preset="custom"; }
-function _blReset(){ boardLayout={scale:1,cardSize:null,preset:"standard",zoneH:{A:{},B:{}}}; _blSave(); }
+function _blReset(){ boardLayout={scale:1,cardSize:null,preset:"standard",zoneH:{A:{},B:{}},float:{},hand:{}}; _blSave(); }
+/* ===== フローティングパネル（操作/プレビュー・localStorageのみ・state/Undo/同期に含めない） ===== */
+function _flDef(k){ const vw=window.innerWidth||1200, vh=window.innerHeight||800;
+  if(k==="cmd") return {x:8, y:Math.max(0,vh-176), w:Math.min(900,vw-16), h:168, min:false, pin:false, on:true, z:0}; // 初期は従来の下部付近
+  if(k==="detail") return {x:Math.max(8,vw-330), y:Math.max(0,vh-520), w:310, h:440, min:false, pin:false, on:true, z:0}; // 従来の右下付近
+  return {x:Math.max(8,vw-296), y:Math.round(vh*0.2), w:280, h:360, min:false, pin:false, on:true, z:0};
+}
+/* ---- 前面化: 最後に触ったフローティングパネルを最前面へ（共通z管理・端末ローカル） ---- */
+function _flZ(k){ const g=_flGet(k); return 120+Math.max(0,Math.min(60,(g.z||0))); }
+function _flApplyAllZ(){ try{ document.querySelectorAll(".uifloat[data-flkey]").forEach(el=>{
+  const k=el.dataset.flkey, zo=Math.max(0,Math.min(60,(_flGet(k).z||0)));
+  el.style.zIndex=String(el.classList.contains("abovemodal") ? Math.min(310,250+zo) : 120+zo); // 通常120-180(<モーダル200)・モーダル内例外250-310(<確認320)
+  }); }catch(_){} }
+function bringFloatToFront(el){ try{
+  const k=el&&el.dataset?el.dataset.flkey:null; if(!k) return;
+  const g=_flGet(k); const fl=boardLayout.float||{};
+  const zs=Object.keys(fl).map(kk=>(fl[kk]&&fl[kk].z)||0);
+  const mx=Math.max(0,...zs,0);
+  if(!((g.z||0)===mx && zs.filter(z=>z===mx).length===1)){
+    g.z=mx+1;
+    if(g.z>60){ const ks=Object.keys(fl).sort((a,b)=>((fl[a]&&fl[a].z)||0)-((fl[b]&&fl[b].z)||0)); ks.forEach((kk,i)=>{ if(fl[kk]) fl[kk].z=i+1; }); } // 無限増加の正規化
+    _blSave();
+  }
+  _flApplyAllZ();
+}catch(_){} }
+document.addEventListener("pointerdown",(e)=>{ try{ const p=e.target.closest&&e.target.closest(".uifloat[data-flkey]"); if(p) bringFloatToFront(p); }catch(_){} },true); // capture・stopPropagationなし=ボタン/ドラッグ/リサイズ操作を妨げない（固定中でも前面化は可能）
+function _flGet(k){ boardLayout.float=boardLayout.float||{}; let g=boardLayout.float[k];
+  if(!g||typeof g!=="object"){ g=boardLayout.float[k]=_flDef(k); }
+  const d=_flDef(k); for(const p of ["x","y","w","h"]){ if(typeof g[p]!=="number"||!isFinite(g[p])) g[p]=d[p]; } // 不正値補正
+  if(g.on===undefined) g.on=true; return g; }
+function _flClamp(g,minW,minH){ const vw=window.innerWidth||1200, vh=window.innerHeight||800;
+  g.w=Math.max(minW,Math.min(g.w,vw-12)); g.h=Math.max(minH,Math.min(g.h,vh-12));
+  g.x=Math.max(-(g.w-72),Math.min(g.x,vw-72)); g.y=Math.max(0,Math.min(g.y,vh-44)); // ヘッダーが常に画面内
+  return g; }
+function _flApply(el,k,minW,minH){ const g=_flClamp(_flGet(k),minW,minH);
+  el.style.left=g.x+"px"; el.style.top=g.y+"px"; el.style.width=g.w+"px";
+  if(g.min){ el.style.height="auto"; } else { el.style.height=g.h+"px"; }
+  el.classList.toggle("ufmin",!!g.min); el.classList.toggle("ufpin",!!g.pin); }
+function _flDragify(el,k,minW,minH){ if(el._fl) return; el._fl=true;
+  const begin=(mode)=>(ev)=>{ const g=_flGet(k); try{ bringFloatToFront(el); }catch(_){} if(g.pin) return; // 固定中は移動/リサイズ不可（前面化は可能）
+    if(mode==="drag" && ev.target.closest("button,input,select,textarea,a,label")) return;
+    ev.preventDefault();
+    const sx=ev.clientX, sy=ev.clientY, r={x:g.x,y:g.y,w:g.w,h:g.h};
+    const move=(e)=>{ const dx=e.clientX-sx, dy=e.clientY-sy;
+      if(mode==="drag"){ g.x=r.x+dx; g.y=r.y+dy; } else { g.w=r.w+dx; g.h=r.h+dy; }
+      _flClamp(g,minW,minH); _flApply(el,k,minW,minH); };
+    const up=()=>{ document.removeEventListener("pointermove",move); document.removeEventListener("pointerup",up); _blSave(); };
+    document.addEventListener("pointermove",move); document.addEventListener("pointerup",up); };
+  const h=el.querySelector(".ufh"); if(h) h.addEventListener("pointerdown",begin("drag")); // pointer=マウス/タッチ両対応
+  const r=el.querySelector(".ufr"); if(r) r.addEventListener("pointerdown",begin("resize"));
+  el.addEventListener("click",(e)=>{ const b=e.target.closest("[data-fl]"); if(!b) return; e.stopPropagation();
+    const a=b.dataset.fl, g=_flGet(k);
+    if(a==="min"){ g.min=!g.min; }
+    else if(a==="pin"){ g.pin=!g.pin; toast(g.pin?"位置を固定しました":"固定を解除しました"); }
+    else if(a==="home"){ boardLayout.float[k]=_flDef(k); }
+    else if(a==="close"){ if(k==="cmd"){ g.on=false; } else { el.style.display="none"; el.dataset.has=""; el.dataset.hide="1"; } } // prev/detail: 一時的に閉じる（次のカード選択で再表示・表示OFFはレイアウト画面から）
+    _blSave(); _flSyncAll(); });
+}
+function _flSyncAll(){ try{
+  const c=document.getElementById("cmdFloat");
+  if(c){ const g=_flGet("cmd");
+    const foot=document.getElementById("footer"), body=c.querySelector(".ufb"), dock=document.getElementById("footerDock");
+    if(g.on){ if(foot&&body&&foot.parentElement!==body) body.appendChild(foot); c.style.display="flex"; _flApply(c,"cmd",200,90); }
+    else { if(foot&&dock&&foot.parentElement!==dock) dock.appendChild(foot); c.style.display="none"; }
+    _flDragify(c,"cmd",200,90); }
+  const p=document.getElementById("prevFloat");
+  if(p){ const g=_flGet("prev");
+    if(!g.on || !p.dataset.has){ p.style.display="none"; }
+    else { p.style.display="flex"; _flApply(p,"prev",160,180); }
+    if(!document.body.dataset.modal) p.classList.remove("abovemodal");
+    _flDragify(p,"prev",160,180); }
+  const dt=document.getElementById("detailFloat");
+  if(dt){ const g=_flGet("detail");
+    const pv=document.getElementById("preview"), body=dt.querySelector(".ufb"), dock=document.getElementById("detailDock");
+    if(g.on){ if(pv&&body&&pv.parentElement!==body) body.appendChild(pv); }
+    else { if(pv&&dock&&pv.parentElement!==dock) dock.appendChild(pv); }
+    const hasContent=!!(pv && pv.className.indexOf("show")>=0);
+    if(!g.on || !hasContent || dt.dataset.hide==="1"){ dt.style.display="none"; }
+    else { dt.style.display="flex"; _flApply(dt,"detail",220,180); }
+    if(!document.body.dataset.modal) dt.classList.remove("abovemodal");
+    _flDragify(dt,"detail",220,180); }
+  _flApplyAllZ();
+}catch(_){} }
+function _prevFloatShow(c){ try{
+  const p=document.getElementById("prevFloat"); if(!p||!c) return;
+  const g=_flGet("prev"); if(g.on===false) return; // ×で閉じたら再クリックまで表示しない → 新カードクリックで再表示
+  const masked=(typeof _isMaskedHandCard==="function") && c.zone==="hand" && _isMaskedHandCard(c);
+  const dn=masked?"裏向きカード":cardDispName(c);
+  const pr=(masked||c.faceDown)?{src:null,fb:null}:_cardImgSrcs(c); // faceDown/非公開は画像を出さない
+  p.querySelector(".pvname").textContent=dn;
+  p.querySelector(".pvimg").innerHTML = pr.src
+    ? `<img src="${esc(pr.src)}"${pr.fb?` data-fb="${esc(pr.fb)}"`:""} alt="${esc(dn)}" onerror="if(this.dataset.fb){var f=this.dataset.fb;this.removeAttribute('data-fb');this.src=f;}else{this.parentElement.innerHTML='<div class=\'ctext\' style=\'padding:20px;text-align:center\'>'+this.alt+'（画像なし）</div>';}">`
+    : `<div class="ctext" style="padding:20px;text-align:center"><div class="cname">${esc(dn)}</div><div class="ctype">${TYP(c.type||"Unknown")}</div><div class="note">画像なし（テキスト表示）</div></div>`;
+  p.dataset.has="1"; p.dataset.hide=""; g.on=true; p.style.display="flex"; _flApply(p,"prev",160,180); _flDragify(p,"prev",160,180); _flApplyAllZ();
+}catch(_){} }
+function _prevFloatShowByName(name){ const e=dictGet(name)||{}; _prevFloatShow({name:name,type:e.type||"Unknown",face:"front"}); }
+/* ゾーン高さ→カード自動フィット（同一ゾーン内は均一・縦スクロール廃止） */
+const _CARD_AR=0.72; // カード枠の縦横比（幅=高さ×0.72・63:88近似）: 通常/両面/分割/文字とも同一枠
+function _zoneAutoFit(){ try{
+  document.querySelectorAll(".field.zcustom").forEach(f=>{
+    const fc=f.querySelector(".fieldcards"); if(!fc) return;
+    const n=fc.querySelectorAll(".card").length;
+    const innerH=f.clientHeight-24-18; if(innerH<40) return; // ヘッダ24+下余白/リサイズ線分18
+    if(n===0){ f.style.removeProperty("--zcw"); f.style.removeProperty("--zch"); f.style.removeProperty("--cfont"); f.classList.remove("zhs"); f.classList.remove("zovl"); f.style.removeProperty("--zovl"); return; }
+    const W=(fc.clientWidth||f.clientWidth-14)-6;
+    const MINH=64, MAXH=360; // カード最小/最大高さ
+    let best=null;
+    for(let r=1;r<=3;r++){ // 高さ基準: ch=段あたり高さ → 幅は同一倍率(比率固定)で ch×0.72
+      const ch=Math.floor(innerH/r)-(r>1?4:0);
+      if(ch<MINH) break;
+      const chC=Math.min(ch,MAXH), cw=Math.round(chC*_CARD_AR);
+      const cols=Math.ceil(n/r)||1;
+      const need=cols*(cw+4)-4;
+      if(need<=W){ if(!best||chC>best.ch) best={ch:chC,cw:cw,hs:false,ovl:0}; }
+    }
+    if(!best){ // 1段では幅不足: まず重ね表示（最大60%重ね）→ それでも溢れたら横スクロール
+      const ch=Math.max(MINH,Math.min(innerH,MAXH)), cw=Math.round(ch*_CARD_AR);
+      const need=n*(cw+4)-4;
+      const over=need-W;
+      const maxOvl=Math.round(cw*0.6)*(n-1);
+      if(n>1 && over>0 && over<=maxOvl){ best={ch:ch,cw:cw,hs:false,ovl:Math.ceil(over/(n-1))}; }
+      else best={ch:ch,cw:cw,hs:true,ovl:0};
+    }
+    f.style.setProperty("--zch",best.ch+"px");
+    f.style.setProperty("--zcw",best.cw+"px");
+    f.style.setProperty("--cfont",Math.max(9,Math.min(15,Math.round(best.ch*0.125)))+"px");
+    f.classList.toggle("zhs",best.hs);
+    f.classList.toggle("zovl",best.ovl>0);
+    if(best.ovl>0) f.style.setProperty("--zovl",best.ovl+"px"); else f.style.removeProperty("--zovl");
+  });
+}catch(_){} }
+/* 手札: 高さ/サイズ（端末ローカル・boardLayout.hand） */
+function _handGet(){ boardLayout.hand=boardLayout.hand||{}; const h=boardLayout.hand;
+  if(typeof h.h!=="number"||!isFinite(h.h)||h.h<0) h.h=null;
+  if(h.h!=null) h.h=Math.max(72,Math.min(h.h,Math.round((window.innerHeight||800)*0.5)));
+  if(typeof h.scale!=="number"||!isFinite(h.scale)) h.scale=1;
+  h.scale=Math.max(0.6,Math.min(h.scale,1.8)); return h; }
+function _handFit(){ try{
+  const hz=document.getElementById("handzone"); if(!hz) return;
+  const h=_handGet();
+  if(h.h!=null){ hz.style.height=h.h+"px"; hz.classList.add("hzcustom"); }
+  else { hz.style.height=""; hz.classList.remove("hzcustom"); }
+  const strip=hz.querySelector(".handstrip"); if(!strip) return;
+  const innerH=(h.h!=null?h.h:hz.clientHeight||110)-18;
+  const ch=Math.max(56,Math.min(Math.round(innerH*h.scale),Math.round((window.innerHeight||800)*0.45)));
+  hz.style.setProperty("--hch",ch+"px");
+  hz.style.setProperty("--hcw",Math.round(ch*_CARD_AR)+"px");
+  hz.style.setProperty("--cfont",Math.max(9,Math.min(15,Math.round(ch*0.125)))+"px");
+}catch(_){} }
+document.addEventListener("pointerdown",(e)=>{ const hd=e.target.closest&&e.target.closest(".hzresize"); if(!hd) return;
+  e.preventDefault(); hd.classList.add("on");
+  const hz=document.getElementById("handzone"); if(!hz) return;
+  const startY=e.clientY, startH=hz.getBoundingClientRect().height;
+  const mv=(e2)=>{ const nh=Math.max(72,Math.min(Math.round((window.innerHeight||800)*0.5),Math.round(startH+(startY-e2.clientY)))); // 上へドラッグ=拡大
+    const h=_handGet(); h.h=nh; _handFit(); };
+  const up=()=>{ document.removeEventListener("pointermove",mv); document.removeEventListener("pointerup",up); hd.classList.remove("on"); _blSave(); };
+  document.addEventListener("pointermove",mv); document.addEventListener("pointerup",up);
+});
+function _ohFit(){ try{ // 初手練習: 枚数基準で均一サイズを再計算
+  const h=document.getElementById("ohHand"); if(!h) return;
+  const n=h.querySelectorAll(".oh-card").length||7;
+  const W=(h.clientWidth||600)-6;
+  let w=Math.floor((W-(n-1)*6)/n);
+  w=Math.min(w,140); // 最大サイズ
+  if(w<64) w=86;     // 狭い画面: 均一86pxで横スクロール
+  h.style.setProperty("--ohw",w+"px");
+  h.style.setProperty("--ohh",(Math.round(w*1.4)+26)+"px");
+}catch(_){} }
+window.addEventListener("resize",function(){ try{ _flSyncAll(); _zoneAutoFit(); _handFit(); _ohFit(); }catch(_){} });
 function applyBoardLayout(){ try{
   const sz=boardLayout.cardSize||state.settings.cardSize||"m";
   document.body.dataset.size=sz;
@@ -1963,7 +2198,7 @@ document.addEventListener("pointerdown",(e)=>{ const h=e.target.closest&&e.targe
   const p=h.dataset.p, z=h.dataset.z, f=h.closest(".field"); if(!f) return;
   const startY=e.clientY, startH=f.getBoundingClientRect().height;
   const mv=(e2)=>{ const nh=Math.max(_BL_MIN, Math.min(Math.round(window.innerHeight*_BL_MAXR), Math.round(startH+(e2.clientY-startY))));
-    f.style.height=nh+"px"; f.classList.add("zcustom"); _blSet(p,z,nh); };
+    f.style.height=nh+"px"; f.classList.add("zcustom"); _blSet(p,z,nh); _zoneAutoFit(); };
   const up=()=>{ document.removeEventListener("pointermove",mv); document.removeEventListener("pointerup",up); h.classList.remove("on"); _blSave(); try{ render(); }catch(_){} };
   document.addEventListener("pointermove",mv); document.addEventListener("pointerup",up);
 });
@@ -1978,9 +2213,40 @@ function openBoardLayout(){
       <div class="row-inline" style="gap:6px;flex-wrap:wrap">
         <button class="btn sm" data-bl="preset" data-v="compact">コンパクト</button>
         <button class="btn sm" data-bl="preset" data-v="standard">標準</button>
-        <button class="btn sm" data-bl="preset" data-v="large">大きめ</button></div></div>
-    <div class="field"><span>カード表示サイズ（端末ローカル・設定より優先）</span>
+        <button class="btn sm" data-bl="preset" data-v="large">カード大きめ</button>
+        <button class="btn sm" data-bl="preset" data-v="board">盤面重視</button></div></div>
+    <div class="field"><span>カード表示サイズ（端末ローカル・設定より優先。優先順位: ゾーン高さ ＞ 全体拡大率 ＞ カードサイズ補正）</span>
       <div class="row-inline" style="gap:6px">${seg(null,"設定に従う",boardLayout.cardSize||null)}${seg("s","小",boardLayout.cardSize)}${seg("m","中",boardLayout.cardSize)}${seg("l","大",boardLayout.cardSize)}</div></div>
+    <div class="field"><span>フローティング操作パネル（フェイズ/ターン等・端末ローカル）</span>
+      <div class="row-inline" style="gap:6px;flex-wrap:wrap">
+        <button class="btn sm" data-bl="flcmd">${_flGet("cmd").on?"下部固定に戻す":"フローティング表示"}</button>
+        <button class="btn sm" data-bl="flcmdpin">${_flGet("cmd").pin?"固定解除":"位置固定"}</button>
+        <button class="btn sm" data-bl="flcmdhome">初期位置へ戻す</button></div></div>
+    <div class="field"><span>カード画像プレビュー（クリック表示・端末ローカル）</span>
+      <div class="row-inline" style="gap:6px;flex-wrap:wrap">
+        <button class="btn sm" data-bl="flprev">${_flGet("prev").on?"表示OFF":"表示ON"}</button>
+        <button class="btn sm" data-bl="flprevpin">${_flGet("prev").pin?"固定解除":"位置固定"}</button>
+        <button class="btn sm" data-bl="flprevhome">初期位置へ戻す</button></div></div>
+    <div class="field"><span>カード詳細・操作パネル（端末ローカル）</span>
+      <div class="row-inline" style="gap:6px;flex-wrap:wrap">
+        <button class="btn sm" data-bl="fldet">${_flGet("detail").on?"表示OFF":"表示ON"}</button>
+        <button class="btn sm" data-bl="fldetpin">${_flGet("detail").pin?"固定解除":"位置固定"}</button>
+        <button class="btn sm" data-bl="fldethome">初期位置へ戻す（サイズ初期化含む）</button></div></div>
+    <div class="field"><span>フローティングパネル共通</span>
+      <div class="row-inline" style="gap:6px;flex-wrap:wrap">
+        <button class="btn sm" data-bl="zreset">重なり順を初期化</button>
+        <button class="btn sm" data-bl="flrecover">すべて画面内へ戻す</button></div></div>
+    <div class="field"><span>手札サイズ（端末ローカル・上端バーのドラッグと連動）</span>
+      <div class="row-inline" style="gap:6px;flex-wrap:wrap;align-items:center">
+        <input type="range" id="blHandScale" min="60" max="180" step="5" value="${Math.round(_handGet().scale*100)}" style="width:140px">
+        <b id="blHandScaleV">${Math.round(_handGet().scale*100)}%</b>
+        <button class="btn sm" data-bl="handpre" data-v="s">小</button>
+        <button class="btn sm" data-bl="handpre" data-v="m">標準</button>
+        <button class="btn sm" data-bl="handpre" data-v="l">大</button>
+        <button class="btn sm" data-bl="rhand">手札レイアウト初期化</button></div></div>
+    <div class="field"><span>個別初期化</span>
+      <div class="row-inline" style="gap:6px;flex-wrap:wrap">
+        <button class="btn sm" data-bl="rzones">盤面ゾーンのみ初期化</button></div></div>
     <div class="note">各ゾーン（土地/その他/クリーチャー）の高さは、ゾーン下端の細いバーを上下ドラッグ（スマホはスワイプ）で個別調整できます（A側/B側それぞれ・最低${_BL_MIN}px〜画面高70%）。これらの設定はこの端末にのみ保存され、オンライン同期・Undo・保存データには含まれません。</div>`,
     `<button class="btn" data-bl="reset">初期レイアウトに戻す</button><button class="btn primary" data-app="closem">閉じる</button>`);
   const mb=document.querySelector(".modal");
@@ -1990,11 +2256,29 @@ function openBoardLayout(){
     else if(k==="preset"){ const v=b.dataset.v; boardLayout.preset=v; boardLayout.zoneH={A:{},B:{}};
       if(v==="compact"){ boardLayout.scale=0.85; boardLayout.cardSize="s"; }
       else if(v==="large"){ boardLayout.scale=1.2; boardLayout.cardSize="l"; }
+      else if(v==="board"){ boardLayout.scale=1; boardLayout.cardSize=null; const g=_flGet("cmd"); g.min=true; } // 盤面重視: 操作パネル最小化
       else { boardLayout.scale=1; boardLayout.cardSize=null; } }
     else if(k==="cs"){ boardLayout.cardSize=b.dataset.v||null; boardLayout.preset="custom"; }
+    else if(k==="flcmd"){ const g=_flGet("cmd"); g.on=!g.on; }
+    else if(k==="flcmdpin"){ const g=_flGet("cmd"); g.pin=!g.pin; }
+    else if(k==="flcmdhome"){ boardLayout.float.cmd=_flDef("cmd"); }
+    else if(k==="flprev"){ const g=_flGet("prev"); g.on=!g.on; }
+    else if(k==="flprevpin"){ const g=_flGet("prev"); g.pin=!g.pin; }
+    else if(k==="flprevhome"){ boardLayout.float.prev=_flDef("prev"); }
+    else if(k==="fldet"){ const g=_flGet("detail"); g.on=!g.on; }
+    else if(k==="fldetpin"){ const g=_flGet("detail"); g.pin=!g.pin; }
+    else if(k==="fldethome"){ boardLayout.float.detail=_flDef("detail"); }
+    else if(k==="zreset"){ const fl=boardLayout.float||{}; Object.keys(fl).forEach(kk=>{ if(fl[kk]) fl[kk].z=0; }); }
+    else if(k==="flrecover"){ ["cmd","prev","detail"].forEach(kk=>{ _flClamp(_flGet(kk),160,90); }); }
+    else if(k==="rzones"){ boardLayout.zoneH={A:{},B:{}}; }
+    else if(k==="rhand"){ boardLayout.hand={}; }
+    else if(k==="handpre"){ const h=_handGet(); const v=b.dataset.v; if(v==="s"){h.h=88;h.scale=0.8;} else if(v==="l"){h.h=190;h.scale=1.3;} else {h.h=null;h.scale=1;} }
     else if(k==="reset"){ _blReset(); }
-    _blSave(); applyBoardLayout(); try{ render(); }catch(_){} openBoardLayout();
+    _blSave(); applyBoardLayout(); try{ _flSyncAll(); render(); }catch(_){} openBoardLayout();
   },{once:true});
+  const sl=document.getElementById("blHandScale");
+  if(sl){ sl.oninput=()=>{ const h=_handGet(); h.scale=parseInt(sl.value,10)/100; const v=document.getElementById("blHandScaleV"); if(v) v.textContent=sl.value+"%"; _handFit(); };
+    sl.onchange=()=>{ _blSave(); }; }
 }
 function halfHTML(p,side){
   const lands=fieldHTML(p,"lands",ZONE_JP.lands);
@@ -2013,7 +2297,7 @@ function handzoneHTML(front){
   }
   const fan=hm==="fan"?" fan":"";
   const cards=arr.map(c=>cardHTML(c)).join("")||'<span class="empty">(手札なし)</span>';
-  return `<div class="hz-label">手札 ${arr.length}${p==="B"?"（手前: B）":""}</div><div class="handstrip${fan}">${cards}</div>`;
+  return `<div class="hzresize" title="ドラッグで手札の高さを調整"></div><div class="hz-label">手札 ${arr.length}${p==="B"?"（手前: B）":""}</div><div class="handstrip${fan}">${cards}</div>`;
 }
 
 function footerHTML(){
@@ -2226,6 +2510,7 @@ function render(){
       $("#footer").innerHTML=footerHTML();
       try{ _olHudSync(); }catch(_){} // フローティングHUDの表示値更新（表示のみ）
       try{ _cmdPanelSync(); }catch(_){} // 浮動メニュー操作パネルの内容更新（表示のみ）
+      try{ _flSyncAll(); _zoneAutoFit(); _handFit(); }catch(_){} // フローティング操作/プレビュー・ゾーン/手札フィット（端末ローカル）
       const _cpw=$("#combatPanelWrap"); if(_cpw) _cpw.innerHTML=combatPanelHTML();
       renderPreview();
       drawCombatLines();
@@ -5304,7 +5589,11 @@ function openCardAliasPicker(c){
 /* ============================================================
    実戦高速化 / 戦闘補助
    ============================================================ */
-function selectCard(id){ selectedCardId=id; renderPreview(); render(); }
+function selectCard(id){ selectedCardId=id; renderPreview();
+  try{ const pf=document.getElementById("prevFloat"); if(pf) pf.dataset.hide=""; const df=document.getElementById("detailFloat"); if(df) df.dataset.hide=""; }catch(_){} // カード選択で再表示（挙動統一）
+  try{ const f=findCard(id); if(f){ _prevFloatShow(f.card); if(document.body.dataset.modal){ const pf=document.getElementById("prevFloat"); if(pf) pf.classList.add("abovemodal"); } } }catch(_){}
+  try{ _flSyncAll(); }catch(_){}
+  render(); }
 
 function doubleClickCard(id){
   const f=findCard(id); if(!f) return; const z=f.zone; selectedCardId=id;
@@ -6599,7 +6888,8 @@ function openOpeningSetup(){
     </div>
     <label class="field">マリガン方式<select id="ohMull">
       <option value="simple"${mm==="simple"?" selected":""}>簡易方式（手札枚数を減らして引き直す）</option>
-      <option value="precise"${mm==="precise"?" selected":""}>精密方式（毎回7枚→キープ時にマリガン回数分を山下へ）</option></select></label>
+      <option value="precise"${mm==="precise"?" selected":""}>精密方式（毎回7枚→キープ時にマリガン回数分を山下へ）</option>
+      <option value="library"${mm==="library"?" selected":""}>ロンドン厳密方式（実ライブラリー管理・マリガン直後にボトム・血清の粉末対応）</option></select></label>
     <div class="note" style="font-size:10px" id="ohMullNote"></div>
     <label class="field">練習メモ<input type="text" id="ohMemo" placeholder="任意"></label>`,
     `<button class="btn" data-app="closem">キャンセル</button>
@@ -6617,16 +6907,28 @@ function openOpeningSetup(){
   };
 }
 function ohStart(source,deckName,deckId,entries,sideboard,playDraw,handSize,notes,matchContext,mulliganMode){
-  const mode=(mulliganMode==="precise")?"precise":"simple";
+  const mode=(mulliganMode==="precise")?"precise":(mulliganMode==="library")?"library":"simple";
   _oh={ source, deckName, deckId, entries:cloneDeckEntries(entries), sideboard:cloneDeckEntries(sideboard||[]),
     player:(source==="BO3-A"?"A":(source==="BO3-B"?"B":null)), playDraw:playDraw||"先手",
     handSize:(mode==="precise"?7:(handSize||7)), hand:[], notes:notes||"", matchContext:matchContext||null,
     mulliganMode:mode, mulliganCount:0, currentSevenCards:[], bottomCards:[], keptCards:[],
     bottomStepActive:false, bottomConfirmed:false, bottomSel:new Set(), bottomNotes:"",
+    lib:[], exiled:[], bottomList:[], spCount:0, pendingBottom:0, bottomSelOrder:[], histLog:[], libTotal:0, // library方式（ロンドン厳密）用・すべてローカル
     keepRuleId:resolveKeepRule(deckName) };
   ohShuffleDraw(); ohRender();
 }
 function ohShuffleDraw(){
+  if(_oh.mulliganMode==="library"){ // 完全リセット: 元デッキ復元→シャッフル→7枚（追放/デッキ下/回数/粉末使用をすべて初期化）
+    const pool=ohExpand(_oh.entries); shuffle(pool);
+    _oh.lib=pool; _oh.hand=_oh.lib.splice(0,7);
+    _oh.mulliganCount=0; _oh.exiled=[]; _oh.bottomList=[]; _oh.spCount=0; _oh.pendingBottom=0; _oh.bottomSelOrder=[];
+    _oh.libTotal=_oh.lib.length+_oh.hand.length;
+    _oh.histLog=["初手7枚を引いた"];
+    _oh.currentSevenCards=_oh.hand.slice();
+    const ids0=[...new Set(_oh.hand.map(c=>c.imageId).filter(Boolean).filter(id=>!(id in imgCache)))];
+    if(ids0.length && state.settings.showImages){ Promise.all(ids0.map(id=>ensureImg(id))).then(()=>{ if(_oh&&$("#ohHand")) ohRender(); }); }
+    return;
+  }
   const pool=ohExpand(_oh.entries); shuffle(pool);
   _oh.hand=pool.slice(0,_oh.handSize);
   if(_oh.mulliganMode==="precise") _oh.currentSevenCards=_oh.hand.slice();
@@ -6634,6 +6936,20 @@ function ohShuffleDraw(){
   if(ids.length && state.settings.showImages){ Promise.all(ids.map(id=>ensureImg(id))).then(()=>{ if(_oh&&$("#ohHand")) ohRender(); }); }
 }
 function ohMulligan(){
+  if(_oh.mulliganMode==="library"){
+    if(_oh.pendingBottom>0){ toast(`先に${_oh.pendingBottom}枚をライブラリーの下へ置いてください`); return; }
+    // 正しいロンドン: 現在の手札だけをライブラリーへ戻す（追放は戻さない・デッキ下はライブラリー内に維持）→シャッフル→7枚→回数分をボトムへ
+    _oh.lib=_oh.lib.concat(_oh.hand); _oh.hand=[];
+    shuffle(_oh.lib);
+    _oh.bottomList=[]; // シャッフルで順序が失われるため、今回のマリガンで置く分を新たに記録
+    _oh.mulliganCount++;
+    if(_oh.lib.length<7){ toast(`ライブラリーが${_oh.lib.length}枚しかなく7枚引けません（練習を「最初から」でリセットしてください）`); _oh.histLog.push(`エラー: ライブラリー不足（${_oh.lib.length}枚）`); ohRender(); return; }
+    _oh.hand=_oh.lib.splice(0,7);
+    _oh.currentSevenCards=_oh.hand.slice();
+    _oh.pendingBottom=_oh.mulliganCount; _oh.bottomSelOrder=[];
+    _oh.histLog.push(`通常マリガン${_oh.mulliganCount}回目: 手札を戻してシャッフル→7枚引いた（${_oh.mulliganCount}枚を下へ置くまで未完了）`);
+    ohLibImgs(); ohRender(); return;
+  }
   if(_oh.mulliganMode==="precise"){
     _oh.mulliganCount++; _oh.bottomCards=[]; _oh.keptCards=[]; _oh.bottomStepActive=false; _oh.bottomConfirmed=false; _oh.bottomSel=new Set();
     ohShuffleDraw(); ohRender(); return;
@@ -6641,6 +6957,7 @@ function ohMulligan(){
   if(_oh.handSize>4){ _oh.handSize--; } ohShuffleDraw(); ohRender();
 }
 function ohReset7(){
+  if(_oh.mulliganMode==="library"){ ohShuffleDraw(); ohRender(); return; } // 最初から: 完全復元
   if(_oh.mulliganMode==="precise"){ _oh.mulliganCount=0; _oh.bottomStepActive=false; _oh.bottomConfirmed=false; _oh.bottomSel=new Set(); _oh.handSize=7; ohShuffleDraw(); ohRender(); return; }
   _oh.handSize=7; ohShuffleDraw(); ohRender();
 }
@@ -6648,6 +6965,11 @@ function ohResultLabel(r){ return {keep:"キープ",mulligan:"マリガン",noLa
 
 /* 精密: キープ押下 → ボトム選択へ or 即記録 */
 function ohKeepPressed(){
+  if(_oh.mulliganMode==="library"){
+    if(_oh.pendingBottom>0){ toast(`先に${_oh.pendingBottom}枚をライブラリーの下へ置いてください`); return; }
+    _oh.histLog.push(`キープ（手札${_oh.hand.length}枚 / マリガン${_oh.mulliganCount}回 / 粉末${_oh.spCount}回）`);
+    ohRecord("keep", false); return;
+  }
   if(_oh.mulliganMode==="precise" && _oh.mulliganCount>0){
     _oh.bottomStepActive=true; _oh.bottomConfirmed=false; _oh.bottomSel=new Set(); ohRender(); return;
   }
@@ -6668,11 +6990,68 @@ function ohBottomConfirm(){
 function ohBottomRedo(){ _oh.bottomConfirmed=false; _oh.bottomSel=new Set(); _oh.bottomCards=[]; _oh.keptCards=[]; ohRender(); }
 function ohBottomBack(){ _oh.bottomStepActive=false; _oh.bottomConfirmed=false; _oh.bottomSel=new Set(); ohRender(); }
 
+/* ===== library方式（ロンドン厳密）: 血清の粉末対応 ===== */
+function ohLibImgs(){ const ids=[...new Set(_oh.hand.map(c=>c.imageId).filter(Boolean).filter(id=>!(id in imgCache)))];
+  if(ids.length && state.settings.showImages){ Promise.all(ids.map(id=>ensureImg(id))).then(()=>{ if(_oh&&$("#ohHand")) ohRender(); }); } }
+function _ohIsSerumPowder(name){ // canonical name / aliases を正規化して厳密一致（displayNameでは判定しない・部分一致は使わない）
+  try{ const targets=["serum powder","血清の粉末"];
+    const cand=[name]; const e=dictGet(name);
+    if(e){ cand.push(e.name); (e.aliases||[]).forEach(a=>cand.push(a)); }
+    return cand.some(x=>targets.includes(normalizeCardName(x||"")));
+  }catch(_){ return false; } }
+function ohLibHasSP(){ return (_oh.hand||[]).some(c=>_ohIsSerumPowder(c.name)); }
+function ohLibTotalsOk(){ return (_oh.lib.length+_oh.hand.length+_oh.exiled.length)===_oh.libTotal; } // bottomListはlib内に含まれる
+function ohLibBottomToggle(idx){
+  if(_oh.pendingBottom<=0) return;
+  const p=_oh.bottomSelOrder.indexOf(idx);
+  if(p>=0){ _oh.bottomSelOrder.splice(p,1); }
+  else { if(_oh.bottomSelOrder.length>=_oh.pendingBottom){ toast(`${_oh.pendingBottom}枚までです`); return; } _oh.bottomSelOrder.push(idx); }
+  ohRender();
+}
+function ohLibBottomConfirm(){
+  const need=_oh.pendingBottom;
+  if(_oh.bottomSelOrder.length!==need){ toast(`${need}枚 選択してください（現在${_oh.bottomSelOrder.length}枚）`); return; }
+  const picked=_oh.bottomSelOrder.map(i=>_oh.hand[i]).filter(Boolean);
+  if(picked.length!==need){ toast("選択状態が不正です。選び直してください"); _oh.bottomSelOrder=[]; ohRender(); return; }
+  const pickedSet=new Set(_oh.bottomSelOrder);
+  _oh.hand=_oh.hand.filter((c,i)=>!pickedSet.has(i));
+  picked.forEach(c=>{ _oh.lib.push(c); _oh.bottomList.push(c); }); // 選択順=上から順にライブラリーの一番下へ（最後に選んだカードが最下）
+  _oh.pendingBottom=0; _oh.bottomSelOrder=[];
+  _oh.currentSevenCards=_oh.currentSevenCards; // 直近ドローの記録は維持
+  _oh.histLog.push(`${need}枚をライブラリーの下へ置いた（${picked.map(c=>c.name).join("、")}）→ 手札${_oh.hand.length}枚を確定`);
+  if(!ohLibTotalsOk()) toast("警告: カード総数が一致しません（自己診断）");
+  ohRender();
+}
+function ohSerumPowder(){
+  if(_oh.mulliganMode!=="library") return;
+  if(_oh.pendingBottom>0){ toast(`先に${_oh.pendingBottom}枚をライブラリーの下へ置いてください`); return; }
+  if(!ohLibHasSP()){ toast("現在の手札に血清の粉末がありません"); return; }
+  const n=_oh.hand.length;
+  if(_oh.lib.length<n){ toast(`ライブラリーが${_oh.lib.length}枚しかなく${n}枚引けません`); _oh.histLog.push(`エラー: 血清の粉末に必要な${n}枚を引けない（残${_oh.lib.length}枚）`); ohRender(); return; }
+  openTopLayer("血清の粉末の使用",
+    `<div class="note">現在の手札<b>${n}枚</b>をすべて追放し、ライブラリーの上から同じ<b>${n}枚</b>を引きます。<br>ライブラリーはシャッフルしません。通常マリガン回数（現在${_oh.mulliganCount}回）は増えません。<br><b>追放したカードはこの練習中ライブラリーへ戻りません。</b></div>`,
+    `<button class="btn" data-tl="close">キャンセル</button><button class="btn primary" data-tl="spok">使用する</button>`,
+    (a)=>{ if(a!=="spok") return; closeTopLayer();
+      if(!_oh || _oh.mulliganMode!=="library" || _oh.pendingBottom>0 || !ohLibHasSP() || _oh.lib.length<_oh.hand.length) { toast("状態が変わったため中止しました"); ohRender(); return; }
+      const ex=_oh.hand.splice(0,_oh.hand.length);
+      _oh.exiled=_oh.exiled.concat(ex);
+      _oh.hand=_oh.lib.splice(0,ex.length); // シャッフルなし・デッキ下の順序不変
+      _oh.currentSevenCards=_oh.hand.slice();
+      _oh.spCount++;
+      _oh.histLog.push(`血清の粉末を使用（${_oh.spCount}回目）: 手札${ex.length}枚を追放（${ex.map(c=>c.name).join("、")}）→ ライブラリー上から${ex.length}枚引いた（マリガン回数${_oh.mulliganCount}のまま）`);
+      if(!ohLibTotalsOk()) toast("警告: カード総数が一致しません（自己診断）");
+      ohLibImgs(); ohRender(); });
+}
+
 function ohRecord(result, fromBottom){
   if(!_oh) return;
   const precise=_oh.mulliganMode==="precise";
+  const libm=_oh.mulliganMode==="library";
   let shown, kept, bottom, finalSize, mc;
-  if(precise){
+  if(libm){
+    shown=_oh.currentSevenCards.slice(); mc=_oh.mulliganCount;
+    kept=_oh.hand.slice(); bottom=_oh.bottomList.slice(); finalSize=kept.length;
+  } else if(precise){
     shown=_oh.currentSevenCards.slice(); mc=_oh.mulliganCount;
     if(result==="keep" && fromBottom){ kept=_oh.keptCards.slice(); bottom=_oh.bottomCards.slice(); }
     else if(result==="keep" && mc===0){ kept=shown.slice(); bottom=[]; }
@@ -6683,7 +7062,7 @@ function ohRecord(result, fromBottom){
   }
   const tc=ohTypeCounts(kept);
   const baseCtx = (state.match&&state.match.matchActive)?{gameNumber:state.match.gameNumber,sideboardPhase:state.match.sideboardPhase,opponentDeckName:(_oh.player==="A"?(state.match.deck.B&&state.match.deck.B.deckName):(_oh.player==="B"?(state.match.deck.A&&state.match.deck.A.deckName):""))||""}:null;
-  const mctx = Object.assign({}, _oh.matchContext||baseCtx||{}, { mulliganMode:_oh.mulliganMode, mulliganCount:mc, finalHandSize:finalSize, bottomCards:bottom.map(c=>c.name) });
+  const mctx = Object.assign({}, _oh.matchContext||baseCtx||{}, { mulliganMode:_oh.mulliganMode, mulliganCount:mc, finalHandSize:finalSize, bottomCards:bottom.map(c=>c.name), serumPowderCount:(libm?_oh.spCount:undefined), exiledCards:(libm?_oh.exiled.map(c=>c.name):undefined) });
   const snap=ohEvalSnapshot(kept);
   const rec={ id:uid(), createdAt:nowISO(), deckName:_oh.deckName, source:_oh.source, player:_oh.player,
     playDraw:_oh.playDraw, handSize:finalSize, handCards:kept.map(c=>({name:c.name,type:c.type})),
@@ -6699,10 +7078,10 @@ function ohRecord(result, fromBottom){
   state.openingHandHistory.unshift(rec);
   if(state.openingHandHistory.length>100) state.openingHandHistory.length=100;
   saveState(true);
-  addLog(`初手記録: ${_oh.deckName} ${_oh.playDraw} ${_oh.mulliganMode==="precise"?`精密 マリガン${mc} 最終${finalSize}枚`:_oh.handSize+"枚"} → ${ohResultLabel(result)}`);
+  addLog(`初手記録: ${_oh.deckName} ${_oh.playDraw} ${_oh.mulliganMode==="library"?`ロンドン厳密 マリガン${mc} 粉末${_oh.spCount||0}回 最終${finalSize}枚`:_oh.mulliganMode==="precise"?`精密 マリガン${mc} 最終${finalSize}枚`:_oh.handSize+"枚"} → ${ohResultLabel(result)}`);
   toast("記録しました（次の初手を引きました）");
   _oh.bottomStepActive=false; _oh.bottomConfirmed=false; _oh.bottomSel=new Set(); _oh.bottomCards=[]; _oh.keptCards=[];
-  if(precise) _oh.mulliganCount=0;
+  if(precise||libm) _oh.mulliganCount=0;
   ohShuffleDraw(); ohRender();
 }
 function ohDeckCheckHTML(){
@@ -6728,28 +7107,46 @@ function ohRender(){
   if(!_oh) return;
   if(_oh.bottomStepActive){ ohBottomRender(); return; }
   const precise=_oh.mulliganMode==="precise";
+  const LIB=_oh.mulliganMode==="library";
+  const PB=LIB?_oh.pendingBottom:0;
   const tc=ohTypeCounts(_oh.hand);
   const mc=_oh.matchContext;
   const ctx = mc?`<span class="oh-ctx">BO3 Game${mc.gameNumber||"?"}${mc.sideboardPhase?"(サイド中)":""}${mc.opponentDeckName?" vs "+esc(mc.opponentDeckName):""}</span>`:"";
-  const hsLabel = precise?`7枚（マリガン${_oh.mulliganCount}回）`:`手札 ${_oh.handSize}枚`;
+  const hsLabel = LIB?`手札 ${_oh.hand.length}枚（マリガン${_oh.mulliganCount}回）`:precise?`7枚（マリガン${_oh.mulliganCount}回）`:`手札 ${_oh.handSize}枚`;
   const warn4 = (precise && _oh.mulliganCount>=4)?`<div class="oh-warn" style="font-size:10px">⚠ マリガン4回以上：実戦では手札が非常に少なくなります（練習として継続可）</div>`:"";
   const body=`
     <div class="oh-top">
-      <div><b>${esc(_oh.deckName)}</b> <span class="note" style="font-size:10px">${esc(_oh.source||"")} ／ ${precise?"精密":"簡易"}方式</span> ${ctx}</div>
+      <div><b>${esc(_oh.deckName)}</b> <span class="note" style="font-size:10px">${esc(_oh.source||"")} ／ ${LIB?"ロンドン厳密（血清の粉末対応）":precise?"精密":"簡易"}方式</span> ${ctx}</div>
       <div class="oh-controls">
         <label>先手/後手
           <select id="ohPDsel"><option value="先手"${_oh.playDraw==="先手"?" selected":""}>先手</option><option value="後手"${_oh.playDraw==="後手"?" selected":""}>後手</option></select></label>
         <span class="oh-hs">${hsLabel}</span>
-        <button class="btn sm" data-oh="redraw">引き直す</button>
-        <button class="btn sm" data-oh="mull"${(!precise&&_oh.handSize<=4)?" disabled":""}>マリガン${precise?`（→${_oh.mulliganCount+1}回）`:`(${_oh.handSize}→${Math.max(4,_oh.handSize-1)})`}</button>
-        <button class="btn sm" data-oh="reset7"${(precise?_oh.mulliganCount===0:_oh.handSize===7)?" disabled":""}>${precise?"最初から":"7枚に戻す"}</button>
+        ${LIB?"":`<button class="btn sm" data-oh="redraw">引き直す</button>`}
+        <button class="btn sm" data-oh="mull"${(LIB&&PB>0)?" disabled":(!LIB&&!precise&&_oh.handSize<=4)?" disabled":""}>${LIB?`通常マリガン（→${_oh.mulliganCount+1}回）`:precise?`マリガン（→${_oh.mulliganCount+1}回）`:`マリガン(${_oh.handSize}→${Math.max(4,_oh.handSize-1)})`}</button>
+        <button class="btn sm" data-oh="reset7"${LIB?((_oh.mulliganCount===0&&_oh.spCount===0&&PB===0)?" disabled":""):(precise?_oh.mulliganCount===0:_oh.handSize===7)?" disabled":""}>${(LIB||precise)?"最初から":"7枚に戻す"}</button>
       </div>
       ${warn4}
     </div>
-    <div class="oh-hand" id="ohHand">${_oh.hand.map(c=>ohCardHTML(c)).join("")||'<div class="note">カードがありません</div>'}</div>
+    <div class="oh-hand" id="ohHand">${_oh.hand.map((c,i)=>ohCardHTML(c, PB>0?{selectable:true,selected:_oh.bottomSelOrder.indexOf(i)>=0,idx:i}:undefined)).join("")||'<div class="note">カードがありません</div>'}</div>
+    ${LIB?(function(){
+      const hasSP=ohLibHasSP();
+      const spDisabled=PB>0 || !hasSP || _oh.lib.length<_oh.hand.length;
+      const spReason=PB>0?`先に${PB}枚をライブラリーの下へ置いてください`:!hasSP?"現在の手札に血清の粉末がありません":(_oh.lib.length<_oh.hand.length)?`ライブラリー残${_oh.lib.length}枚のため${_oh.hand.length}枚引けません`:"";
+      const selN=_oh.bottomSelOrder.length;
+      return `
+      <div class="oh-counts">通常マリガン <b>${_oh.mulliganCount}</b>回 ／ 手札 <b>${_oh.hand.length}</b>枚 ／ デッキ下 <b>${_oh.bottomList.length}</b>枚 ／ 追放 <b>${_oh.exiled.length}</b>枚 ／ ライブラリー残 <b>${_oh.lib.length}</b>枚 ／ 粉末使用 <b>${_oh.spCount}</b>回${ohLibTotalsOk()?"":' <span class="oh-warn">⚠ 総数不一致</span>'}</div>
+      ${PB>0?`<div class="oh-warn" style="font-size:11px">マリガン${_oh.mulliganCount}回目: 手札の画像をクリックして <b>${PB}枚</b> 選び、ライブラリーの一番下へ置いてください（選択 <b>${selN}/${PB}</b>・選択した順に上から下へ置きます＝最後に選んだカードが一番下）。完了するまで キープ／血清の粉末／次のマリガン は実行できません。</div>
+      <div class="oh-results"><button class="btn sm primary" data-oh="btmok"${selN!==PB?" disabled":""}>この${PB}枚を山下へ（確定）</button><button class="btn sm" data-oh="btmclear"${selN===0?" disabled":""}>選択解除</button></div>`
+      :`<div class="oh-results"><button class="btn sm" data-oh="serum"${spDisabled?" disabled":""} title="${esc(spReason)}">血清の粉末を使用${hasSP&&!spDisabled?`（手札${_oh.hand.length}枚を追放して${_oh.hand.length}枚引く）`:""}</button>${spReason?`<span class="note" style="font-size:10px">${esc(spReason)}</span>`:""}</div>`}
+      <details class="oh-fold"><summary>追放（${_oh.exiled.length}枚）・デッキ下（${_oh.bottomList.length}枚）・履歴</summary>
+        <div class="note">追放: ${_oh.exiled.map(c=>esc(c.name)).join("、")||"-"}</div>
+        <div class="note">デッキ下（上から置いた順・直近マリガン分）: ${_oh.bottomList.map(c=>esc(c.name)).join("、")||"-"}</div>
+        <div class="note" style="white-space:pre-wrap">${_oh.histLog.map(esc).join("\n")||"-"}</div>
+      </details>`;
+    })():""}
     <div class="oh-counts">手札 <b>${tc.total}</b> ／ 土地 <b>${tc.land}</b> ／ クリーチャー <b>${tc.creature}</b> ／ インスタント・ソーサリー <b>${tc.spell}</b> ／ その他 <b>${tc.other}</b> ／ 未分類 <b>${tc.unknown}</b></div>
     <div class="oh-results">
-      <button class="btn sm primary" data-oh="keep">キープ${precise&&_oh.mulliganCount>0?"（ボトム選択へ）":""}</button>
+      <button class="btn sm primary" data-oh="keep"${(LIB&&PB>0)?" disabled":""}>キープ${precise&&_oh.mulliganCount>0?"（ボトム選択へ）":""}</button>
       <button class="btn sm" data-oh="rec:mulligan">マリガン記録</button>
       <button class="btn sm" data-oh="rec:noLand">ノーランド</button>
       <button class="btn sm" data-oh="rec:flood">土地過多</button>
@@ -6766,15 +7163,23 @@ function ohRender(){
   const ns=$("#ohNotes"); if(ns) ns.oninput=()=>{ _oh.notes=ns.value; };
   const pd=$("#ohPDsel"); if(pd) pd.onchange=()=>{ _oh.playDraw=pd.value; };
   const rsel=$("#ohRuleSel"); if(rsel) rsel.onchange=()=>{ _oh.keepRuleId=rsel.value; state.settings.selectedKeepRuleId=rsel.value; if(rsel.value) state.settings.keepRuleMode="manual"; saveState(true); ohRender(); };
+  setTimeout(_ohFit,0); // 初手カードの均一サイズ再計算（マリガン等の枚数変化にも追従）
   setModalHandler(function(e){
     const oc=e.target.closest(".oh-card"); // カードタップで大きなプレビュー（初手の状態は維持）
-    if(oc && !e.target.closest("[data-oh]") && oc.dataset.cname){ openCardPreview(oc.dataset.cname,{}); return; }
+    if(oc && oc.hasAttribute("data-ohbottom") && _oh.mulliganMode==="library"){ ohLibBottomToggle(parseInt(oc.getAttribute("data-ohbottom"),10)); return; } // ボトム選択中は選択操作を優先
+    if(oc && !e.target.closest("[data-oh]") && oc.dataset.cname){ const g=_flGet("prev"); g.on=true; _blSave(); _prevFloatShowByName(oc.dataset.cname); const pf=document.getElementById("prevFloat"); if(pf){ pf.dataset.hide=""; pf.classList.add("abovemodal"); _flApplyAllZ(); } return; } // 移動/リサイズ可能プレビュー（モーダル上・確認レイヤーより下）
+    const pick=e.target.closest("[data-ohbottom]"); if(pick && _oh.mulliganMode==="library"){ ohLibBottomToggle(parseInt(pick.getAttribute("data-ohbottom"),10)); return; }
     const b=e.target.closest("[data-oh]"); if(!b) return; const a=b.getAttribute("data-oh");
+    const LIBc=_oh.mulliganMode==="library";
+    if(LIBc && _oh.pendingBottom>0 && (a==="keep"||a==="serum"||a==="mull"||a.indexOf("rec:")===0)){ toast(`先に${_oh.pendingBottom}枚をライブラリーの下へ置いてください`); return; }
     if(a==="redraw") ohRedraw();
     else if(a==="mull") ohMulligan();
     else if(a==="reset7") ohReset7();
     else if(a==="keep") ohKeepPressed();
-    else if(a.indexOf("rec:")===0) ohRecord(a.slice(4), false);
+    else if(a==="serum") ohSerumPowder();
+    else if(a==="btmok") ohLibBottomConfirm();
+    else if(a==="btmclear"){ _oh.bottomSelOrder=[]; ohRender(); }
+    else if(a.indexOf("rec:")===0){ if(LIBc) _oh.histLog.push(`記録: ${ohResultLabel(a.slice(4))}`); ohRecord(a.slice(4), false); }
   });
 }
 function ohRedraw(){ ohShuffleDraw(); ohRender(); }
@@ -9942,6 +10347,10 @@ const HELP_SECTIONS=[
   ["起動型/誘発型能力テンプレ", [
     "能力テンプレは辞書に手動登録します（起動型/誘発型/手動/マナ等）。公式ルールの自動判定や効果の自動処理はしません。",
     "「誘発候補リマインド」設定をONにすると、戦場（creatures/others/lands・A/B両方）の登録済み triggered 能力を確認キューに「誘発候補があります（N件）」として表示し、「候補確認」で一覧を開けます。timing が現在フェーズと関連する場合は「関連」表示が付きます（厳密判定ではありません）。",
+    "血清の粉末とロンドン・マリガン厳密方式（第23回）: 初手練習の設定に第3のモード『ロンドン厳密方式』を追加しました。実際のライブラリーを1つ管理し、通常マリガンは【手札をライブラリーへ戻す→シャッフル→7枚引く→これまでのマリガン回数と同じ枚数を手札画像のクリックで選んでライブラリーの一番下へ置く】まで行って完了です（選択した順に上から下へ＝最後に選んだカードが一番下・完了までキープ/粉末/次のマリガンは不可）。確定した手札に《血清の粉末/Serum Powder》（カード名・別名を正規化して認識・表示名では判定しません）があるときだけ『血清の粉末を使用』ボタンが有効になり、確認のうえ【現在の手札を全て追放→ライブラリーの上から同じ枚数を引く（シャッフルなし・マリガン回数そのまま・デッキ下は不変・追放は戻らない）】を行います。1回マリガン後なら先に1枚を下へ置いて手札6枚を確定してから、6枚追放→6枚ドローです。粉末使用後もキープ／通常マリガン／（新しい手札にあれば）再度の粉末使用を選べ、以後のマリガンでも追放カードはシャッフルへ戻りません。画面には マリガン回数・手札・デッキ下・追放・ライブラリー残・粉末使用回数 と、追放/デッキ下/履歴の一覧を表示し、総数の自己チェックも行います。『最初から』で元デッキを完全復元（追放/デッキ下/回数/粉末回数をリセットして新しい7枚）。この練習状態はすべてローカルで、オンライン同期・Undo・盤面保存・保存済みデッキには影響しません。従来の簡易/精密方式は変更ありません。",
+    "カード詳細パネルのフローティング化と前面切替（第22回）: カード選択時の詳細・操作パネル（カード名/画像/標準・タップ・墓地・追放/手札・スタック・詳細適用/タイプ・色・位置・由来 等）が移動・リサイズ可能なフローティングパネルになりました（ヘッダ『カード詳細・操作』をドラッグ/スワイプで移動・右下ハンドルでサイズ変更・－最小化・📌位置固定・⌂初期位置・×で一時的に閉じる=次のカード選択で再表示・内容が収まらない時はパネル内スクロール・最小220×180〜画面内・ヘッダは常に画面内・パネル内の全ボタンは従来どおり動作しゲーム操作は通常どおり同期）。また操作パネル/画像プレビュー/カード詳細の各フローティングパネルは、パネル内のどこか（ボタン含む）を押す・ドラッグやリサイズを開始すると最前面に切り替わります（最後に触ったパネルが前面・固定中でも前面化可能・重なり順は端末ローカル保存で正規化により無限増加しません・一般モーダルより下、モーダル内から開いたプレビューだけ例外的にモーダルの上・破棄確認等の重要ダイアログより常に下）。レイアウト画面に カード詳細の表示/固定/初期位置、重なり順初期化、すべて画面内へ戻す を追加（表示OFFはレイアウト画面から）。位置・サイズ・重なり順はすべて cpt_layout_v1（端末ローカル）保存で、オンライン同期・Undo・盤面保存・デッキ・共有辞書には含まれません。",
+    "盤面・手札カードの比率固定リサイズ（第21回）: 高さを指定したゾーンのカードは、ゾーンの利用可能高さからカードの高さを決め、幅は高さ×0.72（実カード比率の近似）で自動計算する比率固定方式になりました。ゾーンを広げるとカードは縦横とも均一に拡大し、幅だけが伸びたり余白だけが増えたりしません（通常/両面/分割/文字フォールバックとも同一枠・最小64px〜最大360px・多数時は間隔詰め→重ね表示→折返し→最終手段で横スクロール・縦方向に切れない）。リサイズ線はゾーン最下端の独立レイヤーになり、カード領域とは下余白で分離されています（線はドラッグ専用・カード操作を妨げません）。手札は上端の細いバーをドラッグ/スワイプして高さを変更でき、高さに応じて手札カードも比率維持で拡大縮小します（全カード均一・多い時は横スクロール・縦スクロールなし）。『盤面サイズ』画面の手札サイズスライダー（60〜180%・ドラッグと連動）・小/標準/大プリセット・手札レイアウト初期化も追加。これらはすべて端末ローカル（cpt_layout_v1）保存で、オンライン同期・相手画面・Undo・保存データには含まれません。優先順位: ゾーン実高さ ＞ 全体拡大率 ＞ カードサイズ補正 ＞ 最小/最大制限（倍率は幅・高さ同一）。",
+    "フローティングレイアウト（第20回）: 下部のフェイズ/ターン操作欄は移動できる『操作パネル』になりました（ヘッダをドラッグ/スワイプで移動・右下ハンドルでサイズ変更・－で最小化・📌で位置固定・⌂で初期位置・内容が入り切らない時はパネル内スクロール・画面外へは出ません）。盤面カードをクリックすると移動/リサイズ可能な『カードプレビュー』が表示され、枠を広げると画像も比例して大きくなります（縦横比維持・別カードをクリックすると内容更新・×で閉じる・両面カードは表示中の面/裏向きは非表示のまま）。ゾーンの高さを変えるとゾーン内のカードが自動で拡大縮小し（同一ゾーン内は均一サイズ・折返し→最終手段で横スクロール・縦スクロール廃止）、優先順位は ゾーン高さ＞全体拡大率＞カードサイズ補正 です。初手練習は枚数に応じて全カードが同じサイズで横一列に並び（狭い画面は均一サイズのまま横スクロール・縦スクロールなし）、カードタップでプレビューが開きます。これらのレイアウトはすべてこの端末のlocalStorage（cpt_layout_v1）にのみ保存され、オンライン同期・相手画面・Undo・保存データには一切含まれません。『盤面サイズ』画面に表示/固定/初期位置/個別初期化/プリセット（コンパクト/標準/カード大きめ/盤面重視）を追加しました。",
     "両面カード・分割カード（第19回）: カード辞書の『カード形式』で 通常／両面カード／分割カードを選べます（未設定の旧カードは通常扱い・既存データはそのまま動作）。両面カードは裏面名・裏面表示名・裏面タイプ・裏面メモ・裏面画像URL（R2アップロード対応）を登録でき、盤面/スタック/墓地/追放のカード右クリック→『変身する（裏面へ）／表面に戻す』で表裏を切り替えられます（Undo/Redo対応・オンライン同期・タップ/カウンター/対象/位置は維持・観戦者は操作不可）。裏面画像は裏面専用（表面画像へフォールバックしません）。汎用の『裏向きにする』は両面カードの裏面とは別状態で、裏向き中は表裏どちらの画像も表示されません。分割カードは左右の名前/表示名/マナコスト/タイプ/テキストを登録でき、画像は分割カード全体の1枚を使います。手札などからスタックへ置くときに『左側として唱える／右側として唱える／キャンセル』を選択でき、スタックとログに唱えた側が表示されます（解決・墓地移動後は全体表示に戻ります・融合/Fuseは未対応）。検索は裏面名・分割の左右名も対象で、デッキ辞書一覧・デッキビルダーでは常に1件のカードとして表示・1枚として数え、保存/エクスポートは表面のカード名（canonical）のみを使います。",
     "盤面サイズ調整（第18回）: 各ゾーン（土地/その他/クリーチャー・A側/B側個別）の下端にある細いバーを上下ドラッグ（スマホはスワイプ）すると高さを調整できます（最低48px〜画面高70%・指定時はゾーン内スクロール）。ツールバー「盤面サイズ」からは盤面全体の拡大/縮小（70〜150%）、コンパクト/標準/大きめのプリセット、カード表示サイズの端末ローカル上書き、初期レイアウトへ戻すが行えます（ドラッグ調整後はカスタム表示）。これらのレイアウト設定はこの端末のlocalStorageにのみ保存され、オンライン同期・相手画面・Undo・保存データ・デッキ/辞書には一切含まれません（B視点で上下が入れ替わってもA/Bキーで正しく対応）。またゾーンがflex圧縮されてカードが見切れる問題を修正し、カードは常にゾーン内に収まって表示されます（画像はobject-fit:contain・読込失敗時は従来のテキスト表示）。",
     "デッキビルダー（第17回）: 新規デッキ作成/デッキ編集画面に『登録カードから追加』を追加しました。カード辞書の登録済みカードが画像サムネ・表示名（識別名併記）・タイプ・色・マナコスト・デッキ内枚数付きで一覧表示され、＋1メイン/＋4/＋1サイドで追加できます。検索（名前・表示名・別名・タイプ・能力/メモを正規化検索・✕で解除）、ソート（登録順/カード名昇降/表示名/色/マナ総量昇降/タイプ/デッキ内枚数）、フィルター（色5種/無色/多色/主要タイプ・複数色は多色扱い・タイプ未設定は未分類表示）に対応し、ソートとフィルターは閉じても保持されます（端末ローカル・辞書本体の並びは不変）。右側にメイン/サイドの現在内容（合計枚数・＋/−1/移動/全削除・未登録カードは維持して未登録表示）が並び、狭い画面では縦並びになります。識別名(canonical)で集約・追加するため表示名で別カードは作られず、テキスト編集（従来形式）やインポート/エクスポートもそのまま使えます。保存時、新規で同名デッキがある場合は上書き確認します。",
