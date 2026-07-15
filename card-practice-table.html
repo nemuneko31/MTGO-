@@ -144,6 +144,14 @@
     border:1px solid var(--line);color:var(--muted);cursor:pointer;white-space:nowrap}
   .ph:hover{border-color:var(--accent2)}
   .ph.active{background:var(--accent);color:#1b1300;border-color:var(--accent);font-weight:700}
+  .ph.stop{box-shadow:inset 0 -2px 0 #6fb1ff}
+  .ph.stop::after{content:"•";color:#8fc5ff;font-size:12px;margin-left:4px;line-height:1}
+  .ph.active.stop::after{color:#142235}
+  .phase-stop-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:5px;margin:7px 0}
+  .phase-stop-grid label{display:flex;align-items:center;gap:5px;padding:6px;border:1px solid var(--line);border-radius:7px;background:var(--bg2);font-size:11px;cursor:pointer}
+  .phase-stop-grid label.current{border-color:var(--accent);box-shadow:0 0 0 1px rgba(224,168,60,.25) inset}
+  .pq-panel.sidebar-decision{margin:4px 0;flex:0 0 auto}
+  body[data-mobile-landscape="1"] .phase-stop-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
   .ph-acts{display:flex;gap:4px}
   .stackmini{display:flex;align-items:center;gap:8px;background:var(--panel);
     border:1px solid var(--line2);border-radius:8px;padding:4px 8px;font-size:12px;flex-wrap:wrap}
@@ -1577,6 +1585,67 @@ function libPeek(p){
 }
 
 /* ============================================================
+   ローカル確認フェイズ（MTGO風ストップ）
+   - チェックあり: 次へ操作時に確認キューで一度止める
+   - チェックなし: 次のチェック済みフェイズまで自動スキップ
+   - localStorageのみ。state/Undo/オンライン同期には含めない
+   ============================================================ */
+const PHASE_STOP_KEY="cpt_phase_stops_v1";
+const PHASE_STOP_DEFAULT=[false,true,true,true,true,true,true,true,true,true,true,false];
+let phaseStopPrefs=(function(){ try{
+  const j=JSON.parse(localStorage.getItem(PHASE_STOP_KEY)||"{}");
+  const a=Array.isArray(j.stops)?j.stops.slice(0,PHASES.length):PHASE_STOP_DEFAULT.slice();
+  while(a.length<PHASES.length) a.push(!!PHASE_STOP_DEFAULT[a.length]);
+  return {stops:a.map(Boolean)};
+}catch(_){ return {stops:PHASE_STOP_DEFAULT.slice()}; }})();
+let _phaseConfirmPending=null;
+function _phaseStopSave(){ try{ localStorage.setItem(PHASE_STOP_KEY,JSON.stringify(phaseStopPrefs)); }catch(_){} }
+function phaseStopOn(i){ return !!(phaseStopPrefs.stops&&phaseStopPrefs.stops[i]); }
+function _phasePendingNow(){ const t=state.turn||{}; return !!(_phaseConfirmPending&&_phaseConfirmPending.turn===t.number&&_phaseConfirmPending.phase===t.phase); }
+function _phasePendingClear(){ _phaseConfirmPending=null; }
+function _phaseStopSetPreset(v){
+  if(v==="all") phaseStopPrefs.stops=PHASES.map(()=>true);
+  else if(v==="min") phaseStopPrefs.stops=PHASES.map((_,i)=>i===3||i===4||i===9||i===10);
+  else phaseStopPrefs.stops=PHASE_STOP_DEFAULT.slice();
+  _phaseStopSave(); _phasePendingClear();
+}
+function openPhaseStopSettings(){
+  const rows=PHASES.map((n,i)=>`<label class="${i===state.turn.phase?"current":""}"><input type="checkbox" data-pstop="${i}" ${phaseStopOn(i)?"checked":""}> ${esc(n)}</label>`).join("");
+  openModal("確認フェイズ設定（この端末のみ）",
+    `<div class="note">チェックありのフェイズでは「次」を押した時に確認欄で止まります。チェックなしは次のチェック済みフェイズまで自動スキップします。カード固有処理やドロー等を自動実行する機能ではありません。</div>
+     <div class="phase-stop-grid">${rows}</div>
+     <div class="row-inline"><button class="btn sm" data-pstoppre="std">標準</button><button class="btn sm" data-pstoppre="all">全確認</button><button class="btn sm" data-pstoppre="min">最小</button></div>`,
+    `<button class="btn" data-app="closem">閉じる</button>`);
+  document.querySelectorAll("[data-pstop]").forEach(el=>{ el.onchange=()=>{ phaseStopPrefs.stops[parseInt(el.dataset.pstop,10)]=!!el.checked; _phaseStopSave(); _phasePendingClear(); render(); }; });
+  setModalHandler(function(e){ const b=e.target.closest("[data-pstoppre]"); if(!b) return; _phaseStopSetPreset(b.dataset.pstoppre); closeModal(); openPhaseStopSettings(); });
+}
+function _phaseAdvanceRaw(){
+  const tn=state.turn; const skipped=[]; let safety=0;
+  while(safety++<PHASES.length+2){
+    if(tn.phase>=PHASES.length-1){
+      _endTurn();
+      if(phaseStopOn(tn.phase)) break;
+      skipped.push(PHASES[tn.phase]);
+      continue;
+    }
+    tn.phase++;
+    if(phaseStopOn(tn.phase)) break;
+    skipped.push(PHASES[tn.phase]);
+  }
+  _phasePendingClear();
+  if(skipped.length) addLog(`自動スキップ: ${skipped.join(" → ")}`);
+  addLog(`フェーズ: ${PHASES[tn.phase]}`);
+  render();
+  if(tn.phase===8 && countCombat()) openCombatNotice();
+  else if(tn.phase===11) maybeCleanupNotice();
+}
+function _phaseAdvanceFlow(){
+  const last=state.turn.phase>=PHASES.length-1;
+  _manaPhaseFlow(last?"turn":"phase",last?"ターン変更":"フェーズ変更",_phaseAdvanceRaw);
+}
+function _phaseAdvanceConfirmed(){ _phasePendingClear(); _trvGate("phase",_phaseAdvanceFlow); }
+
+/* ============================================================
    ターン/フェーズ/優先権
    ============================================================ */
 /* ============================================================
@@ -1602,17 +1671,18 @@ function _trvGate(kind, proceed){
     });
   }catch(_){ proceed(); }
 }
-function _nextPhaseFlow(){ const last=state.turn.phase>=PHASES.length-1; _manaPhaseFlow(last?"turn":"phase", last?"ターン変更":"フェーズ変更", _nextPhase); }
-function nextPhase(){ _trvGate("phase", _nextPhaseFlow); }
-function _nextPhase(){
+function _nextPhaseFlow(){ _phaseAdvanceFlow(); }
+function nextPhase(){
   const tn=state.turn;
-  if(tn.phase < PHASES.length-1){ tn.phase++; }
-  else { _endTurnFlow(); return; }
-  addLog(`フェーズ: ${PHASES[tn.phase]}`);
-  render();
-  if(tn.phase===8 && countCombat()) openCombatNotice();
-  else if(tn.phase===11) maybeCleanupNotice();
+  if(phaseStopOn(tn.phase) && !_phasePendingNow()){
+    _phaseConfirmPending={turn:tn.number,phase:tn.phase};
+    render();
+    toast(`${PHASES[tn.phase]}の確認欄で「確認して次へ」を押してください`);
+    return;
+  }
+  _phaseAdvanceConfirmed();
 }
+function _nextPhase(){ _phaseAdvanceRaw(); }
 function prevPhase(){ const tn=state.turn; if(tn.phase>0){ pushUndo("フェーズ変更"); tn.phase--; addLog(`フェーズ: ${PHASES[tn.phase]}(戻る)`); render(); } }
 function turnStartAssistOn(){ return (state.settings||{}).turnStartAssistEnabled!==false; }
 function landPlayAssistOn(){ return (state.settings||{}).landPlayAssistEnabled!==false; }
@@ -1663,7 +1733,7 @@ function _runTurnStartAssist(opt){ const old=state.turn.active, next=old==="A"?"
     if(opt.draw) drawn=_turnAssistDraw(next);
     addLog(`ターン${state.turn.number} 開始 / 手番: ${pname(next)}${opt.untap?` / アンタップ${unt}枚`:""}${opt.draw?` / ドロー${drawn}枚`:""}${opt.land?" / 土地回数リセット":""}${opt.combat?` / 戦闘整理${combat}枚`:""}`);
   }); saveState(true); render(); }
-function _endTurnFlow(){ if(turnStartAssistOn()){ openTurnStartAssist(); return; } _manaPhaseFlow("turn", "ターン変更", _endTurn); }
+function _endTurnFlow(){ _manaPhaseFlow("turn", "ターン変更", _endTurn); }
 function endTurn(){ _trvGate("turn", _endTurnFlow); }
 function _endTurn(){
   const tn=state.turn; tn.active = tn.active==="A"?"B":"A"; tn.number++;
@@ -2187,11 +2257,12 @@ function sidebarHTML(){
       <div class="side-title">カードゲーム<span>練習卓</span></div>
       ${bo3InfoHTML()}
       <div class="pp-pin top" data-pp="back" data-player="${back}">${playerPanelHTML(back)}${auxZonesHTML(back)}</div>
-      ${statusLogHTML()}
+      <div class="sidebar-decision-wrap">${promptPanelHTML()}</div>
       <div class="pp-pin bottom" data-pp="front" data-player="${front}">${playerPanelHTML(front)}${auxZonesHTML(front)}</div>
       ${targetListHTML()}
     </div>
     <div class="mside-pane menu">
+      ${statusLogHTML()}
       ${(state.settings||{}).commandPanelFloatingEnabled===true
         ? '<div class="note" style="text-align:center;padding:8px">メニューは浮動パネル表示中<br><button class="btn sm" data-app="cmdfloat">サイドバーに戻す</button></div>'
         : toolsHTML()}
@@ -2659,18 +2730,19 @@ function handzoneHTML(front){
 
 function footerHTML(){
   const tn=state.turn;
-  const phases=PHASES_EN.map((ph,i)=>`<span class="ph${i===tn.phase?" active":""}" data-ph="${i}" title="${PHASES[i]}">${ph}</span>`).join("");
+  const phases=PHASES_EN.map((ph,i)=>`<span class="ph${i===tn.phase?" active":""}${phaseStopOn(i)?" stop":""}" data-ph="${i}" title="${PHASES[i]}${phaseStopOn(i)?"（確認停止）":"（自動スキップ）"}">${ph}</span>`).join("");
   return `<div class="phasebar">${phases}</div>
     <div class="phase-hint">${PHASES_EN[tn.phase]}: ${PHASE_HINTS[tn.phase]||""}</div>
     <div class="ph-acts">
       <button class="btn sm" data-tb="prev">◀前</button>
       <button class="btn sm primary" data-tb="next">次▶</button>
-      <button class="btn sm" data-tb="endturn">${turnStartAssistOn()?"次ターン補助":"ターン終了"}</button>
+      <button class="btn sm" data-tb="endturn">ターン終了</button>
+      ${turnStartAssistOn()?'<button class="btn sm" data-tb="turnassist" title="必要な時だけ選択式の次ターン補助を開く">ターン補助</button>':""}
+      <button class="btn sm" data-tb="phasestops" title="確認するフェイズを設定">停止設定</button>
       <button class="btn sm" data-tb="landreset" title="手番プレイヤーの土地プレイ回数を0へ戻す">土地 ${_landPlayed(tn.active)}/${_landPlayLimit()}</button>
       <button class="btn sm" data-tb="combatclear">戦闘クリア</button>
       <button class="btn sm primary" data-tb="combatresolve">戦闘解決</button><button class="btn sm" data-tb="review">終了前レビュー</button>${manualTriggerEventCheckEnabled()?'<button class="btn sm" data-tb="eventtrg">イベント誘発</button>':""}</div>
     ${stackMiniHTML()}
-    ${promptPanelHTML()}
     ${state.settings.navInFooter===false?"":navHTML()}`;
 }
 
@@ -3702,9 +3774,10 @@ function openSettings(){
     ${tog("applyDamageConfirm",s.applyDamageConfirm!==false,"ダメージ適用時に確認")}
     ${tog("cleanupNotice",s.cleanupNotice!==false,"Cleanup補助通知（戦闘/ダメージ残り）")}
     ${tog("turnReviewGateEnabled",s.turnReviewGateEnabled!==false,"ターン終了前レビュー確認を表示（End step/Cleanup/ターン終了時）")}
-    ${tog("turnStartAssistEnabled",s.turnStartAssistEnabled!==false,"ターン終了時に次ターン開始アシストを表示")}
+    ${tog("turnStartAssistEnabled",s.turnStartAssistEnabled!==false,"任意の「ターン補助」ボタンを表示（ターン終了は確認なし）")}
+    <div class="field"><span>確認フェイズ</span><div class="row-inline"><button class="btn sm" data-app="phasestops">確認フェイズ設定を開く</button></div></div>
     ${tog("landPlayAssistEnabled",s.landPlayAssistEnabled!==false,"土地プレイ回数を記録し、目安上限を超えた時に警告")}
-    <div class="note" style="font-size:10px">ターン開始アシストはアンタップ・1枚ドロー・戦闘状態整理・土地回数リセットを選択式で実行します。カード固有効果は自動処理しません。</div>
+    <div class="note" style="font-size:10px">「ターン終了」は確認なしで通常終了します。必要な時だけ「ターン補助」を開き、アンタップ・1枚ドロー・戦闘整理・土地回数リセットを選択できます。確認フェイズはこの端末だけの停止設定で、カード固有処理やドロー等は自動実行しません。</div>
     <div style="border-top:1px solid var(--line);margin:4px 0"></div>
     <div class="note">カード拡大プレビュー（中ボタン / 🔍 / Pキー 押下中）</div>
     ${tog("cardZoomEnabled",s.cardZoomEnabled!==false,"カード拡大プレビューを有効化")}
@@ -4761,6 +4834,7 @@ document.addEventListener("click",function(e){
         case "ilog": openIntegrityLog(); return;
         case "boardsize": openBoardLayout(); return;
         case "mobileui": openMobileUISettings(); return;
+        case "phasestops": openPhaseStopSettings(); return;
         case "help": openHelp(); return;
         case "layoutrecover": layoutRecoverAll(); return;
         case "dmoh": dmOpenForOpeningUnreg(); return;
@@ -4879,7 +4953,7 @@ document.addEventListener("click",function(e){
 
     // フェーズチップ
     const phb=e.target.closest("[data-ph]");
-    if(phb){ setPhase(parseInt(phb.getAttribute("data-ph"),10)); return; }
+    if(phb){ _phasePendingClear(); setPhase(parseInt(phb.getAttribute("data-ph"),10)); return; }
     // プレビューから操作パネル
     const cmb=e.target.closest("[data-cardmenu]");
     if(cmb){ openCardMenu(cmb.getAttribute("data-cardmenu")); return; }
@@ -4908,7 +4982,7 @@ document.addEventListener("click",function(e){
     if(tb){ const a=tb.getAttribute("data-tb");
       switch(a){
         case "next": nextPhase(); break; case "prev": prevPhase(); break;
-        case "endturn": endTurn(); break; case "swactive": switchActive(); break;
+        case "endturn": endTurn(); break; case "turnassist": openTurnStartAssist(); break; case "phasestops": openPhaseStopSettings(); break; case "swactive": switchActive(); break;
         case "landreset": act("土地回数リセット",()=>{ _landReset(state.turn.active); addLog(`${pname(state.turn.active)} の土地プレイ回数を0に戻しました`); }); saveState(true); render(); break;
         case "prioA": setPriority("A"); break; case "prioB": setPriority("B"); break;
         case "pass": passPriority(); break;
@@ -12366,12 +12440,19 @@ function promptQueue(){
 
   // 4) スタックあり「対応しますか？」（caution）
   if(_pqOn("promptQueueShowPriorityPrompt") && top){
+    const local=(online&&online.connected&&(online.role==="A"||online.role==="B"))?online.role:frontPlayer();
+    const actor=top.controller||top.owner||null;
     const ps=top.paymentStatus&&top.paymentStatus!=="none"?`支払:${PAY_JP[top.paymentStatus]||top.paymentStatus}`:"";
     const tg=top.targetRequired?(tgtCount(top)?`対象:あり`:`対象:未指定`):(tgtCount(top)?`対象:あり`:"");
-    add({id:"resolve:top",type:"stack",severity:"caution",priority:28,title:"この呪文に対応しますか？",
-      message:`次に解決: ${getCardDisplayInfo(top).name}${ps?" ／ "+ps:""}${tg?" ／ "+tg:""} ／ スタック${stk.length}件`,
+    const rid=`resolve:${top.id}:${tn.priority}`;
+    const mine=tn.priority===local;
+    const opponent=actor&&actor!==local;
+    add({id:rid,type:"stack",severity:"caution",priority:28,
+      title:mine?(opponent?`${pname(actor)}が唱えました。対応ありますか？`:"優先権があります。対応しますか？"):`${pname(tn.priority)}の対応待ちです`,
+      message:`${getCardDisplayInfo(top).name}${ps?" ／ "+ps:""}${tg?" ／ "+tg:""} ／ スタック${stk.length}件`,
       relatedCardId:top.id,
-      actions:[{label:"対応する",act:"pqlog:"+pname(tn.priority)+" は対応することを選択",kind:"info",primary:true},{label:"何もしない",act:"pqlog:"+pname(tn.priority)+" は対応しないことを選択",kind:"info"},{label:"連続解決",act:"srw",kind:"stack"},{label:"最上段解決",act:"resolve",kind:"stack"},{label:"保留",act:"pqdismiss:resolve:top",kind:"hold"}]});
+      actions:mine?[{label:"対応する",act:"pqrespond:"+rid,kind:"info",primary:true},{label:"対応なし・パス",act:"pqpass:"+rid,kind:"phase"},{label:"スタックを見る",act:"stackview",kind:"stack"},{label:"保留",act:"pqdismiss:"+rid,kind:"hold"}]
+        :[{label:"スタックを見る",act:"stackview",kind:"stack",primary:true},{label:"保留",act:"pqdismiss:"+rid,kind:"hold"}]});
   }
 
   // 5) 戦闘未処理（caution）
@@ -12420,9 +12501,12 @@ function promptQueue(){
   }
 
   // 8) 次フェーズ/ターン案内（info）
-  add({id:"phase",type:"phase",severity:"info",priority:60,title:"次に進んでいいですか？",
-    message:`${PHASES[phase]||""}${(stk.length||combatAttackers().length||_hasMana(tn.active))?` ／ 未処理: ${[stk.length?"スタック"+stk.length:"",combatAttackers().length?"戦闘"+combatAttackers().length:"",(manaPoolEnabled()&&_hasMana(tn.active))?"マナ"+manaPoolText(tn.active):""].filter(Boolean).join(" / ")}`:""}`,
-    actions:[{label:"次フェーズへ",act:"next",kind:"phase",primary:true},{label:"スタックを見る",act:"stackview",kind:"stack"},{label:"ターン終了",act:"pqendturn",kind:"phase"},{label:"保留",act:"pqdismiss:phase",kind:"hold"}]});
+  const stop=phaseStopOn(phase), pending=_phasePendingNow();
+  add({id:"phase",type:"phase",severity:"info",priority:60,
+    title:pending?`${PHASES[phase]}を終了して進みますか？`:(stop?`${PHASES[phase]}：確認停止中`:`${PHASES[phase]}：自動スキップ設定`),
+    message:`${stop?"チェックあり。確認後、次のチェック済みフェイズまで進みます。":"チェックなし。次のチェック済みフェイズまで自動で進みます。"}${(stk.length||combatAttackers().length||_hasMana(tn.active))?` ／ 未処理: ${[stk.length?"スタック"+stk.length:"",combatAttackers().length?"戦闘"+combatAttackers().length:"",(manaPoolEnabled()&&_hasMana(tn.active))?"マナ"+manaPoolText(tn.active):""].filter(Boolean).join(" / ")}`:""}`,
+    actions:pending?[{label:"確認して次へ",act:"phasego",kind:"phase",primary:true},{label:"ここで待つ",act:"phasecancel",kind:"hold"},{label:"停止設定",act:"phaseprefs",kind:"info"}]
+      :[{label:stop?"確認して次へ":"次の確認フェイズへ",act:"phasego",kind:"phase",primary:true},{label:"停止設定",act:"phaseprefs",kind:"info"},{label:"ターン終了",act:"pqendturn",kind:"phase"},{label:"ログを見る",act:"openlog",kind:"info"}]});
 
   for(const it of abilityTriggerHints()) items.push(it);
   for(const it of phaseTriggerHints()) items.push(it);
@@ -12457,18 +12541,24 @@ function promptPanelHTML(){
     foot=`<div class="pq-foot"><button class="btn tiny" data-pq="pqlisttoggle">${showList?"▼":"▶"} 確認一覧${rest>0?` (他${rest}件)`:""}</button> ${_pqCountHTML(items)}</div>`;
     if(showList && items.length>1){ foot+=`<div class="pq-list">${items.slice(1).map(it=>_pqItemHTML(it,false)).join("")}</div>`; }
   }
-  return `<div class="pq-panel ${top.severity}">${body}${foot}</div>`;
+  return `<div class="pq-panel sidebar-decision ${top.severity}">${body}${foot}</div>`;
 }
 function _pqCountHTML(items){
   const dn=items.filter(i=>i.severity==="danger").length, cn=items.filter(i=>i.severity==="caution").length;
   const p=[]; if(dn) p.push(`<span class="nav-c danger">危険 ${dn}</span>`); if(cn) p.push(`<span class="nav-c warning">注意 ${cn}</span>`);
   return p.join(" ");
 }
-function _pqRefresh(){ const fw=$("#footer"); if(fw) fw.innerHTML=footerHTML(); }
+function _pqRefresh(){ const fw=$("#footer"); if(fw) fw.innerHTML=footerHTML(); const sb=document.querySelector(".sidebar"); if(sb) sb.innerHTML=sidebarHTML(); }
 
 /* 確認パネルのアクション処理（pq専用 + 既存navへ委譲） */
 function pqAction(a){
   if(a==="pqlisttoggle"){ _pqListOpen=!_pqListOpen; _pqRefresh(); return; }
+  if(a==="phaseprefs"){ openPhaseStopSettings(); return; }
+  if(a==="phasecancel"){ _phasePendingClear(); render(); return; }
+  if(a==="phasego"){ _phaseAdvanceConfirmed(); return; }
+  if(a==="openlog"){ setLog(true); if(typeof _mobileOpenSideTab==="function"&&document.body.dataset.mobileLandscape==="1") _mobileOpenSideTab("menu"); else { const el=document.getElementById("sidelog"); if(el) el.scrollIntoView({block:"nearest"}); } return; }
+  if(a.indexOf("pqrespond:")===0){ const id=a.slice(10); _pqDismissed[id]=true; pqLog(`${pname(state.turn.priority)} は対応することを選択`); _pqRefresh(); return; }
+  if(a.indexOf("pqpass:")===0){ const id=a.slice(7); _pqDismissed[id]=true; pqLog(`${pname(state.turn.priority)} は対応なしで優先権をパス`); passPriority(); return; }
   if(a.indexOf("pqdismiss:")===0){ _pqDismissed[a.slice(10)]=true; _pqRefresh(); return; }
   if(a.indexOf("pqlog:")===0){ pqLog(a.slice(6)); _pqRefresh(); return; }
   if(a.indexOf("pqtgtoff:")===0){ const id=a.slice(9); const f=findCard(id); if(f){ setTargetRequired(id,false); pqLog(`${f.card.name} の対象必須をOFF`); } return; }
