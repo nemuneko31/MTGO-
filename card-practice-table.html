@@ -1378,7 +1378,7 @@ function defaultState(){
     decks:[],
     players:{ A:newPlayer(), B:newPlayer() },
     stack:[],
-    turn:{ number:1, active:"A", phase:0, priority:"A", combatDamagePlan:{} },
+    turn:{ number:1, active:"A", phase:0, priority:"A", combatDamagePlan:{}, landPlaysUsed:{A:0,B:0} },
     log:[],
     game:{ firstPlayer:null, started:false },
     snapshots:[],
@@ -1395,7 +1395,7 @@ function defaultState(){
     settings:{ autosave:false, rotateOpponent:true, logAuto:false, showImages:true,
       cardSize:"m", oneScreen:true, handMode:"row", viewMode:"compact", revealOpponentHand:false, shortcuts:true,
       combatLines:true, attackerForward:true, landCompact:false, confirmLight:true,
-      combatDamageAid:true, lethalHighlight:true, applyDamageConfirm:true, cleanupNotice:true, mulliganMode:"simple", keepRuleMode:"none", selectedKeepRuleId:"", cardZoomEnabled:true, cardZoomButton:true, cardZoomSize:"l", cardZoomImagePriority:true, targetLines:true, targetBadges:true, targetWarnings:true, targetCandidateHighlight:true, floatingStack:{visible:true,collapsed:false,x:null,y:null,images:null}, navEnabled:true, navUnresolved:true, navImportantOnly:false, navCompact:false, stackResolveConfirmEach:true, stackResolveWarnConfirm:true, analysisTab:"overview", analysisCompact:false, navInFooter:true, uiPanels:null, layoutPresets:[], panelUnresMode:"all", saveLightDiag:true, lightDiagDangerOnly:true, lightDiagLog:true, libraryTemplates:[], recentLibraryTemplates:[], libraryBoxActionsEnabled:true, libraryBoxRecentTemplates:true, stackFacePromptEnabled:true, cardColorFrameEnabled:true, cardColorChipsEnabled:true, cardColorGradientEnabled:true, cardColorGoldMultiEnabled:true, cardColorLandAsColorless:true, cardColorUnknownBadge:true, smartActionMode:"stackFirst", smartActionButtonEnabled:true, smartActionUnknownOpensMenu:true, castPaymentPromptEnabled:true, castPaymentPromptOnlyWhenCostExists:true, castPaymentDefaultChoice:"pending", castPaymentAllowFree:true, manaPoolEnabled:true, manaTapPromptEnabled:true, manaTapAutoSingleColor:false, manaShowPoolInPlayerPanel:true, manaClearMode:"phase", manaClearConfirm:true, manaClearLog:true, promptQueueEnabled:true, promptQueueMode:"normal", promptQueueAutoRefresh:true, promptQueueShowPriorityPrompt:true, promptQueueShowPaymentWarnings:true, promptQueueShowTargetWarnings:true, promptQueueShowCombatWarnings:true, promptQueueShowManaWarnings:true, promptQueueLogChoices:true, abilitiesEnabled:true, abilityShowInCardMenu:true, abilityPromptTargetAfterStack:true, abilityAskTapCost:true, promptQueueShowAbilityHints:false, abilityTriggerHintsEnabled:false, resolveChecklistEnabled:true, resolveChecklistPromptBeforeResolve:true, resolveChecklistWarnRequired:true, resolveChecklistLogDetail:true, resolveChecklistIncludeSpells:true, resolveChecklistSrwSafeMode:true, tokenWizardEnabled:true, tokenShowBadges:true, tokenDefaultController:"active", tokenAutoCheckChecklistItem:true, tokenCopyIncludesAbilities:false, tokenCopyIncludesChecklist:true, handWizardEnabled:true, handDefaultRevealMode:"hiddenNames", handLogCardNamesDefault:false, handAutoCheckChecklistItem:true, promptQueueShowHandActionHints:false, handHistoryEnabled:true, damageWizardEnabled:true, damageAutoCheckChecklistItem:true, damageLogDetail:true, damageShowCounterBadges:true, damageShowPoisonInPlayerPanel:true, promptQueueShowDamageHints:false, damageHistoryEnabled:true, handViewMode:"all", turnReviewGateEnabled:true, phaseTriggerReminderEnabled:true, manualTriggerEventCheckEnabled:true, onlineServerUrl:"", onlineName:"", onlineAutoBroadcastEnabled:false, onlineAutoViewByRoleEnabled:false, onlineAutoReconnectEnabled:false, onlineSeatViewByRoleEnabled:true, onlineSideChatEnabled:false, onlineAutoApplyReceivedStateEnabled:false, onlineSideChatX:null, onlineSideChatY:null, onlineSideChatW:null, onlineSideChatH:null, onlineFloatingHudEnabled:false, onlineFloatingHudX:null, onlineFloatingHudY:null, onlineFloatingHudW:null, onlineFloatingHudH:null, commandPanelFloatingEnabled:false, commandPanelX:null, commandPanelY:null, commandPanelW:null, commandPanelH:null }
+      combatDamageAid:true, lethalHighlight:true, applyDamageConfirm:true, cleanupNotice:true, mulliganMode:"simple", keepRuleMode:"none", selectedKeepRuleId:"", cardZoomEnabled:true, cardZoomButton:true, cardZoomSize:"l", cardZoomImagePriority:true, targetLines:true, targetBadges:true, targetWarnings:true, targetCandidateHighlight:true, floatingStack:{visible:true,collapsed:false,x:null,y:null,images:null}, navEnabled:true, navUnresolved:true, navImportantOnly:false, navCompact:false, stackResolveConfirmEach:true, stackResolveWarnConfirm:true, analysisTab:"overview", analysisCompact:false, navInFooter:true, uiPanels:null, layoutPresets:[], panelUnresMode:"all", saveLightDiag:true, lightDiagDangerOnly:true, lightDiagLog:true, libraryTemplates:[], recentLibraryTemplates:[], libraryBoxActionsEnabled:true, libraryBoxRecentTemplates:true, stackFacePromptEnabled:true, cardColorFrameEnabled:true, cardColorChipsEnabled:true, cardColorGradientEnabled:true, cardColorGoldMultiEnabled:true, cardColorLandAsColorless:true, cardColorUnknownBadge:true, smartActionMode:"stackFirst", smartActionButtonEnabled:true, smartActionUnknownOpensMenu:true, castPaymentPromptEnabled:true, castPaymentPromptOnlyWhenCostExists:true, castPaymentDefaultChoice:"pending", castPaymentAllowFree:true, manaPoolEnabled:true, manaTapPromptEnabled:true, manaTapAutoSingleColor:false, manaShowPoolInPlayerPanel:true, manaClearMode:"phase", manaClearConfirm:true, manaClearLog:true, promptQueueEnabled:true, promptQueueMode:"normal", promptQueueAutoRefresh:true, promptQueueShowPriorityPrompt:true, promptQueueShowPaymentWarnings:true, promptQueueShowTargetWarnings:true, promptQueueShowCombatWarnings:true, promptQueueShowManaWarnings:true, promptQueueLogChoices:true, abilitiesEnabled:true, abilityShowInCardMenu:true, abilityPromptTargetAfterStack:true, abilityAskTapCost:true, promptQueueShowAbilityHints:false, abilityTriggerHintsEnabled:false, resolveChecklistEnabled:true, resolveChecklistPromptBeforeResolve:true, resolveChecklistWarnRequired:true, resolveChecklistLogDetail:true, resolveChecklistIncludeSpells:true, resolveChecklistSrwSafeMode:true, tokenWizardEnabled:true, tokenShowBadges:true, tokenDefaultController:"active", tokenAutoCheckChecklistItem:true, tokenCopyIncludesAbilities:false, tokenCopyIncludesChecklist:true, handWizardEnabled:true, handDefaultRevealMode:"hiddenNames", handLogCardNamesDefault:false, handAutoCheckChecklistItem:true, promptQueueShowHandActionHints:false, handHistoryEnabled:true, damageWizardEnabled:true, damageAutoCheckChecklistItem:true, damageLogDetail:true, damageShowCounterBadges:true, damageShowPoisonInPlayerPanel:true, promptQueueShowDamageHints:false, damageHistoryEnabled:true, handViewMode:"all", turnReviewGateEnabled:true, phaseTriggerReminderEnabled:true, manualTriggerEventCheckEnabled:true, onlineServerUrl:"", onlineName:"", onlineAutoBroadcastEnabled:false, onlineAutoViewByRoleEnabled:false, onlineAutoReconnectEnabled:false, onlineResumeSyncEnabled:true, onlineSeatViewByRoleEnabled:true, turnStartAssistEnabled:true, landPlayAssistEnabled:true, landPlayLimit:1, onlineSideChatEnabled:false, onlineAutoApplyReceivedStateEnabled:false, onlineSideChatX:null, onlineSideChatY:null, onlineSideChatW:null, onlineSideChatH:null, onlineFloatingHudEnabled:false, onlineFloatingHudX:null, onlineFloatingHudY:null, onlineFloatingHudW:null, onlineFloatingHudH:null, commandPanelFloatingEnabled:false, commandPanelX:null, commandPanelY:null, commandPanelW:null, commandPanelH:null }
   };
 }
 let state = defaultState();
@@ -1496,15 +1496,16 @@ function pname(p){ return p==="A"?"Player A":"Player B"; }
    ============================================================ */
 function playFromHand(id){
   const f=findCard(id);
-  if(f){ const c=f.card; if((c.type==="Instant"||c.type==="Sorcery") && hasCardFaces(c) && stackFacePromptOn()){
-    placeOnStackFlow(id,{toast:false}); return; } }
+  if(f){ const c=f.card;
+    if(c.type==="Land"){ _playLandFromHandFlow(id); return; }
+    if((c.type==="Instant"||c.type==="Sorcery") && hasCardFaces(c) && stackFacePromptOn()){
+      placeOnStackFlow(id,{toast:false}); return; } }
   return act("カードプレイ", ()=>_playFromHand(id));
 }
 function _playFromHand(id){
   const f=findCard(id); if(!f) return; const c=f.card; const owner=f.player;
   const t=c.type;
-  if(t==="Land"){ moveCard(id,owner,"lands"); addLog(`${pname(owner)} が 土地 [${c.name}] を場に出した`); }
-  else if(t==="Creature"||t==="Token"){ moveCard(id,owner,"creatures"); addLog(`${pname(owner)} が クリーチャー [${c.name}] を場に出した`); }
+  if(t==="Creature"||t==="Token"){ moveCard(id,owner,"creatures"); addLog(`${pname(owner)} が クリーチャー [${c.name}] を場に出した`); }
   else if(["Artifact","Enchantment","Planeswalker","Battle","Other"].includes(t)){
     moveCard(id,owner,"others"); addLog(`${pname(owner)} が ${TYPE_JP[t]} [${c.name}] を場に出した`); }
   else if(t==="Instant"){ moveCard(id,null,"stack"); addLog(`${pname(owner)} が インスタント [${c.name}] をスタックに置いた`); closeModal(); render(); setTimeout(()=>maybePromptTarget(id),0); return; }
@@ -1613,15 +1614,64 @@ function _nextPhase(){
   else if(tn.phase===11) maybeCleanupNotice();
 }
 function prevPhase(){ const tn=state.turn; if(tn.phase>0){ pushUndo("フェーズ変更"); tn.phase--; addLog(`フェーズ: ${PHASES[tn.phase]}(戻る)`); render(); } }
-function _endTurnFlow(){ _manaPhaseFlow("turn", "ターン変更", _endTurn); }
+function turnStartAssistOn(){ return (state.settings||{}).turnStartAssistEnabled!==false; }
+function landPlayAssistOn(){ return (state.settings||{}).landPlayAssistEnabled!==false; }
+function _landPlayLimit(){ const n=parseInt((state.settings||{}).landPlayLimit,10); return (!isNaN(n)&&n>0)?Math.min(n,9):1; }
+function _landPlayMap(){ const tn=state.turn||(state.turn={}); if(!tn.landPlaysUsed||typeof tn.landPlaysUsed!=="object") tn.landPlaysUsed={A:0,B:0};
+  for(const p of ["A","B"]){ const n=parseInt(tn.landPlaysUsed[p],10); tn.landPlaysUsed[p]=(isNaN(n)||n<0)?0:n; } return tn.landPlaysUsed; }
+function _landPlayed(p){ return _landPlayMap()[p]||0; }
+function _landReset(p){ _landPlayMap()[p]=0; }
+function _playLandFromHandFlow(id){
+  const f=findCard(id); if(!f||f.card.type!=="Land") return; const c=f.card, owner=f.player;
+  const used=_landPlayed(owner), lim=_landPlayLimit();
+  const run=()=>{ act("土地プレイ", ()=>{ const cur=findCard(id); if(!cur||cur.zone!=="hand") return;
+      moveCard(id,owner,"lands"); _landPlayMap()[owner]=_landPlayed(owner)+1;
+      addLog(`${pname(owner)} が 土地 [${c.name}] を場に出した（土地プレイ ${_landPlayed(owner)}/${lim}）`); });
+    closeModal(); saveState(true); render(); };
+  if(landPlayAssistOn() && used>=lim){
+    confirmDlg(`${pname(owner)} はこのターンすでに土地を ${used}枚プレイしています（目安上限 ${lim}枚）。追加の土地プレイ権がある場合は、そのまま続行してください。`,run);
+  } else run();
+}
+function _clearCombatForTurnStart(){ let n=0; forEachCard(c=>{ const had=!!(c.attacking||c.blocking||(c.blockingTargetIds&&c.blockingTargetIds.length)||c.blockingTargetId||c.combatMemo);
+    c.attacking=false; c.blocking=false; c.blockingTargetId=null; c.blockingTargetIds=[]; c.combatMemo=""; if(had)n++; });
+  if(state.turn) state.turn.combatDamagePlan={}; return n; }
+function _turnAssistDraw(p){ const lib=state.players[p].library; if(!lib.length) return 0; const c=lib.pop(); c.zone="hand"; c.controller=c.owner; state.players[p].hand.push(c); return 1; }
+function openTurnStartAssist(){
+  const old=state.turn.active, next=old==="A"?"B":"A", nt=(state.turn.number||1)+1;
+  const clearManaDefault=manaPoolEnabled() && manaClearMode()!=="manual" && _hasMana(old);
+  openModal(`次ターン開始アシスト — ターン${nt} / ${pname(next)}`,
+    `<div class="note">定型操作だけをまとめる補助です。カード固有の誘発・置換・追加ターンなどは自動判定しません。必要な項目だけ選んでください。</div>
+     <label class="row-inline" style="gap:8px;cursor:pointer"><input type="checkbox" id="tsaUntap" checked> ${pname(next)} の戦場をアンタップ</label>
+     <label class="row-inline" style="gap:8px;cursor:pointer"><input type="checkbox" id="tsaDraw" checked> ${pname(next)} が1枚ドロー</label>
+     <label class="row-inline" style="gap:8px;cursor:pointer"><input type="checkbox" id="tsaCombat" checked> 攻撃・ブロック・戦闘割当を整理</label>
+     <label class="row-inline" style="gap:8px;cursor:pointer"><input type="checkbox" id="tsaLand" checked> ${pname(next)} の土地プレイ回数を0へ戻す</label>
+     <label class="row-inline" style="gap:8px;cursor:pointer"><input type="checkbox" id="tsaMana"${clearManaDefault?" checked":""}> ${pname(old)} の残りマナを空にする${_hasMana(old)?`（現在 ${esc(manaPoolText(old))}）`:""}</label>
+     <div class="note" style="font-size:10px">ダメージ、誘発型能力、一時トークン、アップキープ処理は自動で消去・解決しません。</div>`,
+    `<button class="btn" data-tsa="normal">補助なしで通常終了</button><button class="btn primary" data-tsa="run">選択内容で開始</button><button class="btn" data-app="closem">キャンセル</button>`);
+  setModalHandler(function(e){ const b=e.target.closest("[data-tsa]"); if(!b) return; const a=b.getAttribute("data-tsa");
+    if(a==="normal"){ closeModal(); _manaPhaseFlow("turn","ターン変更",_endTurn); return; }
+    if(a==="run"){ const opt={untap:$("#tsaUntap").checked,draw:$("#tsaDraw").checked,combat:$("#tsaCombat").checked,land:$("#tsaLand").checked,mana:$("#tsaMana").checked}; closeModal(); _runTurnStartAssist(opt); }
+  });
+}
+function _runTurnStartAssist(opt){ const old=state.turn.active, next=old==="A"?"B":"A";
+  act("ターン開始アシスト", ()=>{ let unt=0, combat=0, drawn=0;
+    if(opt.mana) _clearMana(old,true);
+    state.turn.active=next; state.turn.number=(state.turn.number||1)+1; state.turn.phase=0; state.turn.priority=next;
+    if(opt.combat) combat=_clearCombatForTurnStart(); else state.turn.combatDamagePlan={};
+    if(opt.untap){ for(const z of ["creatures","lands","others"]) for(const c of state.players[next][z]) if(c.tapped){ c.tapped=false; unt++; } }
+    if(opt.land) _landReset(next);
+    if(opt.draw) drawn=_turnAssistDraw(next);
+    addLog(`ターン${state.turn.number} 開始 / 手番: ${pname(next)}${opt.untap?` / アンタップ${unt}枚`:""}${opt.draw?` / ドロー${drawn}枚`:""}${opt.land?" / 土地回数リセット":""}${opt.combat?` / 戦闘整理${combat}枚`:""}`);
+  }); saveState(true); render(); }
+function _endTurnFlow(){ if(turnStartAssistOn()){ openTurnStartAssist(); return; } _manaPhaseFlow("turn", "ターン変更", _endTurn); }
 function endTurn(){ _trvGate("turn", _endTurnFlow); }
 function _endTurn(){
   const tn=state.turn; tn.active = tn.active==="A"?"B":"A"; tn.number++;
-  tn.phase=0; tn.priority=tn.active;
+  tn.phase=0; tn.priority=tn.active; tn.combatDamagePlan={}; _landReset(tn.active);
   addLog(`ターン${tn.number} 開始 / 手番: ${pname(tn.active)}`);
   render();
 }
-function switchActive(){ pushUndo("手番変更"); state.turn.active=state.turn.active==="A"?"B":"A";
+function switchActive(){ pushUndo("手番変更"); state.turn.active=state.turn.active==="A"?"B":"A"; _landReset(state.turn.active);
   addLog(`手番プレイヤーを ${pname(state.turn.active)} に変更`); render(); }
 function setPriority(p){ pushUndo("優先権変更"); state.turn.priority=p; addLog(`優先権: ${pname(p)}`); render(); }
 function passPriority(){ pushUndo("優先権変更"); const tn=state.turn; tn.priority=tn.priority==="A"?"B":"A";
@@ -2615,7 +2665,8 @@ function footerHTML(){
     <div class="ph-acts">
       <button class="btn sm" data-tb="prev">◀前</button>
       <button class="btn sm primary" data-tb="next">次▶</button>
-      <button class="btn sm" data-tb="endturn">ターン終了</button>
+      <button class="btn sm" data-tb="endturn">${turnStartAssistOn()?"次ターン補助":"ターン終了"}</button>
+      <button class="btn sm" data-tb="landreset" title="手番プレイヤーの土地プレイ回数を0へ戻す">土地 ${_landPlayed(tn.active)}/${_landPlayLimit()}</button>
       <button class="btn sm" data-tb="combatclear">戦闘クリア</button>
       <button class="btn sm primary" data-tb="combatresolve">戦闘解決</button><button class="btn sm" data-tb="review">終了前レビュー</button>${manualTriggerEventCheckEnabled()?'<button class="btn sm" data-tb="eventtrg">イベント誘発</button>':""}</div>
     ${stackMiniHTML()}
@@ -2864,7 +2915,8 @@ const online={ enabled:false, connected:false, connecting:false, ws:null, client
   pendingState:null, pendingRev:null, pendingFrom:"", pendingReceivedAt:null, pendingRejected:false,
   autoBroadcastPending:false, autoBroadcastTimer:null, lastBroadcastAt:null, lastBroadcastRev:null, lastBroadcastSize:null, lastBroadcastError:"", lastBroadcastSig:"", suppressBroadcast:false, lastAutoViewRole:"",
   lastServerUrl:"", lastRoomCode:"", lastName:"", lastRole:"", lastWasInRoom:false, lastDisconnectReason:"",
-  wasConnected:false, intentionalDisconnect:false, reconnecting:false, reconnectAttempt:0, maxReconnectAttempts:4, reconnectTimer:null, pendingRejoin:false,
+  wasConnected:false, intentionalDisconnect:false, reconnecting:false, reconnectAttempt:0, maxReconnectAttempts:8, reconnectTimer:null, pendingRejoin:false,
+  reconnectToken:"", lastReconnectToken:"", recoveryState:"idle", recoveryReason:"", lastMessageAt:null, lastRecoveredAt:null, networkOffline:false,
   lastAutoApplyRev:null, lastAutoApplyAt:null, lastAutoApplyError:"", _autoApplying:false, lastJoinPw:"", staleRevStreak:0 };
 /* ---- 共有ライブラリ（同一サーバーのDBがある時だけ有効。DB未設定でも既存機能は不変） ---- */
 const sharedState={ enabled:null, reason:"", adminConfigured:false, lastMsg:"" };
@@ -3003,10 +3055,11 @@ function onlineDefaultUrl(){
 function _olog(m){ online.uiLog.unshift({t:new Date().toLocaleTimeString("ja-JP"),m:String(m)}); if(online.uiLog.length>50) online.uiLog.length=50; _olSync(); }
 function _olErr(m){ online.lastError=String(m||""); if(m) _olog("エラー: "+m); _olSync(); }
 function onlineBadgeText(){
-  if(online.reconnecting) return `Reconnecting... (${online.reconnectAttempt}/${online.maxReconnectAttempts})`;
-  if(online.connecting) return "Connecting...";
+  if(online.networkOffline) return "オフライン（通信復帰待ち）";
+  if(online.reconnecting) return `再接続中… (${online.reconnectAttempt}/${online.maxReconnectAttempts})`;
+  if(online.connecting) return "接続中…";
   if(!online.connected){
-    if(online.wasConnected) return `Disconnected${online.lastRoomCode?`（再接続可: ${online.lastRoomCode} / ${online.lastRole||"-"}）`:""}${online.lastError?` ／ ${online.lastError.slice(0,30)}`:""}`;
+    if(online.wasConnected) return `切断${online.lastRoomCode?`（再接続可: ${online.lastRoomCode} / ${online.lastRole||"-"}）`:""}${online.lastError?` ／ ${online.lastError.slice(0,30)}`:""}`;
     return online.lastError?("Error: "+online.lastError.slice(0,40)):"Offline";
   }
   if(online.roomCode){ let t=`Online: ${online.roomCode} / ${_olRoleDisp()} / rev ${online.rev} / View: ${_olViewLabel((state.settings||{}).handViewMode||"all")}`;
@@ -3015,6 +3068,9 @@ function onlineBadgeText(){
     if(onlineAutoApplyOn()&&(!online.isHost||_olCollabOn())) t+=" ／ 自動追従ON";
     if(_olCollabOn()) t+=" ／ 双方向同期ON";
     if((online.staleRevStreak||0)>=2) t+=" ／ 再同期が必要（state問い合わせ→適用）";
+    if(online.recoveryState==="syncing") t+=" ／ 最新盤面を同期中";
+    else if(online.recoveryState==="waitingApply") t+=" ／ 復帰stateの適用待ち";
+    else if(online.lastRecoveredAt) t+=` ／ 復帰済み ${new Date(online.lastRecoveredAt).toLocaleTimeString("ja-JP")}`;
     return t; }
   return "Online: ルーム未参加";
 }
@@ -3027,14 +3083,15 @@ function onlineConnect(url){
   let ws;
   try{ ws=new WebSocket(url); }catch(e){ online.connecting=false; _olErr("接続失敗: "+(e.message||url)); return; }
   online.ws=ws;
-  ws.onopen=()=>{ online.connected=true; online.connecting=false; online.wasConnected=true; online.lastServerUrl=url; online.reconnecting=false; online.reconnectAttempt=0; _olog("接続しました: "+url); try{ addLog("オンライン接続しました"); }catch(_){} _olSync(); };
+  ws.onopen=()=>{ online.connected=true; online.connecting=false; online.wasConnected=true; online.lastServerUrl=url; online.reconnecting=false; online.reconnectAttempt=0; online.networkOffline=false;
+    online.recoveryState=online.pendingRejoin?"rejoining":"connected"; _olog("接続しました: "+url); try{ addLog("オンライン接続しました"); }catch(_){} _olSync(); };
   ws.onclose=()=>{ const was=online.connected; online.connected=false; online.connecting=false; online.ws=null;
-    online.clientId=null; online.roomCode=null; online.role=null; online.isHost=false; online.roomSummary=null;
+    online.clientId=null; online.roomCode=null; online.role=null; online.isHost=false; online.roomSummary=null; online.recoveryState=online.intentionalDisconnect?"idle":"disconnected";
     if(was){ online.lastDisconnectReason=online.intentionalDisconnect?"手動切断":"予期しない切断"; _olog("切断されました（"+online.lastDisconnectReason+"）"); }
-    if(!online.intentionalDisconnect) _olScheduleReconnect(); // 設定ON時のみ・意図的切断では動かない
+    if(!online.intentionalDisconnect) _olScheduleReconnect();
     _olSync(); };
   ws.onerror=()=>{ online.connecting=false; _olErr("接続エラー（サーバーURL/起動を確認してください）"); };
-  ws.onmessage=(ev)=>{ let msg; try{ msg=JSON.parse(ev.data); }catch(_){ return; } try{ _olHandle(msg); }catch(e){ _olErr("受信処理エラー: "+e.message); } };
+  ws.onmessage=(ev)=>{ online.lastMessageAt=Date.now(); let msg; try{ msg=JSON.parse(ev.data); }catch(_){ return; } try{ _olHandle(msg); }catch(e){ _olErr("受信処理エラー: "+e.message); } };
 }
 function onlineDisconnect(){ online.intentionalDisconnect=true; online.pendingRejoin=false; _olClearReconnect(); online.reconnectAttempt=0;
   if(online.ws){ try{ online.ws.close(); }catch(_){} } online.ws=null; online.connected=false; online.connecting=false; _olog("切断しました"); _olSync(); }
@@ -3044,20 +3101,28 @@ function onlineSend(obj){
 }
 function _olHandle(msg){
   switch(msg.type){
-    case "hello": online.clientId=msg.clientId; _olog("hello受信 clientId="+msg.clientId);
-      if(online.pendingRejoin&&online.lastRoomCode){ online.pendingRejoin=false;
+    case "hello": online.clientId=msg.clientId;
+      if(!online.pendingRejoin||!online.lastReconnectToken){ online.reconnectToken=msg.reconnectToken||""; if(!online.lastReconnectToken) online.lastReconnectToken=online.reconnectToken; }
+      _olog("hello受信 clientId="+msg.clientId);
+      if(online.pendingRejoin&&online.lastRoomCode){ online.pendingRejoin=false; online.recoveryState="rejoining";
         _olog(`前回のルームへ再参加を試行: ${online.lastRoomCode}（希望role ${online.lastRole||"-"}）`);
-        onlineSend({type:"joinRoom", roomCode:online.lastRoomCode, name:online.lastName||online.name, role:online.lastRole||"spectator"}); }
+        onlineSend({type:"joinRoom", roomCode:online.lastRoomCode, name:online.lastName||online.name, role:online.lastRole||"spectator", password:online.lastJoinPw||"", reconnectToken:online.lastReconnectToken||""}); }
       break;
     case "roomCreated": online.roomCode=msg.roomCode; online.role=msg.role; online.isHost=true; online.rev=0; online.roomSummary=msg.roomSummary||null;
       _olog(`ルーム作成: ${msg.roomCode}（role ${msg.role} / host）`); try{ addLog("オンラインルームを作成しました: "+msg.roomCode); }catch(_){} online.lastAutoViewRole=""; _olCaptureSession(msg.roomCode,msg.role); _olMaybeAutoView(); break;
-    case "roomJoined": online.roomCode=msg.roomCode; online.role=msg.role; online.isHost=!!(msg.roomSummary&&msg.roomSummary.hostId===online.clientId);
+    case "roomJoined": { const recovering=online.recoveryState==="rejoining"||online.recoveryState==="syncing"||msg.reconnected===true;
+      online.roomCode=msg.roomCode; online.role=msg.role; online.isHost=!!(msg.roomSummary&&msg.roomSummary.hostId===online.clientId);
       online.rev=msg.rev||0; online.roomSummary=msg.roomSummary||null;
-      if(msg.state!=null){ _olSetPending(msg.state,msg.rev,"参加時(ホストstate)",false); online.stateNote=`参加時state受信: rev ${msg.rev}（受信stateに保持・自動適用しません）`; } else online.stateNote="参加時state: なし";
-      _olog(`ルーム参加: ${msg.roomCode}（role ${msg.role}）／ ${online.stateNote}`);
-      try{ addLog("オンラインルームに参加しました: "+msg.roomCode); }catch(_){}
+      if(msg.reconnectToken){ online.reconnectToken=msg.reconnectToken; online.lastReconnectToken=msg.reconnectToken; }
+      if(msg.state!=null){ online.recoveryState=recovering?"syncing":online.recoveryState; _olSetPending(msg.state,msg.rev,recovering?"再参加時の最新state":"参加時(ホストstate)",false);
+        online.stateNote=`${recovering?"再参加":"参加"}時state受信: rev ${msg.rev}`; }
+      else { online.stateNote="参加時state: なし"; if(recovering){ online.recoveryState="synced"; online.lastRecoveredAt=Date.now(); } }
+      _olog(`${msg.reconnected?"ルームへ復帰":"ルーム参加"}: ${msg.roomCode}（role ${msg.role}）／ ${online.stateNote}`);
+      try{ addLog((msg.reconnected?"オンラインルームへ復帰しました: ":"オンラインルームに参加しました: ")+msg.roomCode); }catch(_){}
       if(online.lastRole&&msg.role!==online.lastRole) _olog(`希望role ${online.lastRole} は取得できず、実roleは ${msg.role} です`);
-      online.lastAutoViewRole=""; _olCaptureSession(msg.roomCode,msg.role); _olMaybeAutoView(); break;
+      online.lastAutoViewRole=""; _olCaptureSession(msg.roomCode,msg.role); _olMaybeAutoView();
+      if(recovering&&onlineResumeSyncOn()) setTimeout(()=>{ if(online.connected&&online.roomCode) onlineSend({type:"requestState",roomCode:online.roomCode}); },120);
+      break; }
     case "roomUpdate": online.roomSummary=msg.roomSummary||null;
       if(msg.roomSummary===null){ online.roomCode=null; online.role=null; online.isHost=false; online.lastAutoViewRole=""; _olog("ルームを退出しました"); }
       else {
@@ -3084,7 +3149,8 @@ function _olHandle(msg){
       if(!_dup){ online.chatMessages.push({from:_cf, role:msg.role||"", text:_ct, at:_ca});
         if(online.chatMessages.length>50) online.chatMessages.splice(0,online.chatMessages.length-50); }
       _olSync(); break; }
-    case "joinRejected": online.lastError=msg.message||("参加拒否: "+(msg.reason||"")); _olog("参加拒否: "+(msg.message||msg.reason||"")); _olSync(); break; // 盤面/接続は維持（rejoinや別roomは可能）
+    case "joinRejected": online.lastError=msg.message||("参加拒否: "+(msg.reason||"")); online.recoveryState="failed";
+      _olog("参加拒否: "+(msg.message||msg.reason||"")+(msg.reason==="password"?"（再参加用トークンの期限切れ、またはパスワード再入力が必要です）":"")); _olSync(); break; // 盤面/接続は維持（rejoinや別roomは可能）
     case "error": _olErr(msg.message||"server error"); break;
     case "pong": _olog("pong受信"); break;
     default: break; // 未知typeは無視（落とさない）
@@ -3101,7 +3167,8 @@ function _olSync(){
     const aa=onlineAutoApplyOn()?(online.isHost?"ON（hostのため適用なし）":"ON"):"OFF";
     const aal=online.lastAutoApplyAt?`最終自動適用: rev ${online.lastAutoApplyRev} ／ ${new Date(online.lastAutoApplyAt).toLocaleTimeString("ja-JP")}`:"最終自動適用: なし";
     const lb=online.lastBroadcastAt?`最終送信: rev ${online.lastBroadcastRev} 基準 ／ 約${online.lastBroadcastSize}KB ／ ${new Date(online.lastBroadcastAt).toLocaleTimeString("ja-JP")}`:"最終送信: なし";
-    info.innerHTML=`状態: <b>${esc(onlineBadgeText())}</b><br>clientId: ${esc(online.clientId||"-")} ／ roomCode: <b>${esc(online.roomCode||"-")}</b> ／ role: <b>${esc(online.role||"-")}</b>${online.isHost?" (host)":""} ／ rev: <b>${online.rev}</b><br>自動同期: <b>${ab}</b> ／ ${esc(lb)}<br>自動追従: <b>${aa}</b> ／ ${esc(aal)}${online.lastAutoApplyError?` ／ <span class="ol-err">自動適用エラー: ${esc(online.lastAutoApplyError)}</span>`:""}${online.lastBroadcastError?` ／ <span class="ol-err">送信エラー: ${esc(online.lastBroadcastError)}</span>`:""}${online.stateNote?`<br><span class="note">${esc(online.stateNote)}</span>`:""}${online.lastError?`<br><span class="ol-err">エラー: ${esc(online.lastError)}</span>`:""}`; }
+    const rec=online.lastRecoveredAt?`最終復帰: ${new Date(online.lastRecoveredAt).toLocaleTimeString("ja-JP")}`:`復帰状態: ${online.recoveryState||"idle"}`;
+    info.innerHTML=`状態: <b>${esc(onlineBadgeText())}</b><br>clientId: ${esc(online.clientId||"-")} ／ roomCode: <b>${esc(online.roomCode||"-")}</b> ／ role: <b>${esc(online.role||"-")}</b>${online.isHost?" (host)":""} ／ rev: <b>${online.rev}</b> ／ ${esc(rec)}<br>自動同期: <b>${ab}</b> ／ ${esc(lb)}<br>自動追従: <b>${aa}</b> ／ ${esc(aal)}${online.lastAutoApplyError?` ／ <span class="ol-err">自動適用エラー: ${esc(online.lastAutoApplyError)}</span>`:""}${online.lastBroadcastError?` ／ <span class="ol-err">送信エラー: ${esc(online.lastBroadcastError)}</span>`:""}${online.stateNote?`<br><span class="note">${esc(online.stateNote)}</span>`:""}${online.lastError?`<br><span class="ol-err">エラー: ${esc(online.lastError)}</span>`:""}`; }
   const inv=document.getElementById("olInvite");
   if(inv){ const rs=online.roomSummary; const url=(state.settings&&state.settings.onlineServerUrl)||onlineDefaultUrl();
     const httpUrl=url.replace(/^ws/,"http");
@@ -3166,13 +3233,14 @@ function _olSetPending(st,rev,from,rejected){
   if(st==null) return;
   try{ // no-op判定: 受信stateが現在盤面と同一内容（ローカルUI設定・保存メタ除外）なら適用も再送信も不要
     if(_olValidStateObj(st) && _olSigOfState(JSON.stringify(st))===_olSigOfState(serialize())){
-      online.staleRevStreak=0;
+      online.staleRevStreak=0; online.recoveryState="synced"; online.lastRecoveredAt=Date.now();
       if(typeof rev==="number"){ online.lastBroadcastSig=_olSigOfState(serialize()); } // 同内容の送り返しも封じる
       _olClearPending(); _olSync(); return; // ログなし・Undoなし・pendingは安全にクリア
     }
   }catch(_){}
   online.pendingState=st; online.pendingRev=(typeof rev==="number")?rev:null;
   online.pendingFrom=String(from||"-"); online.pendingReceivedAt=Date.now(); online.pendingRejected=!!rejected;
+  if(online.recoveryState==="syncing"&&!onlineAutoApplyOn()) online.recoveryState="waitingApply";
   _olSync();
   try{ _olMaybeAutoApply(); }catch(_){} // 自動追従ON（非host）のときだけ即適用
 }
@@ -3211,7 +3279,7 @@ function _olApplyPendingConfirmed(auto){
     try{ for(const k in keepLocal){ state.settings[k]=keepLocal[k]; } }catch(_){}
     if(typeof pRev==="number") online.rev=pRev;
     _olClearPending();
-    online.staleRevStreak=0;
+    online.staleRevStreak=0; online.recoveryState="synced"; online.lastRecoveredAt=Date.now();
     if(auto){ online.lastAutoApplyRev=(typeof pRev==="number")?pRev:online.lastAutoApplyRev; online.lastAutoApplyAt=Date.now(); online.lastAutoApplyError="";
       _olog("受信state rev "+(pRev!=null?pRev:"?")+" を自動適用しました"); } // 自動適用はオンラインログのみ（処理履歴には追記しない＝stateを変えない）
     else { _olog("オンラインstateを盤面に適用しました（rev "+(pRev!=null?pRev:"?")+"）");
@@ -3337,49 +3405,63 @@ function _cmdPanelSync(){
 }
 /* ---- 切断/再接続・再join支援（第7段階・接続補助のみ／盤面stateは自動適用しない） ---- */
 function onlineAutoReconnectOn(){ return (state.settings||{}).onlineAutoReconnectEnabled===true; }
-function _olSessSave(){ try{ sessionStorage.setItem("cpt_online_last", JSON.stringify({url:online.lastServerUrl,room:online.lastRoomCode,name:online.lastName,role:online.lastRole})); }catch(_){} }
-function _olSessLoad(){ // ページ再読込後の復帰支援（接続状態は復元しない）
+function onlineResumeSyncOn(){ return (state.settings||{}).onlineResumeSyncEnabled!==false; }
+function _olSessSave(){ try{ sessionStorage.setItem("cpt_online_last", JSON.stringify({url:online.lastServerUrl,room:online.lastRoomCode,name:online.lastName,role:online.lastRole,token:online.lastReconnectToken||online.reconnectToken||""})); }catch(_){} }
+function _olSessLoad(){
   if(online.lastRoomCode) return;
   try{ const j=JSON.parse(sessionStorage.getItem("cpt_online_last")||"null");
-    if(j&&j.room){ online.lastServerUrl=j.url||""; online.lastRoomCode=j.room||""; online.lastName=j.name||""; online.lastRole=j.role||""; online.lastWasInRoom=true; } }catch(_){}
+    if(j&&j.room){ online.lastServerUrl=j.url||""; online.lastRoomCode=j.room||""; online.lastName=j.name||""; online.lastRole=j.role||"";
+      online.lastReconnectToken=j.token||""; online.lastWasInRoom=true; } }catch(_){}
 }
 function _olCaptureSession(roomCode,role){
   online.lastRoomCode=roomCode||online.lastRoomCode; online.lastName=online.name||online.lastName;
-  online.lastRole=role||online.lastRole; online.lastWasInRoom=true; _olSessSave();
+  online.lastRole=role||online.lastRole; online.lastReconnectToken=online.reconnectToken||online.lastReconnectToken; online.lastWasInRoom=true; _olSessSave();
 }
 function _olClearReconnect(){ clearTimeout(online.reconnectTimer); online.reconnectTimer=null; online.reconnecting=false; }
 function _olReconnectNow(){
   online.reconnectTimer=null;
   if(online.connected||online.connecting){ online.reconnecting=false; _olSync(); return; }
   if(!onlineAutoReconnectOn()||online.intentionalDisconnect){ online.reconnecting=false; _olSync(); return; }
-  const url=online.lastServerUrl||onlineDefaultUrl();
+  if(typeof navigator!=="undefined"&&navigator.onLine===false){ online.networkOffline=true; online.reconnecting=false; online.recoveryState="waitingNetwork"; _olSync(); return; }
+  online.networkOffline=false; const url=online.lastServerUrl||onlineDefaultUrl();
   _olog(`自動再接続を試行（${online.reconnectAttempt}/${online.maxReconnectAttempts}）: ${url}`);
-  if(online.lastWasInRoom&&online.lastRoomCode) online.pendingRejoin=true; // 接続成功(hello)後に再join
+  if(online.lastWasInRoom&&online.lastRoomCode){ online.pendingRejoin=true; online.recoveryState="rejoining"; }
   onlineConnect(url);
 }
-function _olScheduleReconnect(){
+function _olScheduleReconnect(immediate){
   if(!onlineAutoReconnectOn()||online.intentionalDisconnect) return;
+  if(typeof navigator!=="undefined"&&navigator.onLine===false){ online.networkOffline=true; online.recoveryState="waitingNetwork"; _olSync(); return; }
   if(online.reconnectAttempt>=online.maxReconnectAttempts){
-    online.reconnecting=false; _olErr(`自動再接続に失敗しました（${online.maxReconnectAttempts}回）`); return;
+    online.reconnecting=false; online.recoveryState="failed"; _olErr(`自動再接続に失敗しました（${online.maxReconnectAttempts}回）。画面へ戻るか通信復帰時に再試行します`); return;
   }
   online.reconnecting=true; online.reconnectAttempt++;
-  const delay=Math.min(1000*Math.pow(2,online.reconnectAttempt-1),8000); // 1→2→4→8秒
-  clearTimeout(online.reconnectTimer);
-  online.reconnectTimer=setTimeout(_olReconnectNow, delay);
-  _olSync();
+  const seq=[500,1000,2000,4000,8000,15000,20000,30000]; const delay=immediate?150:(seq[online.reconnectAttempt-1]||30000);
+  clearTimeout(online.reconnectTimer); online.reconnectTimer=setTimeout(_olReconnectNow,delay); _olSync();
+}
+function _olResumeWake(reason){
+  if(!onlineAutoReconnectOn()||online.intentionalDisconnect) return;
+  if(typeof navigator!=="undefined"&&navigator.onLine===false){ online.networkOffline=true; online.recoveryState="waitingNetwork"; _olSync(); return; }
+  online.networkOffline=false; online.recoveryReason=reason||"復帰";
+  if(online.connected){ if(!online.roomCode&&online.lastRoomCode){ online.pendingRejoin=false; online.recoveryState="rejoining";
+      onlineSend({type:"joinRoom",roomCode:online.lastRoomCode,name:online.lastName||online.name,role:online.lastRole||"spectator",password:online.lastJoinPw||"",reconnectToken:online.lastReconnectToken||""}); }
+    else if(online.roomCode&&onlineResumeSyncOn()){ online.recoveryState="syncing"; onlineSend({type:"requestState",roomCode:online.roomCode}); }
+    return; }
+  online.reconnectAttempt=0; _olClearReconnect(); _olScheduleReconnect(true);
 }
 function _olManualReconnect(rejoin){
-  _olClearReconnect(); online.intentionalDisconnect=false; online.reconnectAttempt=0;
-  _olSessLoad();
+  _olClearReconnect(); online.intentionalDisconnect=false; online.reconnectAttempt=0; _olSessLoad();
   const url=online.lastServerUrl||onlineDefaultUrl();
-  if(rejoin){ if(!online.lastRoomCode){ _olErr("再参加できるルーム情報がありません"); return; } online.pendingRejoin=true; }
-  if(online.connected){ // 接続済みなら再joinだけ
-    if(rejoin){ online.pendingRejoin=false; onlineSend({type:"joinRoom", roomCode:online.lastRoomCode, name:online.lastName||online.name, role:online.lastRole||"spectator"}); }
-    else _olog("すでに接続済みです");
-    return;
+  if(rejoin){ if(!online.lastRoomCode){ _olErr("再参加できるルーム情報がありません"); return; } online.pendingRejoin=true; online.recoveryState="rejoining"; }
+  if(online.connected){
+    if(rejoin){ online.pendingRejoin=false; onlineSend({type:"joinRoom", roomCode:online.lastRoomCode, name:online.lastName||online.name, role:online.lastRole||"spectator", password:online.lastJoinPw||"", reconnectToken:online.lastReconnectToken||""}); }
+    else _olog("すでに接続済みです"); return;
   }
   onlineConnect(url);
 }
+window.addEventListener("online",()=>_olResumeWake("通信復帰"));
+window.addEventListener("focus",()=>_olResumeWake("画面復帰"));
+window.addEventListener("pageshow",()=>_olResumeWake("ページ復帰"));
+document.addEventListener("visibilitychange",()=>{ if(document.visibilityState==="visible") _olResumeWake("アプリ復帰"); });
 /* ---- roleに応じた視点表示補助（第6段階・表示補助のみ・秘匿ではない） ---- */
 function _olRecommendedView(){ if(!online.connected||!online.roomCode||!online.role) return null;
   return online.role==="A"?"A":(online.role==="B"?"B":"all"); } // spectatorは全公開表示を推奨
@@ -3532,8 +3614,9 @@ function openOnlineModal(){
       <small class="note">表示補助のみ（秘匿ではありません）</small>
     </div>
     <div class="row-inline" style="gap:6px;flex-wrap:wrap;margin-top:6px">
-      <label class="chk" style="margin:0"><input type="checkbox" id="olAutoReconn"${state.settings.onlineAutoReconnectEnabled===true?" checked":""}> 切断時に自動再接続を試す</label>
-      <small class="note">ルームが残っていれば再参加します／盤面は自動適用しません（既定OFF）</small>
+      <label class="chk" style="margin:0"><input type="checkbox" id="olAutoReconn"${state.settings.onlineAutoReconnectEnabled===true?" checked":""}> 切断時に自動再接続・再参加</label>
+      <label class="chk" style="margin:0"><input type="checkbox" id="olResumeSync"${state.settings.onlineResumeSyncEnabled!==false?" checked":""}> 復帰後に最新盤面を問い合わせ</label>
+      <small class="note">スマホの画面消灯・アプリ切替から戻った時も再試行します。再参加トークンはこのタブのsessionStorageだけに保持し、サーバー側で約5分後に失効します。</small>
       <span id="olLastSess" class="note"></span>
     </div>
     <div id="olInfo" class="ol-info note" style="margin-top:6px"></div>
@@ -3552,7 +3635,7 @@ function openOnlineModal(){
   $("#olConnect").onclick=()=>{ saveConn(); const u=($("#olUrl").value||"").trim(); if(!u){ _olErr("サーバーURLを入力してください"); return; } onlineConnect(u); };
   $("#olDisconnect").onclick=()=>onlineDisconnect();
   $("#olPing").onclick=()=>onlineSend({type:"ping"});
-  $("#olCreate").onclick=()=>{ saveConn(); onlineSend({type:"createRoom", name:online.name, role:$("#olRole").value, password:($("#olCreatePw").value||"")}); };
+  $("#olCreate").onclick=()=>{ saveConn(); online.lastJoinPw=($("#olCreatePw").value||""); onlineSend({type:"createRoom", name:online.name, role:$("#olRole").value, password:online.lastJoinPw}); };
   $("#olJoin").onclick=()=>{ saveConn(); const code=($("#olCode").value||"").trim().toUpperCase(); if(!code){ _olErr("ルームコードを入力してください"); return; } online.lastJoinPw=($("#olJoinPw").value||""); onlineSend({type:"joinRoom", roomCode:code, name:online.name, role:$("#olRole").value, password:online.lastJoinPw}); };
   $("#olLock").onclick=()=>{ if(!online.isHost){ _olErr("ロックはホストのみ操作できます"); return; } const cur=!!(online.roomSummary&&online.roomSummary.locked); onlineSend({type:"setLock", locked:!cur}); };
   $("#olCollab").onclick=()=>{ if(!online.isHost){ _olErr("双方向同期の切替はホストのみ可能です"); return; }
@@ -3577,6 +3660,7 @@ function openOnlineModal(){
   $("#olReconn").onclick=()=>_olManualReconnect(false);
   $("#olRejoin").onclick=()=>_olManualReconnect(true);
   $("#olAutoReconn").onchange=()=>{ state.settings.onlineAutoReconnectEnabled=$("#olAutoReconn").checked===true; if(!state.settings.onlineAutoReconnectEnabled) _olClearReconnect(); saveState(true); _olSync(); };
+  $("#olResumeSync").onchange=()=>{ state.settings.onlineResumeSyncEnabled=$("#olResumeSync").checked===true; saveState(true); _olSync(); };
   $("#olSeat").onchange=()=>{ state.settings.onlineSeatViewByRoleEnabled=$("#olSeat").checked===true; saveState(true); _olSync(); };
   $("#olSideChatTgl").onchange=()=>{ state.settings.onlineSideChatEnabled=$("#olSideChatTgl").checked===true; saveState(true); _olSync(); };
   $("#olHudTgl").onchange=()=>{ state.settings.onlineFloatingHudEnabled=$("#olHudTgl").checked===true; saveState(true); _olSync(); };
@@ -3618,6 +3702,9 @@ function openSettings(){
     ${tog("applyDamageConfirm",s.applyDamageConfirm!==false,"ダメージ適用時に確認")}
     ${tog("cleanupNotice",s.cleanupNotice!==false,"Cleanup補助通知（戦闘/ダメージ残り）")}
     ${tog("turnReviewGateEnabled",s.turnReviewGateEnabled!==false,"ターン終了前レビュー確認を表示（End step/Cleanup/ターン終了時）")}
+    ${tog("turnStartAssistEnabled",s.turnStartAssistEnabled!==false,"ターン終了時に次ターン開始アシストを表示")}
+    ${tog("landPlayAssistEnabled",s.landPlayAssistEnabled!==false,"土地プレイ回数を記録し、目安上限を超えた時に警告")}
+    <div class="note" style="font-size:10px">ターン開始アシストはアンタップ・1枚ドロー・戦闘状態整理・土地回数リセットを選択式で実行します。カード固有効果は自動処理しません。</div>
     <div style="border-top:1px solid var(--line);margin:4px 0"></div>
     <div class="note">カード拡大プレビュー（中ボタン / 🔍 / Pキー 押下中）</div>
     ${tog("cardZoomEnabled",s.cardZoomEnabled!==false,"カード拡大プレビューを有効化")}
@@ -3907,6 +3994,9 @@ function loadState(silent){
     for(const _p of ["A","B"]){ const _pl=state.players[_p]; if(_pl){ if(typeof _pl.poison!=="number"||_pl.poison<0) _pl.poison=Math.max(0,Number(_pl.poison)||0); } }
     forEachCard(_c=>{ if(_c.damage!=null && (typeof _c.damage!=="number"||_c.damage<0)) _c.damage=Math.max(0,Number(_c.damage)||0); if(_c.counters!=null && (typeof _c.counters!=="object"||Array.isArray(_c.counters))) _c.counters={}; });
     state.settings=Object.assign(defaultState().settings,obj.settings||{});
+    state.turn=Object.assign(defaultState().turn,obj.turn||state.turn||{});
+    state.turn.combatDamagePlan=(state.turn.combatDamagePlan&&typeof state.turn.combatDamagePlan==="object")?state.turn.combatDamagePlan:{};
+    state.turn.landPlaysUsed=Object.assign({A:0,B:0},state.turn.landPlaysUsed||{}); _landPlayMap();
     if(!["all","A","B"].includes(state.settings.handViewMode)) state.settings.handViewMode="all";
     state.game=Object.assign(defaultState().game,obj.game||{});
     state.snapshots=Array.isArray(obj.snapshots)?obj.snapshots:[];
@@ -4819,6 +4909,7 @@ document.addEventListener("click",function(e){
       switch(a){
         case "next": nextPhase(); break; case "prev": prevPhase(); break;
         case "endturn": endTurn(); break; case "swactive": switchActive(); break;
+        case "landreset": act("土地回数リセット",()=>{ _landReset(state.turn.active); addLog(`${pname(state.turn.active)} の土地プレイ回数を0に戻しました`); }); saveState(true); render(); break;
         case "prioA": setPriority("A"); break; case "prioB": setPriority("B"); break;
         case "pass": passPriority(); break;
         case "untapA": untapAll("A"); break; case "untapB": untapAll("B"); break;
@@ -5014,7 +5105,7 @@ function resetMatchDo(shuf){
       pl.library=pl.library.concat(ret[p]); if(shuf) shuffle(pl.library);
       pl.life=20; pl.resources=0; pl.poison=0; pl.mulligans=0; }
     const fp=state.game.firstPlayer||"A";
-    state.turn={number:1,active:fp,phase:0,priority:fp};
+    state.turn={number:1,active:fp,phase:0,priority:fp,combatDamagePlan:{},landPlaysUsed:{A:0,B:0}};
     clearUndo();
     addLog(`対戦をリセット (${shuf?"シャッフルあり":"シャッフルなし"})`);
     saveState(true); closeModal(); render(); toast("対戦をリセットしました");
@@ -6837,7 +6928,7 @@ function bo3Start(aId,bId,first,draw,memo){
   m.sbReady={A:false,B:false}; m.voidReplay=false;
   state.match=m;
   loadGameBoard(draw);
-  state.turn={number:1,active:first,phase:0,priority:first,combatDamagePlan:{}};
+  state.turn={number:1,active:first,phase:0,priority:first,combatDamagePlan:{},landPlaysUsed:{A:0,B:0}};
   state.game={firstPlayer:first,started:true};
   clearUndo();
   addLog(`BO3開始: ${da.deckName} vs ${db.deckName} (Game1先手 ${pname(first)}${draw>0?" / 7ドロー":""})`);
@@ -6922,7 +7013,7 @@ function openBo3Rematch(){
       m2.preSideboard.B={mainboard:cloneDeckEntries(m2.deck.B.mainboard),sideboard:cloneDeckEntries(m2.deck.B.sideboard)};
       m2.mainCount={A:deckCount(m2.deck.A.mainboard),B:deckCount(m2.deck.B.mainboard)};
       loadGameBoard(draw);
-      state.turn={number:1,active:first,phase:0,priority:first,combatDamagePlan:{}};
+      state.turn={number:1,active:first,phase:0,priority:first,combatDamagePlan:{},landPlaysUsed:{A:0,B:0}};
       state.game={firstPlayer:first,started:true};
       clearUndo();
       addLog(`再戦: BO3開始 (Game1先手 ${pname(first)})`);
@@ -6956,7 +7047,7 @@ function nextGame(first,draw){
   m.preSideboard.A={mainboard:cloneDeckEntries(m.deck.A.mainboard),sideboard:cloneDeckEntries(m.deck.A.sideboard)};
   m.preSideboard.B={mainboard:cloneDeckEntries(m.deck.B.mainboard),sideboard:cloneDeckEntries(m.deck.B.sideboard)};
   loadGameBoard(draw);
-  state.turn={number:1,active:first,phase:0,priority:first,combatDamagePlan:{}};
+  state.turn={number:1,active:first,phase:0,priority:first,combatDamagePlan:{},landPlaysUsed:{A:0,B:0}};
   state.game={firstPlayer:first,started:true};
   clearUndo();
   addLog(`Game${m.gameNumber}開始 (先手 ${pname(first)}${draw>0?" / 7ドロー":""})`);
@@ -10353,7 +10444,7 @@ function cptDiagnose(){
     for(const z of ZONES){ if(!Array.isArray(pl[z])){ add("fix","構造",`players.${p}.${z} が配列でない → 空配列に修復可能`, ()=>{ pl[z]=[]; }); } }
   }
   if(!Array.isArray(state.stack)) add("fix","構造","stack が配列でない → 空配列に修復可能", ()=>{ state.stack=[]; });
-  if(!state.turn||typeof state.turn!=="object") add("fix","構造","turn が不正 → 既定に修復可能", ()=>{ state.turn={number:1,active:"A",phase:0,priority:"A",combatDamagePlan:{}}; });
+  if(!state.turn||typeof state.turn!=="object") add("fix","構造","turn が不正 → 既定に修復可能", ()=>{ state.turn={number:1,active:"A",phase:0,priority:"A",combatDamagePlan:{},landPlaysUsed:{A:0,B:0}}; });
   if(!state.cardDictionary||typeof state.cardDictionary!=="object") add("fix","構造","cardDictionary が不正 → 空に修復可能", ()=>{ state.cardDictionary={}; });
   if(!Array.isArray(state.decks)) add("fix","構造","decks が配列でない → 空配列に修復可能", ()=>{ state.decks=[]; });
   for(const k of ["sideboardPlans","matchHistory","openingHandHistory","keepRules","combatSummaries","snapshots"]) if(!Array.isArray(state[k])) add("fix","構造",`${k} が配列でない → 空配列に修復可能`, ()=>{ state[k]=[]; });

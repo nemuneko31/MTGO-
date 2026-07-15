@@ -39,6 +39,7 @@ const IMG_MAX_BYTES = 2 * 1024 * 1024; // 画像1枚の上限 2MB
 const IMG_ALLOWED_TYPES = { "image/png": "png", "image/jpeg": "jpg", "image/webp": "webp", "image/gif": "gif" }; // SVGは不可
 const EMPTY_ROOM_TTL_MS = 60 * 1000;       // 空roomの削除猶予
 const HEARTBEAT_MS = 30 * 1000;
+const RECONNECT_GRACE_MS = 5 * 60 * 1000; // スマホの画面消灯・一時切断からの復帰猶予
 
 /* ============================================================
    共有ストア（任意・DATABASE_URL がある時だけ有効。無くてもアプリは起動）
@@ -230,7 +231,7 @@ const httpServer = http.createServer((req, res) => {
 
 /* ============================================================
    rooms 管理
-   room: { roomCode, createdAt, updatedAt, hostId, clients:Map<clientId,client>, state, rev, log:[], _deleteTimer }
+   room: { roomCode, createdAt, updatedAt, hostId, clients:Map<clientId,client>, reconnectSlots:Map<token,slot>, state, rev, log:[], _deleteTimer }
    client: { clientId, ws, roomCode, role:"A"|"B"|"spectator", name, joinedAt, lastSeen }
    （host は room.hostId で識別。role とは独立）
    ============================================================ */
@@ -271,12 +272,20 @@ function assignRole(room, wanted) {
   const taken = new Set([...room.clients.values()].map(c => c.role));
   return taken.has(w) ? "spectator" : w;
 }
-function scheduleRoomCleanup(room) {
-  clearTimeout(room._deleteTimer);
-  room._deleteTimer = setTimeout(() => {
-    if (room.clients.size === 0) { rooms.delete(room.roomCode); log(`room ${room.roomCode} deleted (empty)`); }
-  }, EMPTY_ROOM_TTL_MS);
+function pruneReconnectSlots(room) {
+  if (!room.reconnectSlots) room.reconnectSlots = new Map();
+  const t = now(); for (const [token, slot] of room.reconnectSlots) if (!slot || slot.expiresAt <= t) room.reconnectSlots.delete(token);
 }
+function scheduleRoomCleanup(room) {
+  clearTimeout(room._deleteTimer); pruneReconnectSlots(room);
+  const delay = room.reconnectSlots.size ? RECONNECT_GRACE_MS : EMPTY_ROOM_TTL_MS;
+  room._deleteTimer = setTimeout(() => {
+    pruneReconnectSlots(room);
+    if (room.clients.size === 0 && room.reconnectSlots.size === 0) { rooms.delete(room.roomCode); log(`room ${room.roomCode} deleted (empty)`); }
+    else if (room.clients.size === 0) scheduleRoomCleanup(room);
+  }, delay);
+}
+function newReconnectToken() { return crypto.randomBytes(18).toString("hex"); }
 function log(msg) { console.log(`[server] ${new Date().toISOString()} ${msg}`); }
 /* 簡易入室制限用: パスワードは平文保持せず sha256 ハッシュ+乱数ソルトで保持（身内向け・完全な認証ではない） */
 function hashPassword(pw, salt) { return crypto.createHash("sha256").update(String(salt) + ":" + String(pw)).digest("hex"); }
@@ -305,19 +314,22 @@ function broadcast(room, obj, exceptId) {
 }
 function getRoomOf(client) { return client && client.roomCode ? rooms.get(client.roomCode) : null; }
 
-function leaveCurrentRoom(client, silent) {
+function leaveCurrentRoom(client, silent, preserveReconnect) {
   const room = getRoomOf(client);
   if (!room) { client.roomCode = null; return; }
-  room.clients.delete(client.clientId);
-  client.roomCode = null;
+  const wasHost = room.hostId === client.clientId;
+  room.clients.delete(client.clientId); client.roomCode = null;
+  if (preserveReconnect && client.reconnectToken) {
+    if (!room.reconnectSlots) room.reconnectSlots = new Map();
+    room.reconnectSlots.set(client.reconnectToken, { role: client.role, name: client.name, wasHost, expiresAt: now() + RECONNECT_GRACE_MS });
+    pushRoomLog(room, { kind: "disconnectGrace", clientId: client.clientId, name: client.name, role: client.role });
+  } else if (room.reconnectSlots && client.reconnectToken) room.reconnectSlots.delete(client.reconnectToken);
   pushRoomLog(room, { kind: "leave", clientId: client.clientId, name: client.name });
   if (room.clients.size === 0) { scheduleRoomCleanup(room); }
   else {
-    // host が抜けたら最古参加者へ host を委譲（練習用の簡易措置）
-    if (room.hostId === client.clientId) {
+    if (wasHost) {
       const next = [...room.clients.values()].sort((a, b) => a.joinedAt - b.joinedAt)[0];
-      room.hostId = next.clientId;
-      pushRoomLog(room, { kind: "hostChanged", clientId: next.clientId });
+      room.hostId = next.clientId; pushRoomLog(room, { kind: "hostChanged", clientId: next.clientId });
       log(`room ${room.roomCode} host -> ${next.clientId}`);
     }
     if (!silent) broadcast(room, { type: "roomUpdate", roomSummary: roomSummary(room) });
@@ -332,7 +344,7 @@ const handlers = {
     leaveCurrentRoom(client);
     const room = {
       roomCode: genRoomCode(), createdAt: now(), updatedAt: now(),
-      hostId: client.clientId, clients: new Map(), state: null, rev: 0, log: [], _deleteTimer: null,
+      hostId: client.clientId, clients: new Map(), reconnectSlots: new Map(), state: null, rev: 0, log: [], _deleteTimer: null,
       passwordSalt: null, passwordHash: null, locked: false, collaborativeMode: false
     };
     setRoomPassword(room, msg.password); // 空なら鍵なし。ハッシュのみ保持しクライアントへは配信しない
@@ -344,32 +356,36 @@ const handlers = {
     pushRoomLog(room, { kind: "create", clientId: client.clientId, name: client.name });
     log(`room ${room.roomCode} created by ${client.clientId} (${client.name})`);
     log(`room ${room.roomCode} password=${room.passwordHash ? "on" : "off"}`);
-    send(client.ws, { type: "roomCreated", roomCode: room.roomCode, clientId: client.clientId, role: client.role, roomSummary: roomSummary(room) });
+    send(client.ws, { type: "roomCreated", roomCode: room.roomCode, clientId: client.clientId, role: client.role, reconnectToken: client.reconnectToken, roomSummary: roomSummary(room) });
   },
 
   joinRoom(client, msg) {
     const code = String(msg.roomCode || "").trim().toUpperCase();
     const room = rooms.get(code);
     if (!room) { sendError(client.ws, "roomCode が見つかりません: " + code); return; }
+    pruneReconnectSlots(room);
+    const token = String(msg.reconnectToken || "");
+    const slot = token && room.reconnectSlots ? room.reconnectSlots.get(token) : null;
+    const isReconnect = !!(slot && slot.expiresAt > now());
     const alreadyIn = room.clients.has(client.clientId);
-    if (!alreadyIn) {
+    if (!alreadyIn && !isReconnect) {
       if (!checkRoomPassword(room, msg.password)) { send(client.ws, { type: "joinRejected", reason: "password", roomCode: code, message: "パスワードが違います" }); return; }
       if (room.locked) { send(client.ws, { type: "joinRejected", reason: "locked", roomCode: code, message: "このルームは新規参加がロックされています" }); return; }
       if (room.clients.size >= MAX_ROOM_CLIENTS) { send(client.ws, { type: "joinRejected", reason: "full", roomCode: code, message: "満員です（最大" + MAX_ROOM_CLIENTS + "人）" }); return; }
     }
     leaveCurrentRoom(client);
     clearTimeout(room._deleteTimer);
-    client.name = sanitizeName(msg.name != null ? msg.name : client.name);
-    client.role = assignRole(room, msg.role);
-    client.roomCode = room.roomCode;
-    client.joinedAt = now();
-    room.clients.set(client.clientId, client);
+    if (isReconnect) client.reconnectToken = token;
+    client.name = sanitizeName(isReconnect ? slot.name : (msg.name != null ? msg.name : client.name));
+    client.role = assignRole(room, isReconnect ? slot.role : msg.role);
+    client.roomCode = room.roomCode; client.joinedAt = now(); room.clients.set(client.clientId, client);
+    if (isReconnect) { room.reconnectSlots.delete(token); if (slot.wasHost) room.hostId = client.clientId; }
     pushRoomLog(room, { kind: "join", clientId: client.clientId, name: client.name, role: client.role });
     log(`room ${room.roomCode} join ${client.clientId} (${client.name}/${client.role})`);
     // 再接続/途中参加でも現在の state/rev をそのまま返す（再同期）
     send(client.ws, {
       type: "roomJoined", roomCode: room.roomCode, clientId: client.clientId, role: client.role,
-      roomSummary: roomSummary(room), state: room.state, rev: room.rev, log: room.log.slice(-20)
+      roomSummary: roomSummary(room), state: room.state, rev: room.rev, log: room.log.slice(-20), reconnected: isReconnect, reconnectToken: client.reconnectToken
     });
     broadcast(room, { type: "roomUpdate", roomSummary: roomSummary(room) }, client.clientId);
   },
@@ -472,12 +488,12 @@ const handlers = {
 };
 
 wss.on("connection", (ws) => {
-  const client = { clientId: uid("c"), ws, roomCode: null, role: "spectator", name: "guest", joinedAt: now(), lastSeen: now() };
+  const client = { clientId: uid("c"), reconnectToken: newReconnectToken(), ws, roomCode: null, role: "spectator", name: "guest", joinedAt: now(), lastSeen: now() };
   clientsById.set(client.clientId, client);
   ws.isAlive = true;
   ws.on("pong", () => { ws.isAlive = true; client.lastSeen = now(); });
   log(`connect ${client.clientId} (total ${clientsById.size})`);
-  send(ws, { type: "hello", clientId: client.clientId, server: "card-practice-table-server", note: "練習用同期サーバー: 秘密情報は保護されません" });
+  send(ws, { type: "hello", clientId: client.clientId, reconnectToken: client.reconnectToken, server: "card-practice-table-server", note: "練習用同期サーバー: 秘密情報は保護されません" });
 
   ws.on("message", (data) => {
     try {
@@ -497,7 +513,7 @@ wss.on("connection", (ws) => {
   });
 
   ws.on("close", () => {
-    leaveCurrentRoom(client);
+    leaveCurrentRoom(client, false, true);
     clientsById.delete(client.clientId);
     log(`disconnect ${client.clientId} (total ${clientsById.size})`);
   });
