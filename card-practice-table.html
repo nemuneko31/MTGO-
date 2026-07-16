@@ -193,7 +193,11 @@
   .card.selected{outline:2px solid var(--accent);outline-offset:1px}
   .card.tapped{transform:rotate(20deg)}
   .card .cn{font-weight:600;word-break:break-word;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
-  .card .ct{position:absolute;top:2px;right:3px;font-size:9px;opacity:.8}
+  .card .ct{position:absolute;top:2px;right:3px;font-size:8px;opacity:.9;display:flex;gap:1px;max-width:78%;overflow:hidden;z-index:2}
+  .card .ct .tmini{display:inline-flex;align-items:center;justify-content:center;min-width:15px;height:14px;padding:0 3px;border-radius:4px;background:rgba(0,0,0,.58);border:1px solid rgba(255,255,255,.18);white-space:nowrap}
+  .card .ct .tmini.fx{border-color:#f0b85a;color:#ffe0a0}.card .ct .tmini.eot{border-color:#8fb8ff;color:#cfe2ff}
+  .type-grid{display:flex;flex-wrap:wrap;gap:5px;margin-top:4px}.type-grid label{display:inline-flex;align-items:center;gap:4px;padding:4px 7px;border:1px solid var(--line);border-radius:7px;background:var(--bg2);font-size:11px;cursor:pointer}.type-grid label:has(input:checked){border-color:var(--accent);background:rgba(224,168,60,.14)}
+  .type-summary{display:flex;flex-wrap:wrap;gap:4px;align-items:center}.type-pill{display:inline-flex;align-items:center;padding:1px 6px;border-radius:10px;border:1px solid var(--line2);font-size:10px;background:var(--bg2)}.type-pill.fx{border-color:#d09b43;color:#ffe0a0}.type-pill.eot{border-color:#6e9fe0;color:#cfe2ff}
   .card .pt{position:absolute;bottom:2px;right:4px;font-weight:800;font-size:13px;
     background:rgba(0,0,0,.45);border-radius:5px;padding:0 4px}
   .card .badges{position:absolute;bottom:2px;left:3px;display:flex;gap:2px}
@@ -1273,6 +1277,80 @@ const TYPE_JP = {
   Battle:"バトル", Token:"トークン", Other:"その他", Unknown:"未分類",
   UnknownSpell:"未分類(呪文)"
 };
+/* 複数カードタイプ + 効果による追加タイプ（旧typeフィールド互換） */
+const KNOWN_CARD_TYPES = TYPES.filter(t=>t!=="Unknown");
+function _typeOne(v){
+  const raw=String(v==null?"":v).trim(); if(!raw) return "";
+  const n=(typeof normType==="function"?normType(raw):raw);
+  if(n==="UnknownSpell") return "Unknown";
+  return TYPES.includes(n)?n:"";
+}
+function normalizeTypeList(v,fallback){
+  let a=[];
+  if(Array.isArray(v)) a=v.slice();
+  else if(typeof v==="string" && v.trim()) a=v.split(/\s*(?:\/|／|,|，|\+|＆|&|・|\|)\s*/);
+  if(!a.length && fallback!=null && String(fallback).trim()) a=[fallback];
+  const out=[];
+  for(const x of a){ const t=_typeOne(x); if(t && !out.includes(t)) out.push(t); }
+  if(out.some(t=>t!=="Unknown")) return out.filter(t=>t!=="Unknown");
+  return out.length?out:["Unknown"];
+}
+function normalizeExtraTypeList(v){
+  let a=[];
+  if(Array.isArray(v)) a=v.slice();
+  else if(typeof v==="string" && v.trim()) a=v.split(/\s*(?:\/|／|,|，|\+|＆|&|・|\|)\s*/);
+  const out=[];
+  for(const x of a){ const t=_typeOne(x); if(t && t!=="Unknown" && !out.includes(t)) out.push(t); }
+  return out;
+}
+function baseTypesOf(o){ return normalizeTypeList(o&&o.types, o&&o.type); }
+function _printedTypesOf(c){
+  if(!c) return ["Unknown"];
+  try{
+    if(c.face==="back" && typeof isDoubleFaced==="function" && isDoubleFaced(c.name)){
+      const e=dictGet(c.name)||{}; const bt=normalizeExtraTypeList(e.backTypes||e.backType);
+      if(bt.length) return bt;
+    }
+    if(typeof getCardActiveFace==="function"){
+      const f=getCardActiveFace(c); if(f){ const ft=normalizeExtraTypeList(f.types||f.type); if(ft.length) return ft; }
+    }
+  }catch(_){}
+  return baseTypesOf(c);
+}
+function cardAddedTypes(c){ return normalizeExtraTypeList(c&&c.addedTypes); }
+function cardEotTypes(c){ return normalizeExtraTypeList(c&&c.untilEndOfTurnTypes); }
+function cardTypes(c,includeEffects){
+  const out=[]; const add=a=>{ for(const t of a||[]) if(t!=="Unknown"&&!out.includes(t)) out.push(t); };
+  const printed=_printedTypesOf(c); add(printed);
+  if(includeEffects!==false){ add(cardAddedTypes(c)); add(cardEotTypes(c)); }
+  if(!out.length) return printed.includes("Unknown")?["Unknown"]:["Unknown"];
+  return out;
+}
+function cardHasType(c,t){ const n=_typeOne(t); return !!n && cardTypes(c,true).includes(n); }
+function primaryTypeOf(c){ const a=cardTypes(c,true); return a[0]||"Unknown"; }
+function setBaseTypes(c,types){ const a=normalizeTypeList(types,c&&c.type); c.types=a; c.type=a[0]||"Unknown"; return a; }
+function setEffectTypes(c,added,eot){ c.addedTypes=normalizeExtraTypeList(added); c.untilEndOfTurnTypes=normalizeExtraTypeList(eot); }
+function typeText(c,includeEffects){
+  const b=_printedTypesOf(c).filter(t=>t!=="Unknown"); const a=(includeEffects===false?[]:cardAddedTypes(c).filter(t=>!b.includes(t))); const e=(includeEffects===false?[]:cardEotTypes(c).filter(t=>!b.includes(t)&&!a.includes(t)));
+  const chunks=[]; if(b.length) chunks.push(b.map(t=>TYPE_JP[t]||t).join("・")); else chunks.push(TYPE_JP.Unknown);
+  if(a.length) chunks.push("追加: "+a.map(t=>TYPE_JP[t]||t).join("・"));
+  if(e.length) chunks.push("ターン終了時まで: "+e.map(t=>TYPE_JP[t]||t).join("・"));
+  return chunks.join(" / ");
+}
+function typeMiniHTML(c){
+  const b=_printedTypesOf(c).filter(t=>t!=="Unknown"), a=cardAddedTypes(c).filter(t=>!b.includes(t)), e=cardEotTypes(c).filter(t=>!b.includes(t)&&!a.includes(t));
+  const one=(t,cl)=>`<span class="tmini${cl?" "+cl:""}" title="${esc(TYPE_JP[t]||t)}">${esc((TYPE_JP[t]||t).slice(0,1))}</span>`;
+  const html=[...b.map(t=>one(t,"")),...a.map(t=>one(t,"fx")),...e.map(t=>one(t,"eot"))];
+  return html.length?html.join(""):`<span class="tmini" title="未分類">?</span>`;
+}
+function typePillsHTML(c){
+  const b=_printedTypesOf(c).filter(t=>t!=="Unknown"), a=cardAddedTypes(c).filter(t=>!b.includes(t)), e=cardEotTypes(c).filter(t=>!b.includes(t)&&!a.includes(t));
+  return `<div class="type-summary">${b.map(t=>`<span class="type-pill">${esc(TYPE_JP[t]||t)}</span>`).join("")}${a.map(t=>`<span class="type-pill fx">＋${esc(TYPE_JP[t]||t)}</span>`).join("")}${e.map(t=>`<span class="type-pill eot">⏳${esc(TYPE_JP[t]||t)}</span>`).join("")}</div>`;
+}
+function typeCheckGridHTML(selected,cls){ const set=new Set(normalizeExtraTypeList(selected)); return `<div class="type-grid">${KNOWN_CARD_TYPES.map(t=>`<label><input type="checkbox" class="${cls}" value="${t}"${set.has(t)?" checked":""}>${esc(TYPE_JP[t]||t)}</label>`).join("")}</div>`; }
+function readTypeChecks(sel){ return [...document.querySelectorAll(sel+":checked")].map(x=>x.value); }
+function defaultFieldZoneForCard(c){ if(cardHasType(c,"Land")) return "lands"; if(cardHasType(c,"Creature")||cardHasType(c,"Token")) return "creatures"; return "others"; }
+function clearUntilEndOfTurnTypes(){ let n=0; forEachCard(c=>{ if(c.untilEndOfTurnTypes&&c.untilEndOfTurnTypes.length){ c.untilEndOfTurnTypes=[]; n++; } }); return n; }
 const PHASES = ["アンタップ","アップキープ","ドロー","第1メイン","戦闘開始","攻撃指定",
   "ブロック指定","戦闘ダメージ","戦闘終了","第2メイン","終了","クリンナップ"];
 const PHASES_EN = ["Untap","Upkeep","Draw","Main1","Begin Combat","Attack","Block","Damage","End Combat","Main2","End","Cleanup"];
@@ -1413,9 +1491,10 @@ let _logOpen = false;
 
 /* ---------- カード生成 ---------- */
 function makeCard(o){
+  o=o||{}; const _types=normalizeTypeList(o.types,o.type||"Unknown");
   return Object.assign({
     id:uid(), name:o.name||"無名カード", owner:o.owner||"A", controller:o.controller||o.owner||"A",
-    zone:o.zone||"library", type:o.type||"Unknown", subtype:o.subtype||"",
+    zone:o.zone||"library", type:_types[0]||"Unknown", types:_types, addedTypes:normalizeExtraTypeList(o.addedTypes), untilEndOfTurnTypes:normalizeExtraTypeList(o.untilEndOfTurnTypes), subtype:o.subtype||"",
     power:o.power!=null?o.power:"", toughness:o.toughness!=null?o.toughness:"",
     tapped:false, countersPlus:0, damage:numOr0(o.damage), counters:{}, memo:o.memo||"",
     imageId:o.imageId||null, importedSource:o.importedSource||"", originalLine:o.originalLine||"",
@@ -1425,7 +1504,7 @@ function makeCard(o){
     targetZoneRefs:Array.isArray(o.targetZoneRefs)?o.targetZoneRefs.slice():[],
     targetMemo:o.targetMemo||"", targetRequired:!!o.targetRequired, targetStatus:o.targetStatus||"none",
     activeFaceIndex:(o.activeFaceIndex!=null?o.activeFaceIndex:null),
-    face:(o.face==="back"?"back":"front"), faceDown:!!o.faceDown, castPart:(o.castPart==="left"||o.castPart==="right")?o.castPart:null, // 両面カードの面 / 汎用裏向き / 分割カードの唱えた側
+    face:(o.face==="back"?"back":"front"), faceDown:!!o.faceDown, castPart:(o.castPart==="left"||o.castPart==="right")?o.castPart:null,
     paymentStatus:(o.paymentStatus||"none"), paymentCostText:(o.paymentCostText||""), paymentNote:(o.paymentNote||""),
     consumedMana:_normConsumed(o.consumedMana), paymentAutoConsumed:!!o.paymentAutoConsumed, paymentShortage:(o.paymentShortage||null), paymentSpendNote:(o.paymentSpendNote||""),
     isToken:!!o.isToken, isCopy:!!o.isCopy, tokenSource:(o.tokenSource||""), tokenTemplateId:(o.tokenTemplateId||""),
@@ -1473,7 +1552,10 @@ function removeCard(id){
 /* dest: {player, zone} か "stack"。pos:'top'|'bottom'|'shuffle' (library用) */
 function moveCard(id,destPlayer,destZone,pos){
   pushUndo("カード移動");
+  const _before=findCard(id); const oldZone=_before?_before.zone:null;
   const card=removeCard(id); if(!card) return;
+  const fieldZones=["creatures","lands","others"];
+  if(oldZone!==destZone && !(fieldZones.includes(oldZone)&&fieldZones.includes(destZone))){ card.addedTypes=[]; card.untilEndOfTurnTypes=[]; }
   card.zone=destZone;
   if(destZone==="stack"){ state.stack.push(card); return card; }
   card.paymentStatus="none"; card.paymentCostText=""; card.paymentNote=""; // 非スタックでは支払い状態をクリア
@@ -1505,20 +1587,19 @@ function pname(p){ return p==="A"?"Player A":"Player B"; }
 function playFromHand(id){
   const f=findCard(id);
   if(f){ const c=f.card;
-    if(c.type==="Land"){ _playLandFromHandFlow(id); return; }
-    if((c.type==="Instant"||c.type==="Sorcery") && hasCardFaces(c) && stackFacePromptOn()){
+    if(cardHasType(c,"Land")){ _playLandFromHandFlow(id); return; }
+    if((cardHasType(c,"Instant")||cardHasType(c,"Sorcery")) && hasCardFaces(c) && stackFacePromptOn()){
       placeOnStackFlow(id,{toast:false}); return; } }
   return act("カードプレイ", ()=>_playFromHand(id));
 }
 function _playFromHand(id){
   const f=findCard(id); if(!f) return; const c=f.card; const owner=f.player;
-  const t=c.type;
-  if(t==="Creature"||t==="Token"){ moveCard(id,owner,"creatures"); addLog(`${pname(owner)} が クリーチャー [${c.name}] を場に出した`); }
-  else if(["Artifact","Enchantment","Planeswalker","Battle","Other"].includes(t)){
-    moveCard(id,owner,"others"); addLog(`${pname(owner)} が ${TYPE_JP[t]} [${c.name}] を場に出した`); }
-  else if(t==="Instant"){ moveCard(id,null,"stack"); addLog(`${pname(owner)} が インスタント [${c.name}] をスタックに置いた`); closeModal(); render(); setTimeout(()=>maybePromptTarget(id),0); return; }
-  else if(t==="Sorcery"){ moveCard(id,null,"stack"); addLog(`${pname(owner)} が ソーサリー [${c.name}] をスタックに置いた`); closeModal(); render(); setTimeout(()=>maybePromptTarget(id),0); return; }
-  else { openUnknownPlayMenu(id); return; }
+  if(cardHasType(c,"Land")){ _playLandFromHandFlow(id); return; }
+  if(cardHasType(c,"Instant")||cardHasType(c,"Sorcery")){ moveCard(id,null,"stack"); addLog(`${pname(owner)} が ${typeText(c)} [${c.name}] をスタックに置いた`); closeModal(); render(); setTimeout(()=>maybePromptTarget(id),0); return; }
+  const dz=defaultFieldZoneForCard(c);
+  if(cardTypes(c,true).some(t=>["Creature","Token","Artifact","Enchantment","Planeswalker","Battle","Other"].includes(t))){
+    moveCard(id,owner,dz); addLog(`${pname(owner)} が ${typeText(c)} [${c.name}] を${ZONE_JP[dz]}に出した`);
+  } else { openUnknownPlayMenu(id); return; }
   closeModal(); render();
 }
 function openUnknownPlayMenu(id){
@@ -1692,7 +1773,7 @@ function _landPlayMap(){ const tn=state.turn||(state.turn={}); if(!tn.landPlaysU
 function _landPlayed(p){ return _landPlayMap()[p]||0; }
 function _landReset(p){ _landPlayMap()[p]=0; }
 function _playLandFromHandFlow(id){
-  const f=findCard(id); if(!f||f.card.type!=="Land") return; const c=f.card, owner=f.player;
+  const f=findCard(id); if(!f||!cardHasType(f.card,"Land")) return; const c=f.card, owner=f.player;
   const used=_landPlayed(owner), lim=_landPlayLimit();
   const run=()=>{ act("土地プレイ", ()=>{ const cur=findCard(id); if(!cur||cur.zone!=="hand") return;
       moveCard(id,owner,"lands"); _landPlayMap()[owner]=_landPlayed(owner)+1;
@@ -1726,19 +1807,20 @@ function openTurnStartAssist(){
 function _runTurnStartAssist(opt){ const old=state.turn.active, next=old==="A"?"B":"A";
   act("ターン開始アシスト", ()=>{ let unt=0, combat=0, drawn=0;
     if(opt.mana) _clearMana(old,true);
+    const clearedTypes=clearUntilEndOfTurnTypes();
     state.turn.active=next; state.turn.number=(state.turn.number||1)+1; state.turn.phase=0; state.turn.priority=next;
     if(opt.combat) combat=_clearCombatForTurnStart(); else state.turn.combatDamagePlan={};
     if(opt.untap){ for(const z of ["creatures","lands","others"]) for(const c of state.players[next][z]) if(c.tapped){ c.tapped=false; unt++; } }
     if(opt.land) _landReset(next);
     if(opt.draw) drawn=_turnAssistDraw(next);
-    addLog(`ターン${state.turn.number} 開始 / 手番: ${pname(next)}${opt.untap?` / アンタップ${unt}枚`:""}${opt.draw?` / ドロー${drawn}枚`:""}${opt.land?" / 土地回数リセット":""}${opt.combat?` / 戦闘整理${combat}枚`:""}`);
+    addLog(`ターン${state.turn.number} 開始 / 手番: ${pname(next)}${opt.untap?` / アンタップ${unt}枚`:""}${opt.draw?` / ドロー${drawn}枚`:""}${opt.land?" / 土地回数リセット":""}${opt.combat?` / 戦闘整理${combat}枚`:""}${clearedTypes?` / 追加タイプ解除${clearedTypes}枚`:""}`);
   }); saveState(true); render(); }
 function _endTurnFlow(){ _manaPhaseFlow("turn", "ターン変更", _endTurn); }
 function endTurn(){ _trvGate("turn", _endTurnFlow); }
 function _endTurn(){
-  const tn=state.turn; tn.active = tn.active==="A"?"B":"A"; tn.number++;
+  const tn=state.turn; const clearedTypes=clearUntilEndOfTurnTypes(); tn.active = tn.active==="A"?"B":"A"; tn.number++;
   tn.phase=0; tn.priority=tn.active; tn.combatDamagePlan={}; _landReset(tn.active);
-  addLog(`ターン${tn.number} 開始 / 手番: ${pname(tn.active)}`);
+  addLog(`ターン${tn.number} 開始 / 手番: ${pname(tn.active)}${clearedTypes?` / ターン終了時までの追加タイプ ${clearedTypes}枚を解除`:""}`);
   render();
 }
 function switchActive(){ pushUndo("手番変更"); state.turn.active=state.turn.active==="A"?"B":"A"; _landReset(state.turn.active);
@@ -1764,7 +1846,7 @@ function resolveTop(forceDest){
   if(!forceDest && c.targetRequired && tgtCount(c)===0 && !_tgtResolveOK){
     confirmDlg("対象未指定ですが解決しますか？", ()=>{ _tgtResolveOK=true; resolveTop(); _tgtResolveOK=false; }); return;
   }
-  if(["Creature","Artifact","Enchantment","Planeswalker","Battle","Token"].includes(c.type) && !forceDest){
+  if(cardTypes(c,true).some(t=>["Creature","Artifact","Enchantment","Planeswalker","Battle","Token"].includes(t)) && !forceDest){
     openModal(`スタック解決 — ${esc(c.name)}`,`
       <div class="note">パーマネントの解決先を選んでください。</div>
       <div class="menu-grid">
@@ -1781,7 +1863,7 @@ function resolveTop(forceDest){
   pushUndo("スタック解決");
   state.stack.pop();
   if(forceDest==="field"){
-    const dz = c.type==="Land"?"lands": (["Creature","Token"].includes(c.type)?"creatures":"others");
+    const dz = defaultFieldZoneForCard(c);
     c.zone=dz; c.tapped=false; state.players[c.controller||c.owner][dz].push(c);
     addLog(`スタック解決: [${c.name}] を戦場へ`);
   } else if(forceDest==="grave"){
@@ -1799,7 +1881,7 @@ function stackTopTo(zone){
   state.stack.pop();
   if(zone==="graveyard"){ c.zone="graveyard"; c.controller=c.owner; state.players[c.owner].graveyard.push(c); addLog(`スタック最上段 [${c.name}] を墓地へ`); }
   else if(zone==="exile"){ c.zone="exile"; c.controller=c.owner; state.players[c.owner].exile.push(c); addLog(`スタック最上段 [${c.name}] を追放`); }
-  else if(zone==="field"){ const dz=c.type==="Land"?"lands":(["Creature","Token"].includes(c.type)?"creatures":"others");
+  else if(zone==="field"){ const dz=defaultFieldZoneForCard(c);
     c.zone=dz; state.players[c.controller||c.owner][dz].push(c); addLog(`スタック最上段 [${c.name}] を戦場へ`); }
   render();
 }
@@ -1880,11 +1962,20 @@ function makeToken(){
 }
 function delCard(id){ const f=findCard(id); if(!f) return;
   confirmDlg(`[${f.card.name}] を削除しますか？`,()=>{ pushUndo("カード削除"); removeCard(id); addLog(`[${f.card.name}] を削除`); render(); }); }
-function changeType(id){ const f=findCard(id); if(!f) return;
-  openModal(`タイプ変更 — ${esc(f.card.name)}`,`
-    <label class="field">タイプ<select id="ctType">${TYPES.map(t=>`<option value="${t}"${t===f.card.type?" selected":""}>${TYPE_JP[t]}</option>`).join("")}</select></label>`,
-    `<button class="btn" data-app="closem">キャンセル</button><button class="btn primary" id="ctOk">変更</button>`);
-  $("#ctOk").onclick=()=>{ pushUndo("タイプ変更"); f.card.type=$("#ctType").value; addLog(`[${f.card.name}] タイプ → ${TYPE_JP[f.card.type]}`); closeModal(); render(); };
+function changeType(id){ const f=findCard(id); if(!f) return; const c=f.card;
+  const _baseNow=baseTypesOf(c);
+  openModal(`タイプ編集・追加 — ${esc(c.name)}`,
+    `<div class="note">基本タイプはカード本来のタイプです。効果による追加タイプは元のタイプを失わずに加算されます。「ターン終了時まで」はターン変更時に自動解除されます。</div>
+     <label class="field">主要タイプ<select id="ctPrimary">${TYPES.map(t=>`<option value="${t}"${t===(_baseNow[0]||c.type)?" selected":""}>${esc(TYPE_JP[t]||t)}</option>`).join("")}</select></label>
+     <label class="field"><b>基本タイプ（複数選択可）</b>${typeCheckGridHTML(_baseNow,"ctBase")}</label>
+     <label class="field"><b>効果で追加（手動解除まで）</b>${typeCheckGridHTML(cardAddedTypes(c),"ctAdded")}</label>
+     <label class="field"><b>効果で追加（ターン終了時まで）</b>${typeCheckGridHTML(cardEotTypes(c),"ctEot")}</label>
+     <div class="note">現在: ${typeText(c)}</div>`,
+    `<button class="btn" data-app="closem">キャンセル</button><button class="btn primary" id="ctOk">適用</button>`);
+  (function(){ const sel=$("#ctPrimary"), checks=[...document.querySelectorAll(".ctBase")]; const sync=()=>{ const x=checks.find(c=>c.value===sel.value); if(x) x.checked=true; }; sel.onchange=sync; checks.forEach(x=>x.onchange=()=>{ if(!x.checked&&x.value===sel.value){ const n=checks.find(c=>c.checked); if(n) sel.value=n.value; else x.checked=true; } sync(); }); sync(); })();
+  $("#ctOk").onclick=()=>{ const picked=readTypeChecks(".ctBase"); const pri=$("#ctPrimary").value; if(!picked.length&&pri!=="Unknown"){ toast("基本タイプを1つ以上選んでください"); return; } const base=pri==="Unknown"?["Unknown"]:[pri,...picked.filter(t=>t!==pri)];
+    pushUndo("タイプ変更"); setBaseTypes(c,base); setEffectTypes(c,readTypeChecks(".ctAdded"),readTypeChecks(".ctEot"));
+    addLog(`[${c.name}] タイプ → ${typeText(c)}`); closeModal(); render(); renderPreview(); };
 }
 function editMemo(id){ const f=findCard(id); if(!f) return;
   const m=prompt("メモ",f.card.memo||""); if(m===null) return; pushUndo("メモ変更"); f.card.memo=m; addLog(`[${f.card.name}] メモを更新`); render(); }
@@ -1968,11 +2059,12 @@ function openCardMenu(id){
     <button class="btn" data-cm="ctrl">コントローラー変更</button>` : "";
   const playOp = inHand ? `<button class="btn primary" data-cm="play" style="grid-column:1/-1">標準アクション（${esc(smartActionLabel(c))}）</button>` : `<button class="btn primary" data-cm="std" style="grid-column:1/-1">標準操作</button>`;
   const _menuMasked=(typeof _isMaskedHandCard==="function" && _isMaskedHandCard(c));
-  openModal(`${_menuMasked?"非公開カード":esc(dispName(c.name))} <span style="font-size:12px;color:var(--muted)">[${_menuMasked?"相手の手札":(TYPE_JP[c.type]||c.type)+" / "+ZONE_JP[f.zone]+(f.player?" / "+pname(f.player):"")}]</span>`,`
+  openModal(`${_menuMasked?"非公開カード":esc(dispName(c.name))} <span style="font-size:12px;color:var(--muted)">[${_menuMasked?"相手の手札":typeText(c)+" / "+ZONE_JP[f.zone]+(f.player?" / "+pname(f.player):"")}]</span>`,`
     <div class="cardprev">
-      <div class="pv">${cur?`<img src="${cur}">`:`<div style="padding:8px;text-align:center">${esc(c.name)}<br><small>${TYPE_JP[c.type]||c.type}</small></div>`}</div>
+      <div class="pv">${cur?`<img src="${cur}">`:`<div style="padding:8px;text-align:center">${esc(c.name)}<br><small>${esc(typeText(c))}</small></div>`}</div>
       <div style="flex:1">
         <div class="note">
+          ${typePillsHTML(c)}
           ${c.power!==""||c.toughness!==""?`P/T: ${esc(c.power)}/${esc(c.toughness)}<br>`:""}
           ${c.countersPlus?`+1/+1: ${c.countersPlus}　`:""}${c.damage?`ダメージ: ${c.damage}`:""}<br>
           ${Object.keys(c.counters||{}).length?"カウンター: "+Object.entries(c.counters).map(([k,v])=>`${esc(k)}×${v}`).join(", ")+"<br>":""}
@@ -2019,7 +2111,7 @@ function openCardMenu(id){
       <button class="btn" data-cm="ctrcard">このカードのカウンター</button>
       ${canCancelCounters(c)?`<button class="btn" data-cm="ctrcancel">+1/+1 と -1/-1 を相殺</button>`:""}
       ${_isTemporaryToken(c)?`<button class="btn" data-cm="tokvanish">消滅させる（一時）</button>`:""}
-      <button class="btn" data-cm="type">タイプ変更</button>
+      <button class="btn" data-cm="type">タイプ編集・追加</button>
       <button class="btn" data-cm="memo">メモ編集</button>
       <button class="btn" data-cm="img">画像設定</button>
       ${dictGet(c.name)?"":`<button class="btn" data-cm="dicteditreg">このカードを辞書に登録（詳細編集）</button>`}
@@ -2093,7 +2185,7 @@ function openCardMenu(id){
       case "tgtclear": targetClearAll(id); break;
       case "tgtmemo": closeModal(); editTargetMemo(id); return;
       case "tgtreq": setTargetRequired(id, !c.targetRequired); break;
-      case "tgtdict": { ensureTgtFields(c); c.canTarget=true; const _ex=dictGet(c.name)||{}; dictSet({name:c.name,type:(c.type==="UnknownSpell"?"Unknown":c.type),canTarget:true,targetRequired:c.targetRequired,targetKinds:_ex.targetKinds||[],defaultTargetMemo:_ex.defaultTargetMemo||c.targetMemo||""},true); toast("対象設定を辞書に保存しました"); break; }
+      case "tgtdict": { ensureTgtFields(c); c.canTarget=true; const _ex=dictGet(c.name)||{}; dictSet({name:c.name,type:(c.type==="UnknownSpell"?"Unknown":c.type),types:baseTypesOf(c),canTarget:true,targetRequired:c.targetRequired,targetKinds:_ex.targetKinds||[],defaultTargetMemo:_ex.defaultTargetMemo||c.targetMemo||""},true); toast("対象設定を辞書に保存しました"); break; }
     }
     closeModal(); render();
   });
@@ -2116,17 +2208,18 @@ function cardHTML(c){
   { const _tk=tokenBadgeHTML(c); if(_tk) badges.push(_tk); }
   { const _trg=trgBadgeHTML(c); if(_trg) badges.push(_trg); }
   if(c.blocking){ for(const _tid of blockTargets(c)){ const _tb=findCard(_tid); if(_tb) badges.push(`<span class="badge blk">\u2192${esc((_tb.card.name||"").slice(0,5))}</span>`); } }
-  const showPT = (_d.type==="Creature"||_d.type==="Token"||(_d.power!==""&&_d.power!=null)) && (_d.power!==""||_d.toughness!=="");
+  const _types=(_d.types&&_d.types.length)?_d.types:cardTypes(c,true);
+  const showPT = (_types.includes("Creature")||_types.includes("Token")||(_d.power!==""&&_d.power!=null)) && (_d.power!==""||_d.toughness!=="");
   const combatCls=(c.attacking?" atk":"")+(c.blocking?" blk":"");
   const flag=c.attacking?'<span class="combatflag atk">\u653b\u6483</span>':(c.blocking?'<span class="combatflag blk">\u30d6\u30ed\u30c3\u30af</span>':"");
   const tgtCls=(typeof tgtCardClass==="function")?tgtCardClass(c):"";
   const tgtB=(typeof tgtBadgesFor==="function")?tgtBadgesFor(c):[];
   const _cc=cardColorClass(c); const _cck=cardColorKeyAttr(c);
   const _pt=_ptInfo(c);
-  return `<div class="card${c.tapped?" tapped":""}${selectedCardId===c.id?" selected":""}${combatCls}${tgtCls}${_cc?(" "+_cc):""}" data-card-id="${c.id}" data-type="${c.type}"${_cck}>
+  return `<div class="card${c.tapped?" tapped":""}${selectedCardId===c.id?" selected":""}${combatCls}${tgtCls}${_cc?(" "+_cc):""}" data-card-id="${c.id}" data-type="${primaryTypeOf(c)}" data-types="${esc(cardTypes(c,true).join(","))}"${_cck}>
     ${flag}
     ${img?`<img class="img" src="${esc(img)}" alt=""${_ifb?` data-fb="${esc(_ifb)}"`:""} onerror="if(this.dataset.fb){var f=this.dataset.fb;this.removeAttribute('data-fb');this.src=f;}else{this.remove();}">`:""}
-    <span class="ct">${TYPE_JP[_d.type]?TYPE_JP[_d.type][0]:"?"}</span>
+    <span class="ct">${typeMiniHTML(c)}</span>
     ${c.tapped?'<span class="tapmark">TAP</span>':''}
     <span class="menu-dot">\u22ee</span>
     ${(state.settings.cardZoomButton!==false && state.settings.cardZoomEnabled!==false)?'<span class="zoom-dot" title="押している間 拡大">\ud83d\udd0d</span>':""}
@@ -2764,7 +2857,7 @@ function stackListHTML(){
   const items=s.slice().reverse().map((c,ri)=>{ const idx=s.length-1-ri;
     return `<div class="stack-item">
       <div class="si-main">
-        <div class="si-name">${esc(cardDispName(c))} <small style="color:var(--muted)">[${TYPE_JP[c.type]||c.type} / ${pname(c.owner)}]</small></div>
+        <div class="si-name">${esc(cardDispName(c))} <small style="color:var(--muted)">[${esc(typeText(c))} / ${pname(c.owner)}]</small></div>
         <div class="si-meta">#${idx+1}${idx===s.length-1?" (最上段)":""}</div>
         <input type="text" placeholder="対象メモ" value="${esc(c._target||"")}" data-stm="target" data-i="${idx}">
         <input type="text" placeholder="解決メモ" value="${esc(c._resolve||"")}" data-stm="resolve" data-i="${idx}">
@@ -3955,7 +4048,7 @@ function openCardPreview(name,opts){
     ${pr.src?_imgTag(pr.src,pr.fb):`<div class="note">${showBack?"裏面画像がありません（テキスト表示）":"画像がありません（テキスト表示）"}</div>`}
     <div style="margin-top:6px"><b>${esc(showBack?backFaceName(name):dn)}</b>${(!showBack&&dn!==name)?` <small style="color:var(--muted)">${esc(name)}</small>`:""}${dictGet(name)?"":' <small style="color:#e0a83c">未登録</small>'}${df?' <small style="color:#7ec9ff">両面</small>':""}${sp?' <small style="color:#e0a83c">分割</small>':""}</div>
     ${sp?`<div class="note">左: <b>${esc(splitPartName(name,"left"))}</b>${e.splitLeftManaCost?" "+esc(e.splitLeftManaCost):""}${e.splitLeftType?" / "+esc(e.splitLeftType):""}　右: <b>${esc(splitPartName(name,"right"))}</b>${e.splitRightManaCost?" "+esc(e.splitRightManaCost):""}${e.splitRightType?" / "+esc(e.splitRightType):""}</div>${(e.splitLeftText||e.splitRightText)?`<div class="note" style="text-align:left;white-space:pre-wrap">${esc(e.splitLeftText||"")}${e.splitRightText?"\n"+esc(e.splitRightText):""}</div>`:""}`:""}
-    <div class="note">${showBack?(e.backType?esc(e.backType):"（裏面）"):(e.type&&e.type!=="Unknown"?esc(TYPE_JP[e.type]||e.type):"未分類")}${(!showBack&&e.manaCost)?" / "+esc(e.manaCost):""}</div>
+    <div class="note">${showBack?(e.backType?esc(e.backType):"（裏面）"):esc(typeText(e,false))}${(!showBack&&e.manaCost)?" / "+esc(e.manaCost):""}</div>
     ${(showBack?e.backMemo:e.memo)?`<div class="note" style="text-align:left;white-space:pre-wrap">${esc(showBack?e.backMemo:e.memo)}</div>`:""}</div>`;
   const foot=opts.deck
     ? `<button class="btn" data-tl="addm">＋1 メイン</button><button class="btn" data-tl="adds">＋1 サイド</button><button class="btn primary" data-tl="close">閉じる</button>`
@@ -4482,7 +4575,7 @@ URLを貼っても取得しません。サイトのデッキリスト本文を�
       const mainboard=[],sideboard=[];
       for(const r of importResult.rows){
         const t = r.type==="UnknownSpell"?"Unknown":r.type;
-        (r.side?sideboard:mainboard).push({name:r.name,qty:r.qty,type:t,subtype:r.subtype||"",power:(r.power!=null?r.power:""),toughness:(r.toughness!=null?r.toughness:""),memo:r.memo||"",imageId:r.imageId||null,defaultZone:r.defaultZone||""});
+        (r.side?sideboard:mainboard).push({name:r.name,qty:r.qty,type:t,types:(r.types||((dictGet(r.name)&&baseTypesOf(dictGet(r.name)))||[t])),subtype:r.subtype||"",power:(r.power!=null?r.power:""),toughness:(r.toughness!=null?r.toughness:""),memo:r.memo||"",imageId:r.imageId||null,defaultZone:r.defaultZone||""});
       }
       const deck={ deckId:uid(), deckName:name, format:fmt, notes:"",
         mainboard, sideboard, maybeboard:[], sourceText:$("#imText").value, sourceType:importResult.source,
@@ -4503,7 +4596,7 @@ function countDeck(list){ return list.reduce((a,b)=>a+b.qty,0); }
    ============================================================ */
 function deckTypeCounts(deck){
   const c={}; for(const t of TYPES) c[t]=0;
-  for(const e of (deck.mainboard||[])){ c[e.type]=(c[e.type]||0)+e.qty; }
+  for(const e of (deck.mainboard||[])){ const d=dictGet(e.name); const ts=(d?baseTypesOf(d):normalizeTypeList(e.types,e.type)); for(const t of ts) c[t]=(c[t]||0)+e.qty; }
   return c;
 }
 function openDeckManager(){
@@ -4583,13 +4676,13 @@ function openDeckEditor(id){
     `<button class="btn" data-app="closem">キャンセル</button><button class="btn primary" id="dSave">保存</button>`);
   const parseEditor=(txt)=>txt.split("\n").map(l=>l.trim()).filter(Boolean).map(l=>{
     let type="Unknown"; const tm=l.match(/@(\w+)\s*$/); if(tm){ type=normType(tm[1]); l=l.replace(/@\w+\s*$/,"").trim(); }
-    const pc=parseCardLine(l); if(!pc) return null; return {name:pc.name,qty:pc.qty,type};
+    const pc=parseCardLine(l); if(!pc) return null; return {name:pc.name,qty:pc.qty,type,types:[type]};
   }).filter(Boolean);
   // ===== 登録カードから追加（ビルダー）: テキストエリアを唯一のデータ源として読み書き =====
   (function(){
     const rowsOf=(sel)=>{ const arr=parseEditor($(sel).value); // 同名(識別名)行を1行へ集約
       const map=new Map(); for(const r of arr){ const k=r.name; const ex=map.get(k);
-        if(ex){ ex.qty+=r.qty; if(ex.type==="Unknown"&&r.type!=="Unknown") ex.type=r.type; } else map.set(k,{name:r.name,qty:r.qty,type:r.type}); }
+        if(ex){ ex.qty+=r.qty; if(ex.type==="Unknown"&&r.type!=="Unknown") ex.type=r.type; } else map.set(k,{name:r.name,qty:r.qty,type:r.type,types:r.types||[r.type]}); }
       return [...map.values()]; };
     const writeRows=(sel,rows)=>{ $(sel).value=rows.filter(r=>r.qty>0).map(e=>`${e.qty} ${e.name}${e.type&&e.type!=="Unknown"?" @"+e.type:""}`).join("\n"); };
     const prefs=(function(){ try{ return JSON.parse(localStorage.getItem("cpt_dbprefs")||"{}"); }catch(_){ return {}; } })();
@@ -4607,12 +4700,12 @@ function openDeckEditor(id){
       let list=Object.values(dictAll());
       list=list.map((e,i)=>({e,i}));
       if(q) list=list.filter(({e})=>{
-        const hay=[e.name,e.displayName||"",...(e.aliases||[]),e.type||"",abilityText(e),
+        const hay=[e.name,e.displayName||"",...(e.aliases||[]),...baseTypesOf(e).map(t=>TYPE_JP[t]||t),abilityText(e),
           e.backName||"",e.backDisplayName||"",e.splitLeftName||"",e.splitRightName||"",e.splitLeftDisplayName||"",e.splitRightDisplayName||""].map(norm).join("\u0000");
         return hay.indexOf(q)>=0; });
       if(filt!=="all"){
         if(["W","U","B","R","G","C","M"].includes(filt)) list=list.filter(({e})=>colorCat(e)===filt);
-        else list=list.filter(({e})=>(e.type||"Unknown")===filt);
+        else list=list.filter(({e})=>baseTypesOf(e).includes(filt));
       }
       const dq={}; for(const {e} of list) dq[e.name]=deckQty(e.name);
       const cmpName=(a,b)=>a.e.name.localeCompare(b.e.name,"ja");
@@ -4623,14 +4716,14 @@ function openDeckEditor(id){
         color:(a,b)=>(COLOR_ORD[colorCat(a.e)]-COLOR_ORD[colorCat(b.e)])||cmpName(a,b),
         mvAsc:(a,b)=>((mv(a.e)==null?99:mv(a.e))-(mv(b.e)==null?99:mv(b.e)))||cmpName(a,b),
         mvDesc:(a,b)=>((mv(b.e)==null?-1:mv(b.e))-(mv(a.e)==null?-1:mv(a.e)))||cmpName(a,b),
-        type:(a,b)=>String(a.e.type||"zz").localeCompare(String(b.e.type||"zz"))||cmpName(a,b),
+        type:(a,b)=>typeText(a.e,false).localeCompare(typeText(b.e,false),"ja")||cmpName(a,b),
         inDeck:(a,b)=>(dq[b.e.name]-dq[a.e.name])||cmpName(a,b),
       };
       list.sort(sorters[sort]||sorters.reg);
       $("#dbList").innerHTML=list.map(({e})=>{ const dn=dispName(e.name), isrc=imgOf(e), cc=colorCat(e), q0=dq[e.name];
         return `<div class="db-row">${isrc?`<img src="${esc(isrc)}" alt="" data-db="prev" data-name="${esc(e.name)}" onerror="this.remove()">`:""}
         <span class="db-n" data-db="prev" data-name="${esc(e.name)}" title="${esc(e.name)}（クリックで拡大プレビュー）">${esc(dn)}${dn!==e.name?` <small style="color:var(--muted)">${esc(e.name)}</small>`:""}${cardFormatOf(e)==="doubleFaced"?' <small class="db-badge" style="color:#7ec9ff">両面</small>':""}${cardFormatOf(e)==="split"?` <small class="db-badge" style="color:#e0a83c">分割: ${esc(splitPartName(e.name,"left"))} // ${esc(splitPartName(e.name,"right"))}</small>`:""}</span>
-        <small style="color:var(--muted);flex:none">${e.type&&e.type!=="Unknown"?TYPE_JP[e.type]||e.type:"未分類"}/${cc==="M"?"多色":cc==="C"?"無色":cc}${mv(e)!=null?"/MV"+mv(e):""}${e.manaCost?"/"+esc(e.manaCost):""}${q0?` <b>×${q0}</b>`:""}</small>
+        <small style="color:var(--muted);flex:none">${esc(typeText(e,false))}/${cc==="M"?"多色":cc==="C"?"無色":cc}${mv(e)!=null?"/MV"+mv(e):""}${e.manaCost?"/"+esc(e.manaCost):""}${q0?` <b>×${q0}</b>`:""}</small>
         <button class="btn tiny" data-db="add" data-b="#dMain" data-n="1" data-name="${esc(e.name)}">＋1メイン</button>
         <button class="btn tiny" data-db="add" data-b="#dMain" data-n="4" data-name="${esc(e.name)}">＋4</button>
         <button class="btn tiny" data-db="add" data-b="#dSide" data-n="1" data-name="${esc(e.name)}">＋1サイド</button></div>`; }).join("")
@@ -4650,7 +4743,7 @@ function openDeckEditor(id){
       $("#dbTotals").innerHTML=`<b>メイン ${rowsOf("#dMain").reduce((a,b)=>a+b.qty,0)}枚</b> ／ <b>サイド ${rowsOf("#dSide").reduce((a,b)=>a+b.qty,0)}枚</b>`;
     }
     function addTo(sel,name,n){ const rows=rowsOf(sel); const r=rows.find(x=>x.name===name);
-      if(r) r.qty+=(n||1); else { const de=dictGet(name); rows.push({name,qty:(n||1),type:(de&&de.type)||"Unknown"}); } // 辞書はコピーせず識別名と枚数のみ保持
+      if(r) r.qty+=(n||1); else { const de=dictGet(name); rows.push({name,qty:(n||1),type:(de&&de.type)||"Unknown",types:(de?baseTypesOf(de):["Unknown"])}); } // 辞書はコピーせず識別名と枚数のみ保持
       writeRows(sel,rows); renderAll(); }
     function renderAll(){ libRender(); deckRender(); if(window._dbDraftSave) window._dbDraftSave(); }
     window._dbRefresh=renderAll;
@@ -4670,7 +4763,7 @@ function openDeckEditor(id){
       if(op==="add"){ addTo(sel,name,parseInt(b.dataset.n||"1",10)); }
       else if(op==="sub"){ if(!r) return; if(b.dataset.all) r.qty=0; else r.qty=Math.max(0,r.qty-1); writeRows(sel,rows); }
       else if(op==="mv"){ if(!r) return; const toSel=b.dataset.to; const dst=rowsOf(toSel); const dr=dst.find(x=>x.name===name);
-        if(dr) dr.qty+=r.qty; else dst.push({name:r.name,qty:r.qty,type:r.type});
+        if(dr) dr.qty+=r.qty; else dst.push({name:r.name,qty:r.qty,type:r.type,types:r.types||[r.type]});
         r.qty=0; writeRows(sel,rows); writeRows(toSel,dst); }
       renderAll();
     });
@@ -5072,8 +5165,8 @@ function init(){
 }
 function loadDeckToPlayerSilent(id,p){
   const d=deckById(id); if(!d) return; const pl=state.players[p];
-  for(const e of (d.mainboard||[])) for(let i=0;i<e.qty;i++) pl.library.push(makeCard({name:e.name,type:e.type,owner:p,zone:"library"}));
-  for(const e of (d.sideboard||[])) for(let i=0;i<e.qty;i++) pl.sideboard.push(makeCard({name:e.name,type:e.type,owner:p,zone:"sideboard"}));
+  for(const e of (d.mainboard||[])) for(let i=0;i<e.qty;i++) pl.library.push(makeDeckCard(e,p,"library",d.deckName));
+  for(const e of (d.sideboard||[])) for(let i=0;i<e.qty;i++) pl.sideboard.push(makeDeckCard(e,p,"sideboard",d.deckName));
   shuffle(pl.library);
 }
 
@@ -5081,7 +5174,7 @@ function loadDeckToPlayerSilent(id,p){
    対戦開始 / マリガン / 対戦リセット / スナップショット
    ============================================================ */
 function coin(){ return randInt(2)===0?"A":"B"; }
-function resetCardState(c){ c.tapped=false; c.damage=0; c.countersPlus=0; c.counters={};
+function resetCardState(c){ c.tapped=false; c.damage=0; c.countersPlus=0; c.counters={}; c.addedTypes=[]; c.untilEndOfTurnTypes=[];
   c.attacking=false; c.blocking=false; c.zone="library"; c.controller=c.owner; }
 function returnHandToLib(p){ const pl=state.players[p];
   while(pl.hand.length){ const c=pl.hand.pop(); c.zone="library"; c.controller=c.owner; pl.library.push(c); } }
@@ -5190,7 +5283,7 @@ function resetMatchDo(shuf){
 function mgCardHTML(c,i){
   const pt=(c.power!==""||c.toughness!=="")?` ${esc(c.power)}/${esc(c.toughness)}`:"";
   return `<label class="mgcard"><input type="checkbox" class="mgchk" data-i="${i}">
-    <span class="mgc-name">${esc(dispName(c.name))}</span><span class="mgc-type">${TYPE_JP[c.type]||c.type}${pt}</span></label>`;
+    <span class="mgc-name">${esc(dispName(c.name))}</span><span class="mgc-type">${esc(typeText(c))}${pt}</span></label>`;
 }
 function mulliganOpen(p){ renderMulli(p); }
 function renderMulli(p){
@@ -5300,19 +5393,21 @@ function dictGet(name){
   return null;
 }
 function dictEntryFrom(o){
-  return { name:dictKey(o.name), displayName:(typeof o.displayName==="string"?o.displayName.trim():""), type:o.type||"Unknown", subtype:o.subtype||"",
+  o=o||{}; const _types=normalizeTypeList(o.types,o.type||"Unknown");
+  const _backTypes=normalizeExtraTypeList(o.backTypes||o.backType), _leftTypes=normalizeExtraTypeList(o.splitLeftTypes||o.splitLeftType), _rightTypes=normalizeExtraTypeList(o.splitRightTypes||o.splitRightType);
+  return { name:dictKey(o.name), displayName:(typeof o.displayName==="string"?o.displayName.trim():""), type:_types[0]||"Unknown", types:_types, subtype:o.subtype||"",
     power:(o.power!=null?String(o.power):""), toughness:(o.toughness!=null?String(o.toughness):""),
     memo:o.memo||"", imageId:o.imageId||null, imageUrl:(typeof o.imageUrl==="string"?o.imageUrl.trim():""), defaultZone:o.defaultZone||"",
     colors:dedupColors(o.colors||[]), manaValue:mvNorm(o.manaValue), produces:dedupProduce(o.produces||[]),
     roleTags:dedupArr(o.roleTags||[]), customTags:dedupArr(o.customTags||[]), priorityNote:o.priorityNote||"",
     canTarget:!!o.canTarget, targetRequired:!!o.targetRequired, targetKinds:dedupArr(o.targetKinds||[]), defaultTargetMemo:o.defaultTargetMemo||"",
-    cardFormat:(["normal","doubleFaced","split"].includes(o.cardFormat)?o.cardFormat:"normal"), // 未設定の旧データは normal
-    backName:(o.backName||""), backDisplayName:(o.backDisplayName||""), backType:(o.backType||""), backMemo:(o.backMemo||""),
+    cardFormat:(["normal","doubleFaced","split"].includes(o.cardFormat)?o.cardFormat:"normal"),
+    backName:(o.backName||""), backDisplayName:(o.backDisplayName||""), backType:(_backTypes[0]||""), backTypes:_backTypes, backMemo:(o.backMemo||""),
     backImageId:(o.backImageId!==undefined?o.backImageId:null), backImageUrl:(o.backImageUrl||""),
     splitLeftName:(o.splitLeftName||""), splitRightName:(o.splitRightName||""),
     splitLeftDisplayName:(o.splitLeftDisplayName||""), splitRightDisplayName:(o.splitRightDisplayName||""),
     splitLeftManaCost:(o.splitLeftManaCost||""), splitRightManaCost:(o.splitRightManaCost||""),
-    splitLeftType:(o.splitLeftType||""), splitRightType:(o.splitRightType||""),
+    splitLeftType:(_leftTypes[0]||""), splitRightType:(_rightTypes[0]||""), splitLeftTypes:_leftTypes, splitRightTypes:_rightTypes,
     splitLeftText:(o.splitLeftText||""), splitRightText:(o.splitRightText||""),
     layout:(o.layout||"normal"), faces:normalizeFaces(o.faces||[]), manaCost:(o.manaCost!==undefined?normalizeManaCost(o.manaCost):null), abilities:normalizeAbilities(o.abilities||[]), resolveChecklist:normalizeChecklist(o.resolveChecklist||[]),
     aliases:dedupAliases(o.aliases||[], o.name), updatedAt:nowISO() };
@@ -5322,10 +5417,11 @@ function dictSet(o,silent){
   const all=dictAll(); const ex=all[k];
   const ent=dictEntryFrom(o);
   if(o.displayName===undefined && ex) ent.displayName=ex.displayName||"";
-  ["cardFormat","backName","backDisplayName","backType","backMemo","backImageId","backImageUrl",
+  ["types","cardFormat","backName","backDisplayName","backType","backTypes","backMemo","backImageId","backImageUrl",
    "splitLeftName","splitRightName","splitLeftDisplayName","splitRightDisplayName",
-   "splitLeftManaCost","splitRightManaCost","splitLeftType","splitRightType","splitLeftText","splitRightText"]
+   "splitLeftManaCost","splitRightManaCost","splitLeftType","splitRightType","splitLeftTypes","splitRightTypes","splitLeftText","splitRightText"]
    .forEach(k=>{ if(o[k]===undefined && ex && ex[k]!==undefined) ent[k]=ex[k]; });
+  if(o.types===undefined && ex){ const pri=_typeOne(o.type)||baseTypesOf(ex)[0]||"Unknown"; const old=baseTypesOf(ex).filter(t=>t!==pri&&t!=="Unknown"); ent.types=normalizeTypeList([pri,...old],pri); ent.type=ent.types[0]||"Unknown"; }
   if(o.aliases===undefined && ex) ent.aliases=ex.aliases||[];
   if(o.colors===undefined && ex) ent.colors=ex.colors||[];
   if(o.manaValue===undefined && ex) ent.manaValue=ex.manaValue!=null?ex.manaValue:"";
@@ -5355,7 +5451,7 @@ function dictMergeInto(srcName,dstName){ // 別登録カード(src)を元カー�
   if(sE.name===dE.name){ toast("同じカードです（統合不要）"); return false; }
   const FILL=["subtype","power","toughness","memo","imageUrl","defaultZone","priorityNote","defaultTargetMemo"];
   for(const f of FILL){ if((dE[f]===""||dE[f]==null)&&sE[f]) dE[f]=sE[f]; }
-  if((dE.type==="Unknown"||!dE.type)&&sE.type&&sE.type!=="Unknown") dE.type=sE.type;
+  { const dt=baseTypesOf(dE), st=baseTypesOf(sE); const merged=normalizeTypeList([...dt.filter(t=>t!=="Unknown"),...st.filter(t=>t!=="Unknown")],dE.type||sE.type); dE.types=merged; dE.type=merged[0]||"Unknown"; }
   if(!dE.imageId&&sE.imageId) dE.imageId=sE.imageId;
   if(!dE.displayName) dE.displayName=sE.displayName||sE.name; // 日本語名側を表示名として引き継ぐ
   if(dE.manaCost==null&&sE.manaCost!=null) dE.manaCost=sE.manaCost;
@@ -5397,7 +5493,7 @@ function dictMergeInto(srcName,dstName){ // 別登録カード(src)を元カー�
 /* カード → 辞書 */
 function dictFromCard(c,upd){
   const t=(c.type==="UnknownSpell"?"Unknown":c.type);
-  dictSet({name:c.name,type:t,subtype:c.subtype,power:c.power,toughness:c.toughness,memo:c.memo,imageId:c.imageId},true);
+  dictSet({name:c.name,type:t,types:baseTypesOf(c),subtype:c.subtype,power:c.power,toughness:c.toughness,memo:c.memo,imageId:c.imageId},true);
   addLog(`辞書${upd?"更新":"登録"}: ${dictKey(c.name)} (${TYP(t)})`);
   saveState(true); return true;
 }
@@ -5405,7 +5501,7 @@ function dictFromCard(c,upd){
 function dictApplyToCard(c){
   const e=dictGet(c.name); if(!e){ toast("辞書に未登録です"); return false; }
   pushUndo("辞書適用");
-  if(e.type && e.type!=="Unknown") c.type=e.type;
+  if((e.types&&e.types.length)||(e.type&&e.type!=="Unknown")) setBaseTypes(c,e.types||[e.type]);
   if(e.subtype) c.subtype=e.subtype;
   if(e.power!=="") c.power=e.power;
   if(e.toughness!=="") c.toughness=e.toughness;
@@ -5427,7 +5523,7 @@ function applyDictToRows(rows){
     const e=dictGet(r.name);
     if(!e){ r.candidates=dictCandidates(r.name); continue; }
     if(e.name && r.name!==e.name){ r.origName=r.name; r.name=e.name; } // 別名/表記ゆれ一致は正準名(canonical)へ統一＝同一カード扱い
-    r.dictApplied=true; r.dictType=e.type; r.candidates=[]; applied++;
+    r.dictApplied=true; r.dictType=e.type; r.types=baseTypesOf(e); r.candidates=[]; applied++;
     if(e.subtype) r.subtype=e.subtype;
     if(e.power!=="") r.power=e.power;
     if(e.toughness!=="") r.toughness=e.toughness;
@@ -5448,7 +5544,7 @@ function applyDictToRows(rows){
 function dictRegisterRows(rows){
   let n=0;
   for(const r of rows){ if(!r) continue; const t=r.type==="UnknownSpell"?"Unknown":r.type;
-    if(dictSet({name:r.name,type:t,subtype:r.subtype,power:r.power,toughness:r.toughness,memo:r.memo,imageId:r.imageId,defaultZone:r.defaultZone},true)) n++; }
+    if(dictSet({name:r.name,type:t,types:(r.types||[t]),subtype:r.subtype,power:r.power,toughness:r.toughness,memo:r.memo,imageId:r.imageId,defaultZone:r.defaultZone},true)) n++; }
   if(n) addLog(`辞書登録(プレビューから): ${n}件`);
   saveState(true); return n;
 }
@@ -5456,19 +5552,18 @@ function dictRegisterRows(rows){
 /* デッキ読込: 辞書を加味したカード生成 */
 function makeDeckCard(e,p,zone,deckName){
   const dict=dictGet(e.name);
-  let type=e.type||"Unknown", subtype=e.subtype||"";
+  let types=normalizeTypeList(e.types,e.type||"Unknown"), subtype=e.subtype||"";
   let power=(e.power!=null?e.power:""), toughness=(e.toughness!=null?e.toughness:""), memo=e.memo||"", imageId=e.imageId||null;
   if(dict){
-    const deckClear = type && type!=="Unknown" && type!=="UnknownSpell";
-    if(!deckClear && dict.type && dict.type!=="Unknown") type=dict.type;
+    const explicitTypes=Array.isArray(e.types)&&e.types.length>0;
+    if(!explicitTypes && (dict.types||dict.type)) types=baseTypesOf(dict);
     if(!subtype && dict.subtype) subtype=dict.subtype;
     if((power===""||power==null) && dict.power!=="") power=dict.power;
     if((toughness===""||toughness==null) && dict.toughness!=="") toughness=dict.toughness;
     if(!memo && dict.memo) memo=dict.memo;
     if(!imageId && dict.imageId) imageId=dict.imageId;
   }
-  if(type==="UnknownSpell") type="Unknown";
-  return makeCard({name:e.name,type:type,subtype:subtype,power:power,toughness:toughness,memo:memo,imageId:imageId,owner:p,controller:p,zone:zone,importedSource:deckName});
+  return makeCard({name:e.name,type:types[0]||"Unknown",types,subtype,power,toughness,memo,imageId,owner:p,controller:p,zone,importedSource:deckName});
 }
 
 /* 辞書管理モーダル */
@@ -5480,7 +5575,7 @@ function openDictionary(){
     const hay=[e.name,e.displayName||"",...(e.aliases||[]),e.backName||"",e.backDisplayName||"",
       e.splitLeftName||"",e.splitRightName||"",e.splitLeftDisplayName||"",e.splitRightDisplayName||""].join("\u0000").toLowerCase();
     return hay.includes(q); });
-  if(ft) entries=entries.filter(e=>e.type===ft);
+  if(ft) entries=entries.filter(e=>baseTypesOf(e).includes(ft));
   entries.sort((a,b)=>a.name.localeCompare(b.name,"ja"));
   const fc=_dictFilter.color, fmv=_dictFilter.mv, frole=_dictFilter.role;
   if(fc) entries=entries.filter(e=>dedupColors(e.colors||[]).includes(fc));
@@ -5488,7 +5583,7 @@ function openDictionary(){
   if(fmv!==""&&fmv!=null) entries=entries.filter(e=>{ const m=mvNorm(e.manaValue); return fmv==="6+"?(m!==""&&m>=6):(m===Number(fmv)); });
   const rows=entries.map(e=>`<tr>
     <td>${esc(e.name)}</td>
-    <td>${TYP(e.type)}</td>
+    <td>${esc(typeText(e,false))}</td>
     <td>${esc(e.power)}${(e.power!==""||e.toughness!=="")?"/":""}${esc(e.toughness)}</td>
     <td>${colorBadges(e.colors||[])||"-"}</td>
     <td>${e.manaValue===0?0:(e.manaValue||"-")}</td>
@@ -5638,7 +5733,8 @@ function openDictEditor(name){
     <div class="grid2">
       <label class="field">カード名（識別名・照合用${ex?"・変更不可":""}）<input type="text" id="deName" value="${esc(e.name)}"${ex?" readonly":""}></label>
       <label class="field">表示名（任意・画面表示のみ／照合には使いません）<input type="text" id="deDispName" value="${esc(e.displayName||"")}" placeholder="例: 稲妻（空欄なら識別名を表示）"></label>
-      <label class="field">タイプ<select id="deType">${DICT_TYPES.map(t=>`<option value="${t}"${t===e.type?" selected":""}>${TYP(t)}</option>`).join("")}</select></label>
+      <label class="field">主要タイプ<select id="deType">${DICT_TYPES.map(t=>`<option value="${t}"${t===(baseTypesOf(e)[0]||e.type)?" selected":""}>${TYP(t)}</option>`).join("")}</select></label>
+      <div class="field" style="grid-column:1/-1"><b>カードタイプ（複数選択可）</b><div class="note">例: アーティファクト・クリーチャー。主要タイプは表示・旧データ互換に使います。</div>${typeCheckGridHTML(baseTypesOf(e),"deTypeChk")}</div>
     </div>
     <div class="grid2">
       <label class="field">サブタイプ<input type="text" id="deSub" value="${esc(e.subtype)}" placeholder="例: 兵士 / ドラゴン"></label>
@@ -5679,7 +5775,7 @@ function openDictEditor(name){
         <label class="field">裏面 表示名（任意）<input type="text" id="deBackDispName" value="${esc(e.backDisplayName||"")}" placeholder="例: 裏面の日本語名"></label>
       </div>
       <div class="grid2">
-        <label class="field">裏面タイプ（任意）<input type="text" id="deBackType" value="${esc(e.backType||"")}"></label>
+        <label class="field">裏面タイプ（複数は / 区切り）<input type="text" id="deBackType" value="${esc(e.backType||"")}"></label>
         <label class="field">裏面 画像URL<input type="text" id="deBackImgUrl" value="${esc(e.backImageUrl||"")}" placeholder="https://..."></label>
       </div>
       <label class="field">裏面メモ（任意）<textarea id="deBackMemo" rows="2">${esc(e.backMemo||"")}</textarea></label>
@@ -5704,8 +5800,8 @@ function openDictEditor(name){
         <label class="field">右側 マナコスト（任意）<input type="text" id="deSpRCost" value="${esc(e.splitRightManaCost||"")}"></label>
       </div>
       <div class="grid2">
-        <label class="field">左側 タイプ（任意）<input type="text" id="deSpLType" value="${esc(e.splitLeftType||"")}"></label>
-        <label class="field">右側 タイプ（任意）<input type="text" id="deSpRType" value="${esc(e.splitRightType||"")}"></label>
+        <label class="field">左側 タイプ（複数は / 区切り）<input type="text" id="deSpLType" value="${esc(e.splitLeftType||"")}"></label>
+        <label class="field">右側 タイプ（複数は / 区切り）<input type="text" id="deSpRType" value="${esc(e.splitRightType||"")}"></label>
       </div>
       <div class="grid2">
         <label class="field">左側 テキスト（任意）<textarea id="deSpLText" rows="2">${esc(e.splitLeftText||"")}</textarea></label>
@@ -5777,6 +5873,11 @@ function openDictEditor(name){
   }
   wireImgUpload({btn:"#deUpBtn",file:"#deUpFile",note:"#deUpNote",prev:"#deImgPrev",url:"#deImgUrl"});
   wireImgUpload({btn:"#deBackUpBtn",file:"#deBackUpFile",note:"#deBackUpNote",prev:"#deBackImgPrev",url:"#deBackImgUrl"});
+  (function(){ // 複数タイプ: 主要タイプを常に選択リストの先頭へ
+    const sel=$("#deType"), checks=[...document.querySelectorAll(".deTypeChk")]; if(!sel||!checks.length) return;
+    const sync=()=>{ const c=checks.find(x=>x.value===sel.value); if(c) c.checked=true; };
+    sel.onchange=sync; checks.forEach(c=>c.onchange=()=>{ if(c.checked && (sel.value==="Unknown"||!checks.find(x=>x.value===sel.value&&x.checked))) sel.value=c.value; if(!c.checked&&c.value===sel.value){ const n=checks.find(x=>x.checked); sel.value=n?n.value:"Unknown"; } sync(); }); sync();
+  })();
   (function(){ // カード形式に応じて入力欄を出し分け
     const sel=$("#deFormat"); if(!sel) return;
     const upd=()=>{ const v=sel.value;
@@ -5786,7 +5887,7 @@ function openDictEditor(name){
     sel.onchange=upd; upd();
   })();
   (function(){ // 未保存変更のdirty判定＋一時保存（保存/破棄で削除）
-    const snap=()=>JSON.stringify({n:($("#deName")||{}).value||"",d:($("#deDispName")||{}).value||"",t:($("#deType")||{}).value||"",
+    const snap=()=>JSON.stringify({n:($("#deName")||{}).value||"",d:($("#deDispName")||{}).value||"",t:($("#deType")||{}).value||"",ts:readTypeChecks(".deTypeChk"),
       s:($("#deSub")||{}).value||"",p:($("#dePow")||{}).value||"",g:($("#deTou")||{}).value||"",m:($("#deMemo")||{}).value||"",
       u:($("#deImgUrl")||{}).value||"",z:($("#deZone")||{}).value||"",a:($("#deAlias")||{}).value||""});
     const base=snap();
@@ -5804,31 +5905,32 @@ function openDictEditor(name){
       // 確認ダイアログでエディタDOMが消えるため、先に全フィールドをスナップショット
       const _ext=dictExtRead(); const _tg=dictTargetRead(); const _fc=dictFacesRead();
       const _v=(id)=>{ const el=$(id); return el?String(el.value||"").trim():""; };
-      const snap={ displayName:($("#deDispName")?$("#deDispName").value.trim():""), type:$("#deType").value, subtype:$("#deSub").value.trim(),
+      const _baseTypes=readTypeChecks(".deTypeChk"); const _primary=$("#deType").value; const _orderedTypes=[_primary,..._baseTypes.filter(t=>t!==_primary)];
+      const snap={ displayName:($("#deDispName")?$("#deDispName").value.trim():""), type:_primary, types:_orderedTypes, subtype:$("#deSub").value.trim(),
         power:$("#dePow").value.trim(), toughness:$("#deTou").value.trim(), memo:$("#deMemo").value,
         imageUrl:($("#deImgUrl")?$("#deImgUrl").value.trim():""), defaultZone:$("#deZone").value,
         aliases:($("#deAlias").value||"").split(/\r?\n/),
         cardFormat:(_v("#deFormat")||"normal"),
-        backName:_v("#deBackName"), backDisplayName:_v("#deBackDispName"), backType:_v("#deBackType"),
+        backName:_v("#deBackName"), backDisplayName:_v("#deBackDispName"), backType:_v("#deBackType"), backTypes:normalizeExtraTypeList(_v("#deBackType")),
         backMemo:($("#deBackMemo")?$("#deBackMemo").value:""), backImageUrl:_v("#deBackImgUrl"),
         splitLeftName:_v("#deSpLName"), splitRightName:_v("#deSpRName"),
         splitLeftDisplayName:_v("#deSpLDisp"), splitRightDisplayName:_v("#deSpRDisp"),
         splitLeftManaCost:_v("#deSpLCost"), splitRightManaCost:_v("#deSpRCost"),
-        splitLeftType:_v("#deSpLType"), splitRightType:_v("#deSpRType"),
+        splitLeftType:_v("#deSpLType"), splitRightType:_v("#deSpRType"), splitLeftTypes:normalizeExtraTypeList(_v("#deSpLType")), splitRightTypes:normalizeExtraTypeList(_v("#deSpRType")),
         splitLeftText:($("#deSpLText")?$("#deSpLText").value:""), splitRightText:($("#deSpRText")?$("#deSpRText").value:""),
         abilities:dictAbilitiesRead(), resolveChecklist:dictChecklistRead() };
       const doSave=(saveName,mergeAliasName)=>{ safe(()=>{
         const als=snap.aliases.slice(); if(mergeAliasName) als.push(mergeAliasName);
-        const obj={name:saveName,displayName:snap.displayName,type:snap.type,subtype:snap.subtype,
+        const obj={name:saveName,displayName:snap.displayName,type:snap.type,types:snap.types,subtype:snap.subtype,
           power:snap.power,toughness:snap.toughness,memo:snap.memo,
           imageId:e.imageId,imageUrl:snap.imageUrl,defaultZone:snap.defaultZone,
           cardFormat:snap.cardFormat,
-          backName:snap.backName,backDisplayName:snap.backDisplayName,backType:snap.backType,backMemo:snap.backMemo,
+          backName:snap.backName,backDisplayName:snap.backDisplayName,backType:snap.backType,backTypes:snap.backTypes,backMemo:snap.backMemo,
           backImageId:(e.backImageId!==undefined?e.backImageId:null),backImageUrl:snap.backImageUrl,
           splitLeftName:snap.splitLeftName,splitRightName:snap.splitRightName,
           splitLeftDisplayName:snap.splitLeftDisplayName,splitRightDisplayName:snap.splitRightDisplayName,
           splitLeftManaCost:snap.splitLeftManaCost,splitRightManaCost:snap.splitRightManaCost,
-          splitLeftType:snap.splitLeftType,splitRightType:snap.splitRightType,
+          splitLeftType:snap.splitLeftType,splitRightType:snap.splitRightType,splitLeftTypes:snap.splitLeftTypes,splitRightTypes:snap.splitRightTypes,
           splitLeftText:snap.splitLeftText,splitRightText:snap.splitRightText,
           aliases:als,
           colors:_ext.colors,manaValue:_ext.manaValue,produces:_ext.produces,roleTags:_ext.roleTags,customTags:_ext.customTags,priorityNote:_ext.priorityNote,manaCost:_ext.manaCost,
@@ -5840,7 +5942,7 @@ function openDictEditor(name){
           ["subtype","power","toughness","memo","imageUrl","defaultZone","displayName","priorityNote","defaultTargetMemo"].forEach(k=>{ if(obj[k]===""&&exE[k]) obj[k]=exE[k]; });
           if(obj.type==="Unknown"&&exE.type&&exE.type!=="Unknown") obj.type=exE.type;
           if(obj.imageId==null&&exE.imageId) obj.imageId=exE.imageId;
-          ["colors","produces","roleTags","customTags","targetKinds","faces","abilities","resolveChecklist"].forEach(k=>{ if(Array.isArray(obj[k])&&!obj[k].length) delete obj[k]; }); // これらはdictSetのpreserve規則あり
+          ["types","backTypes","splitLeftTypes","splitRightTypes","colors","produces","roleTags","customTags","targetKinds","faces","abilities","resolveChecklist"].forEach(k=>{ if(Array.isArray(obj[k])&&!obj[k].length) delete obj[k]; }); // これらはdictSetのpreserve規則あり
           if(obj.manaValue===""||obj.manaValue==null) delete obj.manaValue;
           if(obj.manaCost==null) delete obj.manaCost;
           if(obj.layout==="normal") delete obj.layout;
@@ -5893,7 +5995,7 @@ function dictImport(){
       if(!dic||typeof dic!=="object"){ toast("辞書データが見つかりません"); return; }
       let n=0; const target = replace?{}:Object.assign({},dictAll());
       for(const k of Object.keys(dic)){ const v=dic[k]||{}; const nm=dictKey(v.name||k); if(!nm) continue;
-        const incoming=dictEntryFrom({name:nm,type:v.type,subtype:v.subtype,power:v.power,toughness:v.toughness,memo:v.memo,imageId:v.imageId,defaultZone:v.defaultZone,aliases:v.aliases||[],colors:v.colors,manaValue:v.manaValue,produces:v.produces,roleTags:v.roleTags,customTags:v.customTags,priorityNote:v.priorityNote,layout:v.layout,faces:v.faces,manaCost:v.manaCost,abilities:v.abilities,resolveChecklist:v.resolveChecklist});
+        const incoming=dictEntryFrom({name:nm,type:v.type,types:v.types,subtype:v.subtype,power:v.power,toughness:v.toughness,memo:v.memo,imageId:v.imageId,defaultZone:v.defaultZone,aliases:v.aliases||[],colors:v.colors,manaValue:v.manaValue,produces:v.produces,roleTags:v.roleTags,customTags:v.customTags,priorityNote:v.priorityNote,layout:v.layout,faces:v.faces,manaCost:v.manaCost,abilities:v.abilities,resolveChecklist:v.resolveChecklist});
         if(!replace && target[nm]){ const t=target[nm];
           incoming.aliases=dedupAliases([...(t.aliases||[]),...(incoming.aliases||[])],nm);
           incoming.colors=dedupColors([...(t.colors||[]),...(incoming.colors||[])]);
@@ -5974,7 +6076,7 @@ function dictCandidates(name){
 }
 /* 辞書エントリ → インポート行 */
 function applyEntryToRow(r,e){
-  r.dictApplied=true; r.dictType=e.type; r.mismatch=false;
+  r.dictApplied=true; r.dictType=e.type; r.types=baseTypesOf(e); r.mismatch=false;
   if(e.subtype) r.subtype=e.subtype;
   if(e.power!=="") r.power=e.power;
   if(e.toughness!=="") r.toughness=e.toughness;
@@ -5987,7 +6089,7 @@ function applyEntryToRow(r,e){
 }
 /* 辞書エントリ → カード(保存なし) */
 function applyEntryToCard(c,e){
-  if(e.type && e.type!=="Unknown") c.type=e.type;
+  if((e.types&&e.types.length)||(e.type&&e.type!=="Unknown")) setBaseTypes(c,e.types||[e.type]);
   if(e.subtype) c.subtype=e.subtype;
   if(e.power!=="") c.power=e.power;
   if(e.toughness!=="") c.toughness=e.toughness;
@@ -6020,8 +6122,8 @@ function dictAddToBoard(name){
     const tv=$("#dabTarget").value, qty=Math.max(1,parseInt($("#dabQty").value,10)||1);
     const t=(e.type==="UnknownSpell"?"Unknown":e.type);
     for(let i=0;i<qty;i++){
-      if(tv==="stackA"||tv==="stackB"){ const sp=tv==="stackA"?"A":"B"; state.stack.push(makeCard({name:e.name,type:t,subtype:e.subtype,power:e.power,toughness:e.toughness,memo:e.memo,imageId:e.imageId,owner:sp,controller:sp,zone:"stack",importedSource:"辞書"})); addLog(`${pname(sp)} が辞書から [${e.name}] をスタックに追加`); }
-      else { const [p,z]=tv.split(":"); state.players[p][z].push(makeCard({name:e.name,type:t,subtype:e.subtype,power:e.power,toughness:e.toughness,memo:e.memo,imageId:e.imageId,owner:p,controller:p,zone:z,importedSource:"辞書"})); }
+      if(tv==="stackA"||tv==="stackB"){ const sp=tv==="stackA"?"A":"B"; state.stack.push(makeCard({name:e.name,type:t,types:baseTypesOf(e),subtype:e.subtype,power:e.power,toughness:e.toughness,memo:e.memo,imageId:e.imageId,owner:sp,controller:sp,zone:"stack",importedSource:"辞書"})); addLog(`${pname(sp)} が辞書から [${e.name}] をスタックに追加`); }
+      else { const [p,z]=tv.split(":"); state.players[p][z].push(makeCard({name:e.name,type:t,types:baseTypesOf(e),subtype:e.subtype,power:e.power,toughness:e.toughness,memo:e.memo,imageId:e.imageId,owner:p,controller:p,zone:z,importedSource:"辞書"})); }
     }
     if(e.imageId) ensureImg(e.imageId);
     const lbl=(opts.find(o=>o[0]===tv)||[])[1]||tv;
@@ -6036,7 +6138,7 @@ function openCardCandidates(c){
   const exact=dictGet(c.name);
   openModal(`辞書候補 — ${esc(c.name)}`,`
     <div class="note">カード名: <b>${esc(c.name)}</b> ／ 正規化: <b>${esc(normalizeCardName(c.name))}</b></div>
-    ${exact?`<div class="note">辞書一致あり: <b>${esc(exact.name)}</b> (${TYP(exact.type)})</div>`:""}
+    ${exact?`<div class="note">辞書一致あり: <b>${esc(exact.name)}</b> (${esc(typeText(exact,false))})</div>`:""}
     ${cands.length?`<div class="tblwrap"><table class="tbl">
       <thead><tr><th>候補</th><th>タイプ</th><th>類似度</th><th></th></tr></thead><tbody>
       ${cands.map((cd,i)=>`<tr><td>${esc(cd.name)}</td><td>${TYP(cd.entry.type)}</td><td>${Math.round(cd.score*100)}%</td>
@@ -6059,7 +6161,7 @@ function openCardAliasPicker(c){
   if(!all.length){ toast("辞書が空です。先に辞書登録してください"); return; }
   openModal(`「${esc(c.name)}」を別名として登録`,`
     <label class="field">登録先の辞書カード
-      <select id="apTarget">${all.map(e=>`<option value="${esc(e.name)}">${esc(e.name)} (${TYP(e.type)})</option>`).join("")}</select></label>
+      <select id="apTarget">${all.map(e=>`<option value="${esc(e.name)}">${esc(e.name)} (${esc(typeText(e,false))})</option>`).join("")}</select></label>
     <div class="note">選択した辞書エントリのエイリアスに「${esc(c.name)}」を追加します。</div>`,
     `<button class="btn" data-app="closem">キャンセル</button><button class="btn primary" id="apOk">追加</button>`);
   $("#apOk").onclick=()=>{ dictAddAlias($("#apTarget").value, c.name); toast("別名を登録しました"); closeModal(); };
@@ -7196,12 +7298,12 @@ function openSideboard(){
   const m=curMatch();
   if(!m.deck.A||!m.deck.B){ toast("BO3マッチがありません"); return; }
   const p=_sbTab, dk=m.deck[p];
-  const filt=(list)=>list.filter(e=>(!_sbQ||e.name.toLowerCase().includes(_sbQ.toLowerCase()))&&(!_sbType||e.type===_sbType))
+  const filt=(list)=>list.filter(e=>(!_sbQ||e.name.toLowerCase().includes(_sbQ.toLowerCase()))&&(!_sbType||baseTypesOf(dictGet(e.name)||e).includes(_sbType)))
     .sort((a,b)=>a.name.localeCompare(b.name,"ja"));
   const canEdit=_sbCanEdit(p), canView=_sbCanView(p);
   const row=(e,dir)=>{ const dn=dispName(e.name); const isrc=_cardImgSrc({imageId:e.imageId,imageUrl:"",name:e.name});
     return `<div class="sb-row">${isrc?`<img src="${esc(isrc)}" alt="" style="width:22px;height:auto;border-radius:2px;flex:none;margin-right:4px" onerror="this.remove()">`:""}<span class="sb-n">${esc(dn)}${dn!==e.name?` <small style="color:var(--muted)">${esc(e.name)}</small>`:""} <small>×${e.qty}</small></span>
-    <span class="sb-t">${TYP(e.type)}</span>
+    <span class="sb-t">${esc(typeText(dictGet(e.name)||e,false))}</span>
     <span class="sb-mv">${canEdit?`<button class="btn tiny" data-sbmv="${dir}" data-name="${esc(e.name)}">${dir==="m2s"?"−1→サイド":"+1→メイン"}</button>
       <button class="btn tiny" data-sbmv="${dir}" data-name="${esc(e.name)}" data-all="1">全部</button>`:""}</span></div>`; };
   const mainList=filt(dk.mainboard).map(e=>row(e,"m2s")).join("")||'<div class="note">なし</div>';
@@ -7306,31 +7408,25 @@ function ohExpand(entries){
   const out=[];
   for(const e of (entries||[])){
     const dict=dictGet(e.name);
-    let type=e.type||"Unknown", subtype=e.subtype||"", power=(e.power!=null?e.power:""), toughness=(e.toughness!=null?e.toughness:""), imageId=e.imageId||null;
+    let types=normalizeTypeList(e.types,e.type||"Unknown"), subtype=e.subtype||"", power=(e.power!=null?e.power:""), toughness=(e.toughness!=null?e.toughness:""), imageId=e.imageId||null;
     if(dict){
-      const deckClear = type && type!=="Unknown" && type!=="UnknownSpell";
-      if(!deckClear && dict.type && dict.type!=="Unknown") type=dict.type;
-      if(!subtype && dict.subtype) subtype=dict.subtype;
-      if((power===""||power==null) && dict.power!=="") power=dict.power;
-      if((toughness===""||toughness==null) && dict.toughness!=="") toughness=dict.toughness;
-      if(!imageId && dict.imageId) imageId=dict.imageId;
+      const explicitTypes=Array.isArray(e.types)&&e.types.length>0; if(!explicitTypes) types=baseTypesOf(dict);
+      if(!subtype&&dict.subtype) subtype=dict.subtype;
+      if((power===""||power==null)&&dict.power!=="") power=dict.power;
+      if((toughness===""||toughness==null)&&dict.toughness!=="") toughness=dict.toughness;
+      if(!imageId&&dict.imageId) imageId=dict.imageId;
     }
-    if(type==="UnknownSpell") type="Unknown";
-    const colors=(dict&&dict.colors)?dict.colors:(e.colors||[]);
-    const manaValue=(dict&&dict.manaValue!=null&&dict.manaValue!=="")?dict.manaValue:(e.manaValue!=null?e.manaValue:"");
-    const produces=(dict&&dict.produces)?dict.produces:(e.produces||[]);
-    const roleTags=(dict&&dict.roleTags)?dict.roleTags:(e.roleTags||[]);
-    const customTags=(dict&&dict.customTags)?dict.customTags:(e.customTags||[]);
-    for(let i=0;i<(e.qty||0);i++) out.push({name:e.name,type,subtype,power,toughness,imageId,colors,manaValue,produces,roleTags,customTags});
+    const colors=(dict&&dict.colors)?dict.colors:(e.colors||[]), manaValue=(dict&&dict.manaValue!=null&&dict.manaValue!=="")?dict.manaValue:(e.manaValue!=null?e.manaValue:"");
+    const produces=(dict&&dict.produces)?dict.produces:(e.produces||[]), roleTags=(dict&&dict.roleTags)?dict.roleTags:(e.roleTags||[]), customTags=(dict&&dict.customTags)?dict.customTags:(e.customTags||[]);
+    for(let i=0;i<(e.qty||0);i++) out.push({name:e.name,type:types[0]||"Unknown",types,subtype,power,toughness,imageId,colors,manaValue,produces,roleTags,customTags});
   }
   return out;
 }
 function ohCat(c){
-  const t=c.type;
-  if(t==="Land") return "land";
-  if(t==="Creature"||t==="Token") return "creature";
-  if(t==="Instant"||t==="Sorcery") return "spell";
-  if(!t||t==="Unknown"||t==="UnknownSpell") return "unknown";
+  if(cardHasType(c,"Land")) return "land";
+  if(cardHasType(c,"Creature")||cardHasType(c,"Token")) return "creature";
+  if(cardHasType(c,"Instant")||cardHasType(c,"Sorcery")) return "spell";
+  if(cardTypes(c,true).every(t=>t==="Unknown")) return "unknown";
   return "other";
 }
 function ohTypeCounts(hand){
@@ -7341,15 +7437,15 @@ function ohTypeCounts(hand){
 function ohCardHTML(c, opt){
   opt=opt||{};
   const {src:img, fb:_ofb} = _cardImgSrcs(c);
-  const showPT=(c.type==="Creature"||c.type==="Token")&&(c.power!==""||c.toughness!=="");
+  const showPT=(cardHasType(c,"Creature")||cardHasType(c,"Token"))&&(c.power!==""||c.toughness!=="");
   const inner = img
     ? `<div class="cimg"><img src="${esc(img)}" alt="${esc(c.name)}"${_ofb?` data-fb="${esc(_ofb)}"`:""} onerror="if(this.dataset.fb){var f=this.dataset.fb;this.removeAttribute('data-fb');this.src=f;}else{this.remove();}"></div>`
-    : `<div class="ctext"><div class="cname">${esc(c.name)}</div><div class="ctype">${TYP(c.type)}</div></div>`;
+    : `<div class="ctext"><div class="cname">${esc(c.name)}</div><div class="ctype">${esc(typeText(c))}</div></div>`;
   const sel=opt.selectable?` oh-pick${opt.selected?" oh-sel":""}`:"";
   const attr=opt.selectable?` data-ohbottom="${opt.idx}"`:"";
   const badge=opt.selected?`<div class="oh-bottombadge">BOTTOM</div>`:"";
   const _occ=cardColorClass(c); const _occk=cardColorKeyAttr(c); const _ochip=colorChipHTML(c);
-  return `<div class="card oh-card${sel}${_occ?(" "+_occ):""}" data-type="${esc(c.type)}" data-cname="${esc(c.name)}"${_occk}${attr}>${inner}${showPT?`<div class="cpt">${esc(c.power)}/${esc(c.toughness)}</div>`:""}${_ochip?`<div class="oh-cchip">${_ochip}</div>`:""}${badge}</div>`;
+  return `<div class="card oh-card${sel}${_occ?(" "+_occ):""}" data-type="${esc(primaryTypeOf(c))}" data-types="${esc(cardTypes(c,true).join(","))}" data-cname="${esc(c.name)}"${_occk}${attr}>${inner}${showPT?`<div class="cpt">${esc(c.power)}/${esc(c.toughness)}</div>`:""}${_ochip?`<div class="oh-cchip">${_ochip}</div>`:""}${badge}</div>`;
 }
 
 /* デッキソース解決 */
@@ -7576,8 +7672,8 @@ function ohRecord(result, fromBottom){
 }
 function ohDeckCheckHTML(){
   const main=deckCount(_oh.entries), side=deckCount(_oh.sideboard);
-  const lands=(_oh.entries||[]).filter(e=>{ const d=dictGet(e.name); const t=(e.type&&e.type!=="Unknown")?e.type:(d?d.type:e.type); return t==="Land"; }).reduce((a,b)=>a+b.qty,0);
-  const unclass=(_oh.entries||[]).filter(e=>{ const d=dictGet(e.name); const t=(e.type&&e.type!=="Unknown")?e.type:(d?d.type:e.type); return !t||t==="Unknown"||t==="UnknownSpell"; }).reduce((a,b)=>a+b.qty,0);
+  const lands=(_oh.entries||[]).filter(e=>cardHasType(dictGet(e.name)||e,"Land")).reduce((a,b)=>a+b.qty,0);
+  const unclass=(_oh.entries||[]).filter(e=>baseTypesOf(dictGet(e.name)||e).every(t=>t==="Unknown")).reduce((a,b)=>a+b.qty,0);
   const many=(_oh.entries||[]).slice().sort((a,b)=>b.qty-a.qty).slice(0,3).map(e=>`${esc(e.name)}×${e.qty}`).join("、");
   const warns=[];
   if(main<40) warns.push("メイン40枚未満");
@@ -7869,18 +7965,18 @@ function roleChips(arr){ const a=dedupArr(arr); if(!a.length) return ""; return 
 /* 辞書からカード補完済みの hand を前提にした集計 */
 function ohExpandColors(c){ return dedupColors(c.colors||[]); }
 function ohColorStats(hand){ const s={W:0,U:0,B:0,R:0,G:0,C:0}; for(const c of hand){ for(const col of ohExpandColors(c)) s[col]++; } return s; }
-function ohNeededColors(hand){ const set=new Set(); for(const c of hand){ if(c.type==="Land") continue; for(const col of ohExpandColors(c)){ if(col!=="C") set.add(col); } } return [...set]; }
+function ohNeededColors(hand){ const set=new Set(); for(const c of hand){ if(cardHasType(c,"Land")) continue; for(const col of ohExpandColors(c)){ if(col!=="C") set.add(col); } } return [...set]; }
 function ohProducesColors(hand){ const set=new Set(); for(const c of hand){ for(const p of dedupProduce(c.produces||[])){ if(p==="Any"){ ["W","U","B","R","G"].forEach(x=>set.add(x)); } else set.add(p); } } return [...set]; }
 function ohMissingColors(hand){ const need=ohNeededColors(hand), prod=ohProducesColors(hand); return need.filter(c=>!prod.includes(c)); }
-function ohManaCurve(hand){ const cur={0:0,1:0,2:0,3:0,4:0,5:0,"6+":0,land:0,unknown:0}; for(const c of hand){ if(c.type==="Land"){ cur.land++; continue; } const mv=mvNorm(c.manaValue); if(mv===""){ cur.unknown++; continue; } if(mv>=6) cur["6+"]++; else cur[mv]++; } return cur; }
+function ohManaCurve(hand){ const cur={0:0,1:0,2:0,3:0,4:0,5:0,"6+":0,land:0,unknown:0}; for(const c of hand){ if(cardHasType(c,"Land")){ cur.land++; continue; } const mv=mvNorm(c.manaValue); if(mv===""){ cur.unknown++; continue; } if(mv>=6) cur["6+"]++; else cur[mv]++; } return cur; }
 function ohRoleStats(hand){ const s={}; const cust={}; for(const c of hand){ for(const t of dedupArr(c.roleTags||[])) s[t]=(s[t]||0)+1; for(const t of dedupArr(c.customTags||[])) cust[t]=(cust[t]||0)+1; } return {roles:s,custom:cust}; }
 function ohUnknownDictCount(hand){ let n=0; for(const c of hand){ if(!dictGet(c.name)) n++; } return n; }
 function ohRoleCount(hand,tag){ return hand.filter(c=>dedupArr(c.roleTags||[]).includes(tag)).length; }
-function ohLowMv(hand,th){ return hand.filter(c=>{ if(c.type==="Land") return false; const mv=mvNorm(c.manaValue); return mv!==""&&mv<=th; }).length; }
+function ohLowMv(hand,th){ return hand.filter(c=>{ if(cardHasType(c,"Land")) return false; const mv=mvNorm(c.manaValue); return mv!==""&&mv<=th; }).length; }
 
 /* 初手評価メモ＋警告 */
 function ohEvalHTML(hand){
-  const land=hand.filter(c=>c.type==="Land").length;
+  const land=hand.filter(c=>cardHasType(c,"Land")).length;
   const prod=ohProducesColors(hand), need=ohNeededColors(hand), miss=ohMissingColors(hand);
   const low2=ohLowMv(hand,2);
   const removal=ohRoleCount(hand,"Removal"), draw=ohRoleCount(hand,"Draw");
@@ -7890,7 +7986,7 @@ function ohEvalHTML(hand){
   else if(land===1) warns.push("土地1");
   if(land>=5) warns.push("土地5枚以上");
   if(miss.length) warns.push("必要色が出ない("+miss.join("/")+")");
-  const nonland=hand.filter(c=>c.type!=="Land"); const knownMv=nonland.filter(c=>mvNorm(c.manaValue)!=="");
+  const nonland=hand.filter(c=>!cardHasType(c,"Land")); const knownMv=nonland.filter(c=>mvNorm(c.manaValue)!=="");
   if(knownMv.length && knownMv.every(c=>mvNorm(c.manaValue)>=3)) warns.push("manaValue3以上ばかり");
   if(hand.length && unk>=Math.ceil(hand.length/2)) warns.push("辞書未登録が多い");
   const anyRole=hand.some(c=>dedupArr(c.roleTags||[]).length>0);
@@ -7922,7 +8018,7 @@ function ohColorMVRoleHTML(hand){
 function ohDeckColorCheckHTML(){
   const exp=ohExpand(_oh.entries);
   const cs=ohColorStats(exp), cur=ohManaCurve(exp), rs=ohRoleStats(exp);
-  const prod=new Set(); exp.filter(c=>c.type==="Land"||dedupProduce(c.produces||[]).length).forEach(c=>dedupProduce(c.produces||[]).forEach(p=>{ if(p==="Any")["W","U","B","R","G"].forEach(x=>prod.add(x)); else prod.add(p); }));
+  const prod=new Set(); exp.filter(c=>cardHasType(c,"Land")||dedupProduce(c.produces||[]).length).forEach(c=>dedupProduce(c.produces||[]).forEach(p=>{ if(p==="Any")["W","U","B","R","G"].forEach(x=>prod.add(x)); else prod.add(p); }));
   const need=ohNeededColors(exp);
   const unreg=[...new Set(exp.filter(c=>!dictGet(c.name)).map(c=>c.name))];
   const mvUnknown=cur.unknown, roleless=exp.filter(c=>!dedupArr(c.roleTags||[]).length).length;
@@ -8852,7 +8948,7 @@ function srwRender(){
   const order=s.slice().reverse().map((c,ri)=>{ const i=s.length-1-ri; const w=srwCheckCard(c); const sev=w.danger.length?"danger":(w.warning.length?"warning":(srwDefaultDest(c)===""?"warning":"info"));
     const _ps=(c.paymentStatus&&c.paymentStatus!=="none")?` <span class="badge pay ${c.paymentStatus}">${PAY_JP[c.paymentStatus]||""}</span>${consumedDisplayHTML(c)}`:"";
     const _ab=isAbilityObj(c)?` <span class="abil-badge k-${c.abilityKind}">${ABILITY_KIND_JP[c.abilityKind]||"能力"}</span>`:"";
-    const _typ=isAbilityObj(c)?"能力/元:"+(c.sourceCardName||"?"):(TYPE_JP[c.type]||c.type);
+    const _typ=isAbilityObj(c)?"能力/元:"+(c.sourceCardName||"?"):typeText(c);
     const _rc=rcBadgeHTML(c);
     return `<div class="srw-ord ${sev}">${i===s.length-1?'<b>次→</b> ':""}#${i+1} ${esc(c.name)}${_ab} <small>[${_typ}/${c.owner}]</small>${w.danger.length?' <span class="badge tgtneed">未指定</span>':""}${_ps}${isAbilityObj(c)&&c.resolveNote?` <span class="note">解決:${esc(c.resolveNote)}</span>`:""}${_rc}</div>`; }).join("");
   const unspec=s.filter(c=>{ ensureTgtFields(c); return c.targetRequired&&tgtCount(c)===0; }).length;
@@ -8948,7 +9044,7 @@ function _srwDoMove(c, dest){
   state.stack.pop();
   if(dest==="grave"){ c.zone="graveyard"; c.controller=c.owner; c.tapped=false; c.attacking=false; c.blocking=false; state.players[c.owner].graveyard.push(c); }
   else if(dest==="exile"){ c.zone="exile"; c.controller=c.owner; c.tapped=false; state.players[c.owner].exile.push(c); }
-  else if(dest==="field"){ const dz=c.type==="Land"?"lands":(["Creature","Token"].includes(c.type)?"creatures":"others"); c.zone=dz; c.tapped=false; state.players[c.controller||c.owner][dz].push(c); }
+  else if(dest==="field"){ const dz=defaultFieldZoneForCard(c); c.zone=dz; c.tapped=false; state.players[c.controller||c.owner][dz].push(c); }
   else if(dest==="hand"){ c.zone="hand"; c.controller=c.owner; c.tapped=false; c.attacking=false; c.blocking=false; state.players[c.owner].hand.push(c); }
   else if(dest==="libtop"){ c.zone="library"; c.controller=c.owner; c.tapped=false; state.players[c.owner].library.push(c); }
   else if(dest==="libbottom"){ c.zone="library"; c.controller=c.owner; c.tapped=false; state.players[c.owner].library.unshift(c); }
@@ -9025,11 +9121,11 @@ function dmMissing(name){
   const e=dictGet(name);
   if(!e) return { registered:false, e:null, missing:["type","colors","manaValue","roleTags","image"] };
   const m=[];
-  if(!e.type||e.type==="Unknown"||e.type==="UnknownSpell") m.push("type");
-  if(!(e.colors&&e.colors.length) && e.type!=="Land") m.push("colors");
-  if((e.manaValue===""||e.manaValue==null) && e.type!=="Land") m.push("manaValue");
+  if(baseTypesOf(e).every(t=>t==="Unknown")) m.push("type");
+  if(!(e.colors&&e.colors.length) && !baseTypesOf(e).includes("Land")) m.push("colors");
+  if((e.manaValue===""||e.manaValue==null) && !baseTypesOf(e).includes("Land")) m.push("manaValue");
   if(!(e.roleTags&&e.roleTags.length)) m.push("roleTags");
-  if(e.type==="Land" && !(e.produces&&e.produces.length)) m.push("produces");
+  if(baseTypesOf(e).includes("Land") && !(e.produces&&e.produces.length)) m.push("produces");
   if(e.canTarget && !(e.targetKinds&&e.targetKinds.length)) m.push("target");
   if(!e.imageId) m.push("image");
   return { registered:true, e, missing:m };
@@ -9060,7 +9156,7 @@ function dmList(){
   if(_dm.deck) arr=arr.filter(o=>o.sources.some(s=>s.indexOf("デッキ:"+_dm.deck)===0));
   if(_dm.role) arr=arr.filter(o=>o.e&&dedupArr(o.e.roleTags||[]).includes(_dm.role));
   if(_dm.color) arr=arr.filter(o=>o.e&&dedupColors(o.e.colors||[]).includes(_dm.color));
-  if(_dm.type) arr=arr.filter(o=>o.e&&o.e.type===_dm.type);
+  if(_dm.type) arr=arr.filter(o=>o.e&&baseTypesOf(o.e).includes(_dm.type));
   const s=_dm.sort;
   arr.sort((a,b)=>{
     if(s==="count") return b.count-a.count;
@@ -9116,7 +9212,7 @@ function dmListHTML(){
       <td><input type="checkbox" class="dm-chk" data-name="${esc(o.name)}"${checked}></td>
       <td>${esc(o.name)}<button class="btn tiny" data-dm="exp:${esc(o.name)}" title="登場元">${exp?"▲":"▼"}</button>${exp?`<div class="dm-src">${o.sources.map(s=>esc(s)+"×"+o.detail[s]).join("、")}</div>`:""}</td>
       <td>${dmStatusBadges(o.name)}</td>
-      <td>${e?TYP(e.type):"-"}</td>
+      <td>${e?esc(typeText(e,false)):"-"}</td>
       <td>${e?(colorBadges(e.colors||[])||"-"):"-"}</td>
       <td>${e?(e.manaValue===0?0:(e.manaValue||"-")):"-"}</td>
       <td>${e?(produceBadges(e.produces||[])||"-"):"-"}</td>
@@ -9478,7 +9574,7 @@ function anMatchStats(list){
 }
 
 /* ---- 初手集計 ---- */
-function anLand(rec){ if(rec.manaCurve&&rec.manaCurve.land!=null) return rec.manaCurve.land; return ohKeptOf(rec).filter(c=>c.type==="Land").length; }
+function anLand(rec){ if(rec.manaCurve&&rec.manaCurve.land!=null) return rec.manaCurve.land; return ohKeptOf(rec).filter(c=>cardHasType(c,"Land")).length; }
 function anLow2(rec){ const c=rec.manaCurve; if(c) return (c[0]||0)+(c[1]||0)+(c[2]||0); return 0; }
 function anIsSide(rec){ const mc=rec.matchContext||{}; return !!(mc.sideboardPhase || (mc.gameNumber&&mc.gameNumber>=2) || (rec.source==="サイドプラン")); }
 function anOpenFiltered(){
@@ -10059,7 +10155,7 @@ function libCardPreview(c){
   const showImg=(state.settings.showImages!==false);
   const img=showImg?imgCache[c.imageId]:null;
   if(img) return `<img class="lib-img" src="${img}" alt="">`;
-  return `<div class="lib-textcard"><div class="lib-tc-name">${esc(c.name)}</div><div class="lib-tc-type">${TYPE_JP[c.type]||c.type}</div></div>`;
+  return `<div class="lib-textcard"><div class="lib-tc-name">${esc(c.name)}</div><div class="lib-tc-type">${esc(typeText(c))}</div></div>`;
 }
 function libDictInfo(c){
   const e=dictGet(c.name); if(!e) return "";
@@ -10222,7 +10318,7 @@ function _libPlaceCard(p,c,dest){
   if(dest==="hand"){ c.zone="hand"; c.controller=c.owner; c.tapped=false; c.attacking=false; c.blocking=false; pl.hand.push(c); }
   else if(dest==="graveyard"){ c.zone="graveyard"; c.controller=c.owner; c.tapped=false; c.attacking=false; c.blocking=false; pl.graveyard.push(c); }
   else if(dest==="exile"){ c.zone="exile"; c.controller=c.owner; c.tapped=false; c.attacking=false; c.blocking=false; pl.exile.push(c); }
-  else if(dest==="field"){ const dz=c.type==="Land"?"lands":(["Creature","Token"].includes(c.type)?"creatures":"others"); c.zone=dz; c.tapped=false; pl[dz].push(c); }
+  else if(dest==="field"){ const dz=defaultFieldZoneForCard(c); c.zone=dz; c.tapped=false; pl[dz].push(c); }
   else if(dest==="stack"){ c.zone="stack"; ensureTgtFields(c); state.stack.push(c); }
 }
 function _libRestLabel(rest){ const top=rest.indexOf("Top")>=0; const orig=rest.indexOf("orig")===0; return (orig?"元の順番で":"")+(top?"上へ戻し":"下へ送り"); }
@@ -10347,7 +10443,7 @@ function _libCardRow(c,i){
   const tag=(tab==="split"||tab==="assign")?`<div><span class="badge sel">→${esc(LIB_ALL_DEST[_lib.assign[c.id]||"libbottom"])}</span></div>`:(isSel?'<div><span class="badge sel">選択中→'+esc(LIB_DEST_JP[_lib.dest])+'</span></div>':"");
   return `<div class="lib-card${isSel?" selected":""}">
     <div class="lib-rank">${i===0?'<span class="badge top">ライブラリー上</span>':(i===n-1?'<span class="badge bot">この中の一番下</span>':"#"+(i+1))}${tag}</div>
-    <div class="lib-main">${libCardPreview(c)}<div class="lib-info"><div class="lib-name">${esc(c.name)} <span class="zoom-dot" data-card-id="${c.id}" title="押している間 拡大">\ud83d\udd0d</span></div><div class="lib-type">${TYPE_JP[c.type]||c.type}</div>${libDictInfo(c)}</div></div>
+    <div class="lib-main">${libCardPreview(c)}<div class="lib-info"><div class="lib-name">${esc(c.name)} <span class="zoom-dot" data-card-id="${c.id}" title="押している間 拡大">\ud83d\udd0d</span></div><div class="lib-type">${esc(typeText(c))}</div>${libDictInfo(c)}</div></div>
     <div class="lib-acts">${ctrl}
       <button class="btn tiny" data-lib="top:${i}" title="一番上へ"${i===0?" disabled":""}>⤒</button>
       <button class="btn tiny" data-lib="up:${i}" title="上へ"${i===0?" disabled":""}>▲</button>
@@ -10375,7 +10471,7 @@ function _libSearchList(){
       if((e.type||"").toLowerCase().includes(q)) return true; }
     if((c.type||"").toLowerCase().includes(q)) return true;
     return false; });
-  if(sch.type) arr=arr.filter(({c})=>{ const e=dictGet(c.name); return (e&&e.type===sch.type)||c.type===sch.type; });
+  if(sch.type) arr=arr.filter(({c})=>{ const e=dictGet(c.name); return (e&&baseTypesOf(e).includes(sch.type))||cardHasType(c,sch.type); });
   if(sch.color) arr=arr.filter(({c})=>{ const e=dictGet(c.name); return e&&dedupColors(e.colors||[]).includes(sch.color); });
   if(sch.mv!=="") arr=arr.filter(({c})=>{ const e=dictGet(c.name); return e&&String(e.manaValue)===String(sch.mv); });
   if(sch.role) arr=arr.filter(({c})=>{ const e=dictGet(c.name); return e&&dedupArr(e.roleTags||[]).includes(sch.role); });
@@ -10845,6 +10941,7 @@ const HELP_SECTIONS=[
     "盤面サイズ調整（第18回）: 各ゾーン（土地/その他/クリーチャー・A側/B側個別）の下端にある細いバーを上下ドラッグ（スマホはスワイプ）すると高さを調整できます（最低48px〜画面高70%・指定時はゾーン内スクロール）。ツールバー「盤面サイズ」からは盤面全体の拡大/縮小（70〜150%）、コンパクト/標準/大きめのプリセット、カード表示サイズの端末ローカル上書き、初期レイアウトへ戻すが行えます（ドラッグ調整後はカスタム表示）。これらのレイアウト設定はこの端末のlocalStorageにのみ保存され、オンライン同期・相手画面・Undo・保存データ・デッキ/辞書には一切含まれません（B視点で上下が入れ替わってもA/Bキーで正しく対応）。またゾーンがflex圧縮されてカードが見切れる問題を修正し、カードは常にゾーン内に収まって表示されます（画像はobject-fit:contain・読込失敗時は従来のテキスト表示）。",
     "デッキビルダー（第17回）: 新規デッキ作成/デッキ編集画面に『登録カードから追加』を追加しました。カード辞書の登録済みカードが画像サムネ・表示名（識別名併記）・タイプ・色・マナコスト・デッキ内枚数付きで一覧表示され、＋1メイン/＋4/＋1サイドで追加できます。検索（名前・表示名・別名・タイプ・能力/メモを正規化検索・✕で解除）、ソート（登録順/カード名昇降/表示名/色/マナ総量昇降/タイプ/デッキ内枚数）、フィルター（色5種/無色/多色/主要タイプ・複数色は多色扱い・タイプ未設定は未分類表示）に対応し、ソートとフィルターは閉じても保持されます（端末ローカル・辞書本体の並びは不変）。右側にメイン/サイドの現在内容（合計枚数・＋/−1/移動/全削除・未登録カードは維持して未登録表示）が並び、狭い画面では縦並びになります。識別名(canonical)で集約・追加するため表示名で別カードは作られず、テキスト編集（従来形式）やインポート/エクスポートもそのまま使えます。保存時、新規で同名デッキがある場合は上書き確認します。",
     "BO3サイドボード（第16回）: ツールバー「BO3開始」でBO3マッチを開始できます（従来のBO1相当＝マッチ無しの通常対戦も従来どおり）。マッチ中は右上のBO3表示からホストが「ゲーム終了」で結果（A勝利/B勝利/引き分け/ゲームを無効）を記録し、サイドボード画面が開きます。サイドは同数交換方式で、入れた枚数と抜いた枚数が一致（メイン枚数が開始時と同数）になるまで「サイドボード準備完了」にできません。オンラインでは自分のrole（A/B）の列だけ編集でき、相手のサイド内容は画面に表示されず準備状態のみ共有、観戦者は操作不可、両者準備完了後にホストが先手（前敗者/A/B/ランダム）を選んで「次のゲームを開始」します（サイド後のメインからライブラリーを再生成・マッチスコア/チャット/接続は維持・開始はUndo不可）。どちらかが2勝するとマッチ終了画面が出て「元デッキに戻して終了」「同じデッキで再戦」（いずれも元デッキ構成へ復元）を選べます。保存済みデッキ本体はマッチ開始時にクローンされるため一切書き換わりません。注意: 現在の共有卓は完全な秘匿通信ではないため、相手のサイド内容の技術的な完全秘匿は保証されません（stateには全情報が含まれます）。ログにはゲーム開始/勝敗/両者準備完了/マッチ終了のみ記録され、入れ替えたカード内容は自動では記録されません。",
+    "複数カードタイプ対応: カード辞書では主要タイプに加えて複数タイプを選択できます（例: アーティファクト・クリーチャー）。旧typeフィールドは主要タイプとして維持し、types配列が複数タイプを保持します。盤面カードの『タイプ編集・追加』では、基本タイプ、効果で追加（手動解除まで）、効果で追加（ターン終了時まで）を別々に設定できます。ターン終了時までの追加タイプはターン変更時に自動解除され、これらの盤面状態はオンライン同期・Undo/Redo対象です。タイプ判定、デッキ検索/フィルター、初手集計、カードの置き場所判定は複数タイプを参照します。",
     "識別名と表示名の分離（第15回）: カード辞書に『表示名（displayName）』と統合機能を追加しました。カード名（識別名=canonical）はインポート照合・重複判定・エクスポートに使われ、既存カードでは変更できません。表示名を設定すると盤面・手札・スタック・カード詳細では表示名（例: 稲妻）で表示され、照合とエクスポートは識別名（例: Lightning Bolt）のままです。インポート時は識別名と別名（エイリアス・大文字小文字/全半角/前後空白は正規化）で照合し、一致したら正準名に統一するため同じカードが分裂しません。未登録カードは右クリック→『このカードを辞書に登録（詳細編集）』で識別名を保持したまま辞書登録できます。辞書保存時に既存カードと正規化/別名一致する名前を付けた場合は、別カードを作らず既存カードを更新するか確認します（入力名は別名に追加・空欄項目は既存値を維持）。すでに日本語名で別登録してしまったカードは、統合先カードの辞書編集画面の『別登録カードをこのカードへ統合…』で1枚に統合できます（元名は別名保持・画像URL等は補完・デッキ/盤面参照も置換・盤面置換分はUndo可）。デッキ編集欄とエクスポートは従来どおり識別名を使います。",
     "共有ライブラリ（第13回）: 同一サーバーに DATABASE_URL（Postgres）と SHARED_ADMIN_PASSWORD が設定されている場合のみ、ツールバー「共有」からカード辞書とデッキをサーバーに共有保存/読み込みできます。保存は管理パスワードを知っている人だけ、読み込みは誰でも可能です。読み込みは「マージ」（既存に統合）か「上書き」（強い確認あり）を選べ、既存のsave/render流儀で反映され Undo/Redo は汚しません。DATABASE_URL が無い場合は共有UIが『無効（DB未設定）』表示になるだけで、オフライン/オンライン対戦を含む既存機能はすべて従来どおり動きます。カード辞書には画像URL（imageUrl・任意）を持てます。表示優先度は ①ローカル画像(画像ID) ②画像URL ③画像なし で、画像URLは共有辞書に含まれます（外部URL参照のみ・画像本体やIndexedDB画像は共有されず、リンク切れ時はテキスト表示）。R2等の画像ストレージが有効な場合は、辞書編集画面の「画像をアップロード」から画像（png/jpeg/webp/gif・2MBまで・要管理パスワード）を上げて画像URLを自動入力できます（辞書への確定は保存ボタン・パスワードは保存しません）。これは身内向けで、本格運用にはユーザー認証・権限管理・画像ストレージが必要です。",
     "双方向同期モード（第14回・既定OFF）: 通常はホスト操作だけがゲストへ同期されますが、ホストがオンラインモーダルの「双方向同期」をONにすると（強い確認あり）、信頼できる role A/B の相手の操作もホストを含む全員へ同期される共有卓モードになります（spectatorは送信不可）。各クライアントは自分の「ホスト操作後に自動同期」をONにすると盤面操作を送信し、「受信stateを自動適用」をONにすると相手の更新を自動反映します（ホストも collab 中は自動適用対象）。UI位置・パネル・チャット・視点は従来どおり同期されず、スタックは中身のみ同期（UI位置は各自）。競合は厳密解決せず、サーバーのrevが一致した更新だけを採用し、rev不一致は拒否→再同期/手動適用になります（同時に細かく操作しすぎないでください）。これは信頼相手向けの共有卓であり、秘匿対戦・不正防止ではありません（stateには手札/ライブラリー順など全情報が含まれます）。同一内容のstateを受信した場合は適用も再送信もスキップされ（no-op判定・ログ/Undoなし）、自動適用の成功はオンラインログのみに記録され処理履歴には追記されません（反射ループ防止）。staleRev拒否が続くとバッジに「再同期が必要」と表示されるので、state問い合わせ→適用で復帰してください。",
@@ -11656,20 +11753,20 @@ function dispName(name){ // 画面表示専用の表示名（照合・重複判�
   return name;
 }
 function getCardDisplayInfo(c){
-  if(c && c.faceDown){ return { name:"裏向きカード", type:c.type, subtype:"", power:"", toughness:"", imageId:null, memo:"",
+  if(c && c.faceDown){ return { name:"裏向きカード", type:primaryTypeOf(c), types:[], subtype:"", power:"", toughness:"", imageId:null, memo:"",
     targetRequired:false, targetKinds:undefined, colors:undefined, manaValue:undefined, roleTags:undefined,
     faceActive:false, faceName:null, faceIndex:null, repName:c.name, faceDown:true }; }
   if(c && c.face==="back" && isDoubleFaced(c.name)){ const be=dictGet(c.name)||{};
-    return { name:backFaceName(c.name), type:be.backType||c.type, subtype:c.subtype, power:c.power, toughness:c.toughness,
+    return { name:backFaceName(c.name), type:(normalizeExtraTypeList(be.backTypes||be.backType)[0]||primaryTypeOf(c)), types:cardTypes(c,true), subtype:c.subtype, power:c.power, toughness:c.toughness,
       imageId:be.backImageId||null, memo:be.backMemo||c.memo,
       targetRequired:!!c.targetRequired, targetKinds:undefined, colors:undefined, manaValue:undefined, roleTags:undefined,
       faceActive:false, faceName:backFaceName(c.name), faceIndex:null, repName:c.name, backFace:true }; }
   const f=getCardActiveFace(c);
-  if(!f){ return { name:dispName(c.name), type:c.type, subtype:c.subtype, power:c.power, toughness:c.toughness, imageId:c.imageId, memo:c.memo,
+  if(!f){ return { name:dispName(c.name), type:primaryTypeOf(c), types:cardTypes(c,true), subtype:c.subtype, power:c.power, toughness:c.toughness, imageId:c.imageId, memo:c.memo,
     targetRequired:c.targetRequired, targetKinds:undefined, colors:undefined, manaValue:undefined, roleTags:undefined,
     faceActive:false, faceName:null, faceIndex:null, repName:c.name }; }
   return {
-    name: (f.name?f.name:dispName(c.name)), type: f.type||c.type, subtype: f.subtype||c.subtype,
+    name: (f.name?f.name:dispName(c.name)), type: (normalizeExtraTypeList(f.types||f.type)[0]||primaryTypeOf(c)), types:cardTypes(c,true), subtype: f.subtype||c.subtype,
     power: (f.power!=null&&f.power!=="")?f.power:c.power,
     toughness: (f.toughness!=null&&f.toughness!=="")?f.toughness:c.toughness,
     imageId: f.imageId||c.imageId, memo: f.memo||c.memo,
