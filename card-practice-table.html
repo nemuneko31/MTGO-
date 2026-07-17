@@ -1508,7 +1508,7 @@ function searchProfilesForCard(c,availableOnly){
 }
 function _searchProfileExpectedZone(e,p){ if(p.useFrom!=="auto")return p.useFrom; return baseTypesOf(e).some(t=>["Instant","Sorcery"].includes(t))?"stack":"battlefield"; }
 function searchProfileAvailable(c,f,p,e){ const z=_searchProfileExpectedZone(e,p); return z==="any"||(z==="battlefield"&&["creatures","lands","others"].includes(f.zone))||(z==="stack"&&f.zone==="stack"); }
-function searchProfileButtonsHTML(c,cls){ const a=searchProfilesForCard(c,true); return a.map(p=>`<button class="btn ${cls||""} search-action-btn" data-searchprof="${esc(p.id)}" data-id="${esc(c.id)}">${esc(searchClassText(dictGet(c.name))||"サーチ")}：${esc(p.label)}</button>`).join(""); }
+function searchProfileButtonsHTML(c,cls){ const a=searchProfilesForCard(c,true); return a.map(p=>`<button type="button" class="btn ${cls||""} search-action-btn" data-searchprof="${esc(p.id)}" data-id="${esc(c.id)}">${esc(searchClassText(dictGet(c.name))||"サーチ")}：${esc(p.label)}</button>`).join(""); }
 function searchProfileSummaryHTML(o){ const e=_searchEntry(o); if(!e)return""; const tags=searchClassTags(e), ps=normalizeSearchProfiles(e.searchProfiles||[]).filter(p=>p.enabled); if(!tags.length&&!ps.length)return""; return `<div class="pvrow"><b>サーチ分類</b> <span class="search-class-list">${searchClassBadgesHTML(e,false)}</span></div>${ps.map(p=>`<div class="search-condition"><b>${esc(p.label)}</b><br>${esc(searchProfileConditionText(p))}${p.note?`<br><span class="note">${esc(p.note)}</span>`:""}</div>`).join("")}`; }
 
 /* 解決時自動効果（複数手順・対象・X・代替追放コスト） */
@@ -1741,7 +1741,7 @@ function newPlayer(){
 function defaultState(){
   return {
     version:1,
-    appVersion:"1.6.0",
+    appVersion:"1.6.1",
     dataVersion:4,
     meta:{ lastSaved:null, lastBackup:null, lastDiag:null },
     integrityLog:[],
@@ -2410,7 +2410,7 @@ function openCardMenu(id){
     <button class="btn" data-cm="dmg0">ダメージを0に</button>
     <button class="btn" data-cm="ctrl">コントローラー変更</button>` : "";
   const playOp = inHand ? `<button class="btn primary" data-cm="play" style="grid-column:1/-1">標準アクション（${esc(smartActionLabel(c))}）</button>` : `<button class="btn primary" data-cm="std" style="grid-column:1/-1">標準操作</button>`;
-  const searchOps=searchProfilesForCard(c,true).map(p=>`<button class="btn search-action-btn" data-cm="searchprof:${esc(p.id)}">${esc(SEARCH_CLASS_JP[_searchProfileAutoTag(dictGet(c.name)||{},p)]||"サーチ")}：${esc(p.label)}</button>`).join("");
+  const searchOps=searchProfilesForCard(c,true).map(p=>`<button type="button" class="btn search-action-btn" data-cm="searchprof:${esc(p.id)}">${esc(SEARCH_CLASS_JP[_searchProfileAutoTag(dictGet(c.name)||{},p)]||"サーチ")}：${esc(p.label)}</button>`).join("");
   const _menuMasked=(typeof _isMaskedHandCard==="function" && _isMaskedHandCard(c));
   openModal(`${_menuMasked?"非公開カード":esc(dispName(c.name))} <span style="font-size:12px;color:var(--muted)">[${_menuMasked?"相手の手札":typeText(c)+" / "+ZONE_JP[f.zone]+(f.player?" / "+pname(f.player):"")}]</span>`,`
     <div class="cardprev">
@@ -2486,7 +2486,7 @@ function openCardMenu(id){
     if(a.indexOf("face:")===0){ const v=a.slice(5); closeModal(); setCardFace(id, v==="rep"?null:parseInt(v,10)); return; }
     if(a.indexOf("pay:")===0){ const v=a.slice(4); closeModal(); setCardPayment(id, v); return; }
     if(a.indexOf("abil:")===0){ const v=a.slice(5); closeModal(); putAbilityOnStack(id, v); return; }
-    if(a.indexOf("searchprof:")===0){ const v=a.slice(11); closeModal(); openCardSearchProfile(id,v); return; }
+    if(a.indexOf("searchprof:")===0){ e.preventDefault(); e.stopPropagation(); const v=a.slice(11); /* 現在のモーダルを直接サーチ画面へ置換。closeModal→openModalのhistory.back競合を避ける */ openCardSearchProfile(id,v); return; }
     switch(a){
       case "showdetail": closeModal(); _openDetailPanelForCard(id); return;
       case "showimage": closeModal(); _openLargePreviewForCard(id); return;
@@ -3467,10 +3467,10 @@ function _zswRender(){
   if(!_zsw)return; const all=_zswCards(),sel=_zsw.selected,max=_zsw.maxSelect||999; const rows=all.map(c=>{const d=dictGet(c.name)||{},lt=basicLandTypeText(c);return `<label class="zone-search-row"><input type="checkbox" data-zsw-card="${c.id}"${sel.has(c.id)?" checked":""}${!sel.has(c.id)&&sel.size>=max?" disabled":""}><b>${esc(getCardDisplayInfo(c).name)}</b><span>${esc(typeText(c,true))}${lt?` / ${esc(lt)}`:""}</span><span class="note">${esc((d.colors||[]).join("/")||"無色")} / MV ${esc(String(d.manaValue??"-"))}</span></label>`;}).join("")||'<div class="note">登録条件に一致するカードがありません</div>';
   const prof=_zsw.profile; const profileBox=prof?`<div class="search-condition"><div class="search-class-list">${searchClassBadgesHTML({searchProfiles:[prof],searchClassConfig:{mode:"auto"},types:baseTypesOf(dictGet((findCard(_zsw.sourceCardId)||{card:{name:""}}).card.name)||{})},false)}</div><b>${esc(prof.label)}</b><br>${esc(searchProfileConditionText(prof))}<br><span class="note">登録条件は固定です。下の検索欄は候補をさらに絞るために使えます。</span></div>`:"";
   const freeFilters=prof?`<label class="field" style="grid-column:1/-1">候補内をさらに検索<input id="zswQ" value="${esc(_zsw.q)}" placeholder="名前・表示名・別名・タイプ・メモ"></label>`:`<label class="field">検索<input id="zswQ" value="${esc(_zsw.q)}" placeholder="名前・表示名・別名・タイプ・メモ"></label><label class="field">タイプ<select id="zswType"><option value="all">すべて</option>${KNOWN_CARD_TYPES.map(t=>`<option value="${t}"${_zsw.type===t?" selected":""}>${TYPE_JP[t]||t}</option>`).join("")}</select></label><label class="field">色<select id="zswColor"><option value="all">すべて</option><option value="W"${_zsw.color==="W"?" selected":""}>白</option><option value="U"${_zsw.color==="U"?" selected":""}>青</option><option value="B"${_zsw.color==="B"?" selected":""}>黒</option><option value="R"${_zsw.color==="R"?" selected":""}>赤</option><option value="G"${_zsw.color==="G"?" selected":""}>緑</option><option value="C"${_zsw.color==="C"?" selected":""}>無色</option><option value="multi"${_zsw.color==="multi"?" selected":""}>多色</option></select></label><label class="field">MV範囲<span class="row-inline"><input id="zswMin" type="number" min="0" value="${esc(_zsw.mvMin)}" placeholder="最小"><span>〜</span><input id="zswMax" type="number" min="0" value="${esc(_zsw.mvMax)}" placeholder="最大"></span></label>`;
-  openModal(`${prof?"登録サーチ能力":"領域検索"} — ${pname(_zsw.player)} / ${ZONE_JP[_zsw.zone]||_zsw.zone}`,`${profileBox}<div class="grid2">${freeFilters}<label class="field">移動先<select id="zswDest">${_zswDestOptions()}</select></label><label class="field">移動先プレイヤー<select id="zswPlayer"><option value="A"${_zsw.destPlayer==="A"?" selected":""}>Player A</option><option value="B"${_zsw.destPlayer==="B"?" selected":""}>Player B</option></select></label></div><div class="row-inline" style="gap:8px;flex-wrap:wrap"><label><input type="checkbox" id="zswTapped"${_zsw.enterTapped?" checked":""}> 戦場へタップ状態で出す</label><label><input type="checkbox" id="zswShuffle"${_zsw.shuffle?" checked":""}> 処理後に元ライブラリーをシャッフル</label><label><input type="checkbox" id="zswPublic"${_zsw.publicLog?" checked":""}> ログへカード名を出す</label><button class="btn tiny" data-zsw="all">表示中を全選択</button><button class="btn tiny" data-zsw="clear">選択解除</button><span class="note">選択 ${sel.size}枚 / 必要 ${_zsw.minSelect||0}〜${max===999?"制限なし":max}枚 / 表示 ${all.length}枚</span></div><div class="zone-search-list">${rows}</div>`,`<button class="btn" data-app="closem">キャンセル</button><button class="btn primary" data-zsw="run"${_zswCanRun()?"":" disabled"}>${prof?"登録能力を実行":"選択カードを移動"}</button>`,"lg");
+  openModal(`${prof?"登録サーチ能力":"領域検索"} — ${pname(_zsw.player)} / ${ZONE_JP[_zsw.zone]||_zsw.zone}`,`${profileBox}<div class="grid2">${freeFilters}<label class="field">移動先<select id="zswDest">${_zswDestOptions()}</select></label><label class="field">移動先プレイヤー<select id="zswPlayer"><option value="A"${_zsw.destPlayer==="A"?" selected":""}>Player A</option><option value="B"${_zsw.destPlayer==="B"?" selected":""}>Player B</option></select></label></div><div class="row-inline" style="gap:8px;flex-wrap:wrap"><label><input type="checkbox" id="zswTapped"${_zsw.enterTapped?" checked":""}> 戦場へタップ状態で出す</label><label><input type="checkbox" id="zswShuffle"${_zsw.shuffle?" checked":""}> 処理後に元ライブラリーをシャッフル</label><label><input type="checkbox" id="zswPublic"${_zsw.publicLog?" checked":""}> ログへカード名を出す</label><button type="button" class="btn tiny" data-zsw="all">表示中を全選択</button><button type="button" class="btn tiny" data-zsw="clear">選択解除</button><span class="note">選択 ${sel.size}枚 / 必要 ${_zsw.minSelect||0}〜${max===999?"制限なし":max}枚 / 表示 ${all.length}枚</span></div><div class="zone-search-list">${rows}</div>`,`<button type="button" class="btn" data-app="closem">キャンセル</button><button type="button" class="btn primary" data-zsw="run"${_zswCanRun()?"":" disabled"}>${prof?"登録能力を実行":"選択カードを移動"}</button>`,"lg");
   const q=$("#zswQ"),ty=$("#zswType"),co=$("#zswColor"),mn=$("#zswMin"),mx=$("#zswMax"),de=$("#zswDest"),dp=$("#zswPlayer"),sh=$("#zswShuffle"),pu=$("#zswPublic"),ta=$("#zswTapped");
   if(q)q.oninput=()=>{_zsw.q=q.value;_zswRender();}; if(ty)ty.onchange=()=>{_zsw.type=ty.value;_zswRender();}; if(co)co.onchange=()=>{_zsw.color=co.value;_zswRender();}; if(mn)mn.onchange=()=>{_zsw.mvMin=mn.value;_zswRender();}; if(mx)mx.onchange=()=>{_zsw.mvMax=mx.value;_zswRender();}; if(de)de.onchange=()=>{_zsw.dest=de.value;}; if(dp)dp.onchange=()=>{_zsw.destPlayer=dp.value;}; if(sh)sh.onchange=()=>{_zsw.shuffle=sh.checked;}; if(pu)pu.onchange=()=>{_zsw.publicLog=pu.checked;}; if(ta)ta.onchange=()=>{_zsw.enterTapped=ta.checked;};
-  setModalHandler(function(e){ const ck=e.target.closest("[data-zsw-card]"); if(ck){const id=ck.getAttribute("data-zsw-card");if(ck.checked){if(_zsw.selected.size>=(_zsw.maxSelect||999)){toast(`最大${_zsw.maxSelect}枚です`);ck.checked=false;return;}_zsw.selected.add(id);}else _zsw.selected.delete(id);_zswRender();return;} const b=e.target.closest("[data-zsw]");if(!b)return;const a=b.getAttribute("data-zsw");if(a==="all"){for(const c of _zswCards()){if(_zsw.selected.size>=(_zsw.maxSelect||999))break;_zsw.selected.add(c.id);}_zswRender();return;}if(a==="clear"){_zsw.selected.clear();_zswRender();return;}if(a==="run"){_zswExecute();return;} });
+  setModalHandler(function(e){ if(e.target.closest("[data-zsw],[data-zsw-card]")) e.preventDefault(); const ck=e.target.closest("[data-zsw-card]"); if(ck){const id=ck.getAttribute("data-zsw-card");if(ck.checked){if(_zsw.selected.size>=(_zsw.maxSelect||999)){toast(`最大${_zsw.maxSelect}枚です`);ck.checked=false;return;}_zsw.selected.add(id);}else _zsw.selected.delete(id);_zswRender();return;} const b=e.target.closest("[data-zsw]");if(!b)return;const a=b.getAttribute("data-zsw");if(a==="all"){for(const c of _zswCards()){if(_zsw.selected.size>=(_zsw.maxSelect||999))break;_zsw.selected.add(c.id);}_zswRender();return;}if(a==="clear"){_zsw.selected.clear();_zswRender();return;}if(a==="run"){_zswExecute();return;} });
 }
 function _zswMoveSelected(id,cfg){const f=findCard(id);if(!f||f.player!==cfg.player||f.zone!==cfg.zone)return null;const card=f.card,nm=card.name,d=cfg.dest;if(d==="battlefield"){const z=defaultFieldZoneForCard(card);moveCard(id,cfg.destPlayer,z,null,true);const nf=findCard(id);if(nf&&cfg.enterTapped)nf.card.tapped=true;}else if(d==="creatures"||d==="lands"||d==="others"){moveCard(id,cfg.destPlayer,d,null,true);const nf=findCard(id);if(nf&&cfg.enterTapped)nf.card.tapped=true;}else if(d==="libraryTop")moveCard(id,cfg.destPlayer,"library","top",true);else if(d==="libraryBottom")moveCard(id,cfg.destPlayer,"library","bottom",true);else moveCard(id,cfg.destPlayer,d,null,true);return nm;}
 function _zswHandleRest(cfg){if(!cfg.profile||cfg.profile.mode!=="top"||!cfg.candidateIds)return 0;const rest=cfg.candidateIds.filter(id=>!cfg.selected.includes(id)&&findCard(id)&&findCard(id).zone===cfg.zone);if(cfg.restDestination==="graveyard")for(const id of rest)moveCard(id,cfg.player,"graveyard",null,true);else if(cfg.restDestination==="bottom"){const cards=[];for(const id of rest){const c=removeCard(id);if(c)cards.push(c);}const lib=state.players[cfg.player].library;for(const c of cards){c.zone="library";lib.unshift(c);}}return rest.length;}
@@ -4532,6 +4532,8 @@ function openModal(title,body,foot,size){
       <div class="mfoot">${(foot==null||foot==="")?'<button class="btn" data-app="closem">閉じる</button>':foot}</div>
     </div></div>`;
   document.body.dataset.modal="1";
+  /* 動的モーダル内のボタンは常に通常ボタン。埋め込み環境や祖先formがあってもページ遷移させない。 */
+  root.querySelectorAll("button:not([type])").forEach(b=>{ b.type="button"; });
   _pushHist();
   const md=root.querySelector(".modal");
   if(md && (!document.activeElement || !root.contains(document.activeElement))){ try{ md.focus({preventScroll:true}); }catch(_){} }
@@ -4592,7 +4594,7 @@ function loadState(silent){
     if(!state.playtest||typeof state.playtest!=="object") state.playtest={items:{},savedAt:null};
     if(!Array.isArray(state.integrityLog)) state.integrityLog=[];
     if(!state.meta||typeof state.meta!=="object") state.meta={lastSaved:null,lastBackup:null};
-    const _ov=obj.dataVersion; state.appVersion="1.6.0"; state.dataVersion=4;
+    const _ov=obj.dataVersion; state.appVersion="1.6.1"; state.dataVersion=4;
     if(_ov!==4){ _cptMigrationNote="旧データ(dataVersion "+(_ov||"なし")+")を v4 に移行しました"; if(!silent) addLog(_cptMigrationNote); }
     else { _cptMigrationNote=""; }
     if(!silent){ addLog("状態を読み込みました"); toast("読み込みました"); }
@@ -5438,7 +5440,7 @@ document.addEventListener("click",function(e){
 
     // スマート標準アクションボタン（カード選択より先に判定）
     const spb=e.target.closest("[data-searchprof]");
-    if(spb){ e.stopPropagation(); openCardSearchProfile(spb.getAttribute("data-id"),spb.getAttribute("data-searchprof")); return; }
+    if(spb){ e.preventDefault(); e.stopPropagation(); openCardSearchProfile(spb.getAttribute("data-id"),spb.getAttribute("data-searchprof")); return; }
 
     const smb=e.target.closest("[data-smartact]");
     if(smb){ e.stopPropagation(); smartStandardAction(smb.getAttribute("data-smartact")); return; }
@@ -11023,7 +11025,7 @@ function _libSearchBind(){
 /* ============================================================
    総合安定化: 自己診断 / バックアップ / プレイテスト / ヘルプ / バージョン
    ============================================================ */
-const APP_VERSION="1.6.0";
+const APP_VERSION="1.6.1";
 const DATA_VERSION=4;
 const LS_BACKUP_KEY="cpt_backups_v1";
 let _cptMigrationNote="";
