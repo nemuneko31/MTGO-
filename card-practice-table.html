@@ -358,7 +358,7 @@
   .db-workspace{--db-left:56%;display:grid;grid-template-columns:minmax(460px,var(--db-left)) 10px minmax(410px,1fr);gap:0;min-height:0;flex:1 1 auto}
   .db-pane{min-height:0;border:1px solid var(--line);border-radius:9px;background:rgba(0,0,0,.12);overflow:hidden}
   .db-library-pane{display:flex;flex-direction:column;padding:10px}
-  .db-deck-pane{display:grid;grid-template-rows:auto minmax(220px,1.25fr) minmax(170px,.75fr);gap:8px;padding:10px}
+  .db-deck-pane{display:grid;grid-template-rows:auto minmax(var(--db-main-min,100px),var(--db-main-row,1fr)) 10px minmax(var(--db-side-min,130px),var(--db-side-row,1fr));gap:8px;padding:10px}
   .db-split{margin:0 2px;border-radius:6px;background:rgba(255,255,255,.07);cursor:col-resize;touch-action:none}
   .db-split:hover,.db-split.dragging{background:rgba(224,168,60,.45)}
   .db-toolbar{display:flex;gap:6px;flex-wrap:wrap;align-items:center;flex:0 0 auto;margin-bottom:7px}
@@ -369,6 +369,20 @@
   .db-library-pane>.db-list{flex:1 1 auto;max-height:none}
   .db-deck-section{display:flex;flex-direction:column;min-height:0;border:1px solid var(--line);border-radius:8px;padding:6px;background:rgba(12,18,30,.55)}
   .db-deck-section .db-list{flex:1 1 auto;max-height:none}
+  .db-vsplit{margin:0 2px;border-radius:6px;background:rgba(255,255,255,.07);cursor:row-resize;touch-action:none;position:relative}
+  .db-vsplit:after{content:"";position:absolute;left:35%;right:35%;top:4px;height:2px;border-top:1px solid rgba(255,255,255,.25);border-bottom:1px solid rgba(255,255,255,.25)}
+  .db-vsplit:hover,.db-vsplit.dragging{background:rgba(224,168,60,.45)}
+  .db-section-tools{display:flex;align-items:center;gap:4px;margin-left:auto}
+  .db-section-tools .btn{min-height:29px;padding:3px 8px;font-size:11px}
+  .db-side-section .db-stat-groups{gap:4px}
+  .db-side-section .db-stat{padding:2px 7px;font-size:11px}
+  .db-side-section .db-stat b{font-size:12px}
+  .db-side-section .db-detail-line{font-size:11px;line-height:1.35;margin-top:3px;max-height:3em;overflow:auto}
+  .db-side-section .db-list{min-height:80px}
+  .db-deck-pane.side-focus .db-main-section #dbMainStats{display:none}
+  .db-deck-pane.side-focus .db-main-section .db-list{min-height:0}
+  .db-deck-pane.main-focus .db-side-section #dbSideStats{display:none}
+  .db-deck-pane.main-focus .db-side-section .db-list{min-height:0}
   .db-row{display:flex;align-items:center;gap:9px;padding:7px 8px;border-bottom:1px solid rgba(255,255,255,.07);font-size:14px;min-height:68px}
   .db-row:last-child{border-bottom:0}
   .db-row:hover{background:rgba(120,150,210,.08)}
@@ -398,7 +412,7 @@
     .modal.deck-editor .mbody{overflow-y:auto}
     .deck-editor-meta{grid-template-columns:1fr 1fr}.deck-editor-meta .deck-notes{grid-column:1/-1}
     .db-workspace{display:flex;flex-direction:column;overflow:visible;gap:8px;flex:0 0 auto}.db-split{display:none}
-    .db-pane{flex:0 0 auto;min-height:55dvh}.db-deck-pane{min-height:90dvh}
+    .db-pane{flex:0 0 auto;min-height:55dvh}.db-deck-pane{display:flex;flex-direction:column;min-height:145dvh}.db-vsplit{display:none}.db-deck-section{flex:0 0 auto;min-height:52dvh}
   }
   @media(max-width:640px){
     .deck-editor-meta{grid-template-columns:1fr}.deck-editor-meta .deck-notes{grid-column:auto}
@@ -1791,7 +1805,7 @@ function newPlayer(){
 function defaultState(){
   return {
     version:1,
-    appVersion:"1.7.2",
+    appVersion:"1.7.3",
     dataVersion:4,
     meta:{ lastSaved:null, lastBackup:null, lastDiag:null },
     integrityLog:[],
@@ -4690,7 +4704,7 @@ function loadState(silent){
     if(!state.playtest||typeof state.playtest!=="object") state.playtest={items:{},savedAt:null};
     if(!Array.isArray(state.integrityLog)) state.integrityLog=[];
     if(!state.meta||typeof state.meta!=="object") state.meta={lastSaved:null,lastBackup:null};
-    const _ov=obj.dataVersion; state.appVersion="1.7.2"; state.dataVersion=4;
+    const _ov=obj.dataVersion; state.appVersion="1.7.3"; state.dataVersion=4;
     if(_ov!==4){ _cptMigrationNote="旧データ(dataVersion "+(_ov||"なし")+")を v4 に移行しました"; if(!silent) addLog(_cptMigrationNote); }
     else { _cptMigrationNote=""; }
     if(!silent){ addLog("状態を読み込みました"); toast("読み込みました"); }
@@ -5180,13 +5194,14 @@ function openDeckEditor(id){
       <div class="db-split" id="dbSplit" title="左右にドラッグして幅を変更"></div>
       <section class="db-pane db-deck-pane">
         <div id="dbTotals" class="db-summary"></div>
-        <section class="db-deck-section">
-          <div class="db-sub"><span>メインデッキ</span><span id="dbMainCount" class="note"></span></div>
+        <section class="db-deck-section db-main-section">
+          <div class="db-sub"><span>メインデッキ</span><span class="db-section-tools"><button type="button" class="btn tiny" data-dbview="main">メイン拡大</button><button type="button" class="btn tiny" data-dbview="equal">均等</button><span id="dbMainCount" class="note"></span></span></div>
           <div id="dbMainStats" class="db-detail-line"></div>
           <div id="dbMain" class="db-list"></div>
         </section>
-        <section class="db-deck-section">
-          <div class="db-sub"><span>サイドボード</span><span id="dbSideCount" class="note"></span></div>
+        <div class="db-vsplit" id="dbVSplit" title="上下にドラッグしてメイン／サイドの高さを変更"></div>
+        <section class="db-deck-section db-side-section">
+          <div class="db-sub"><span>サイドボード</span><span class="db-section-tools"><button type="button" class="btn tiny" data-dbview="side">サイド拡大</button><button type="button" class="btn tiny" data-dbview="equal">均等</button><span id="dbSideCount" class="note"></span></span></div>
           <div id="dbSideStats" class="db-detail-line"></div>
           <div id="dbSide" class="db-list"></div>
         </section>
@@ -5211,11 +5226,16 @@ function openDeckEditor(id){
     const writeRows=(sel,rows)=>{ $(sel).value=rows.filter(r=>r.qty>0).map(e=>`${e.qty} ${e.name}${e.type&&e.type!=="Unknown"?" @"+e.type:""}`).join("\n"); };
     const prefs=(function(){ try{ return JSON.parse(localStorage.getItem("cpt_dbprefs")||"{}"); }catch(_){ return {}; } })();
     let dbLeftPct=Math.max(42,Math.min(72,Number(prefs.leftPct)||56));
-    const savePrefs=()=>{ try{ localStorage.setItem("cpt_dbprefs",JSON.stringify({q:$("#dbQ").value,sort:$("#dbSort").value,filt:$("#dbFilt").value,leftPct:dbLeftPct})); }catch(_){} };
+    let dbSidePct=Math.max(24,Math.min(78,Number(prefs.sidePct)||55));
+    const savePrefs=()=>{ try{ localStorage.setItem("cpt_dbprefs",JSON.stringify({q:$("#dbQ").value,sort:$("#dbSort").value,filt:$("#dbFilt").value,leftPct:dbLeftPct,sidePct:dbSidePct})); }catch(_){} };
     $("#dbQ").value=prefs.q||""; $("#dbSort").value=prefs.sort||"reg"; $("#dbFilt").value=prefs.filt||"all";
-    const dbWorkspace=$("#dbWorkspace"),dbSplit=$("#dbSplit");
+    const dbWorkspace=$("#dbWorkspace"),dbSplit=$("#dbSplit"),dbDeckPane=document.querySelector(".db-deck-pane"),dbVSplit=$("#dbVSplit");
     if(dbWorkspace)dbWorkspace.style.setProperty("--db-left",dbLeftPct+"%");
+    const applyVerticalRatio=()=>{ if(!dbDeckPane)return;const sideFocus=dbSidePct>=65,mainFocus=dbSidePct<=35;dbDeckPane.classList.toggle("side-focus",sideFocus);dbDeckPane.classList.toggle("main-focus",mainFocus);dbDeckPane.style.setProperty("--db-main-min",(sideFocus?70:mainFocus?160:100)+"px");dbDeckPane.style.setProperty("--db-side-min",(sideFocus?190:mainFocus?70:130)+"px");dbDeckPane.style.setProperty("--db-main-row",Math.max(1,100-dbSidePct)+"fr");dbDeckPane.style.setProperty("--db-side-row",Math.max(1,dbSidePct)+"fr"); };
+    applyVerticalRatio();
     if(dbSplit&&dbWorkspace){ dbSplit.addEventListener("pointerdown",ev=>{ if(window.matchMedia&&window.matchMedia("(max-width:980px)").matches)return; ev.preventDefault();dbSplit.classList.add("dragging");dbSplit.setPointerCapture&&dbSplit.setPointerCapture(ev.pointerId);const move=e=>{const r=dbWorkspace.getBoundingClientRect();dbLeftPct=Math.max(42,Math.min(72,((e.clientX-r.left)/r.width)*100));dbWorkspace.style.setProperty("--db-left",dbLeftPct+"%");};const up=e=>{move(e);dbSplit.classList.remove("dragging");dbSplit.releasePointerCapture&&dbSplit.releasePointerCapture(e.pointerId);dbSplit.removeEventListener("pointermove",move);dbSplit.removeEventListener("pointerup",up);dbSplit.removeEventListener("pointercancel",up);savePrefs();};dbSplit.addEventListener("pointermove",move);dbSplit.addEventListener("pointerup",up);dbSplit.addEventListener("pointercancel",up);}); }
+    if(dbVSplit&&dbDeckPane){ dbVSplit.addEventListener("pointerdown",ev=>{ if(window.matchMedia&&window.matchMedia("(max-width:980px)").matches)return;ev.preventDefault();dbVSplit.classList.add("dragging");dbVSplit.setPointerCapture&&dbVSplit.setPointerCapture(ev.pointerId);const move=e=>{const main=document.querySelector(".db-main-section"),side=document.querySelector(".db-side-section");if(!main||!side)return;const top=main.getBoundingClientRect().top,bottom=side.getBoundingClientRect().bottom,usable=Math.max(1,bottom-top);const mainPct=Math.max(22,Math.min(76,((e.clientY-top)/usable)*100));dbSidePct=100-mainPct;applyVerticalRatio();};const up=e=>{move(e);dbVSplit.classList.remove("dragging");dbVSplit.releasePointerCapture&&dbVSplit.releasePointerCapture(e.pointerId);dbVSplit.removeEventListener("pointermove",move);dbVSplit.removeEventListener("pointerup",up);dbVSplit.removeEventListener("pointercancel",up);savePrefs();};dbVSplit.addEventListener("pointermove",move);dbVSplit.addEventListener("pointerup",up);dbVSplit.addEventListener("pointercancel",up);}); }
+    document.querySelectorAll("[data-dbview]").forEach(b=>b.addEventListener("click",()=>{const v=b.getAttribute("data-dbview");dbSidePct=v==="side"?74:v==="main"?30:50;applyVerticalRatio();savePrefs();}));
     const norm=s=>normalizeCardName(String(s||""));
     const colorCat=e=>{ const c=e.colors||[]; if(c.length>1) return "M"; if(c.length===1) return c[0]; return "C"; };
     const COLOR_ORD={W:0,U:1,B:2,R:3,G:4,M:5,C:6};
@@ -5231,7 +5251,7 @@ function openDeckEditor(id){
       for(const r of rows){const q=Math.max(0,Number(r.qty)||0),de=dictGet(r.name),types=de?baseTypesOf(de):normalizeTypeList(r.types,r.type);st.total+=q;for(const t of types)st.types[t]=(st.types[t]||0)+q;if(de){for(const t of basicLandTypesOf(de))st.landTypes[t]+=q;for(const t of searchClassTags(de))st.search[t]+=q;const val=mv(de);if(val!=null&&!types.includes("Land")){st.mvTotal+=val*q;st.mvQty+=q;const k=val>=6?"6+":String(Math.max(0,Math.floor(val)));if(st.curve[k]!==undefined)st.curve[k]+=q;}}}
       st.avgMv=st.mvQty?st.mvTotal/st.mvQty:null;return st;
     }
-    function typeStatsHTML(st){const always=["Land","Creature","Instant","Sorcery","Artifact","Enchantment","Planeswalker"];return statTypeOrder.filter(t=>always.includes(t)||(st.types[t]||0)>0).map(t=>`<span class="db-stat ${["Land","Creature"].includes(t)?"primary":""}">${esc(TYPE_JP[t]||t)} <b>${st.types[t]||0}</b></span>`).join("");}
+    function typeStatsHTML(st,nonzeroOnly){const always=["Land","Creature","Instant","Sorcery","Artifact","Enchantment","Planeswalker"];return statTypeOrder.filter(t=>(nonzeroOnly?(st.types[t]||0)>0:(always.includes(t)||(st.types[t]||0)>0))).map(t=>`<span class="db-stat ${["Land","Creature"].includes(t)?"primary":""}">${esc(TYPE_JP[t]||t)} <b>${st.types[t]||0}</b></span>`).join("");}
     function detailStatsText(st){const lt=BASIC_LAND_TYPES.filter(t=>st.landTypes[t]).map(t=>`${BASIC_LAND_TYPE_JP[t]}${st.landTypes[t]}`).join(" / ");const sc=SEARCH_CLASS_TAGS.filter(t=>st.search[t]).map(t=>`${SEARCH_CLASS_JP[t]}${st.search[t]}`).join(" / ");const cv=Object.entries(st.curve).filter(([,n])=>n).map(([k,n])=>`MV${k}:${n}`).join(" ");return [st.avgMv!=null?`土地以外の平均MV ${st.avgMv.toFixed(2)}`:"",cv?`マナ域 ${cv}`:"",lt?`基本土地タイプ ${lt}`:"",sc].filter(Boolean).join("　｜　");}
     function deckWarnings(mainN,sideN){const fmt=normalizeCardName(($("#dFormat")||{}).value||"");const commander=/commander|edh|統率者/.test(fmt),target=commander?100:60;const a=[];if(mainN<target)a.push(`<span class="db-warning">${commander?"統率者戦の目安100枚":"一般的な構築戦の目安60枚"}まであと${target-mainN}枚</span>`);if(sideN>15)a.push(`<span class="db-danger">サイド15枚を${sideN-15}枚超過</span>`);return a.join(" ／ ");}
     function libRender(){
@@ -5274,7 +5294,7 @@ function openDeckEditor(id){
         return `<div class="db-row">${isrc?`<img src="${esc(isrc)}" alt="" data-db="prev" data-name="${esc(e.name)}" onerror="this.remove()">`:""}<div class="db-card-main"><span class="db-n" data-db="prev" data-name="${esc(e.name)}" title="${esc(e.name)}">${esc(dn)}${dn!==e.name?` <small style="color:var(--muted)">${esc(e.name)}</small>`:""}${reg?"":' <small style="color:#e0a83c">未登録</small>'} <b>×${e.qty}</b></span><small class="db-card-meta">${esc(types)}${mc?` ／ ${esc(mc)}`:""}</small></div><div class="db-actions"><button class="btn tiny" data-db="add" data-b="${sel}" data-n="1" data-name="${esc(e.name)}">＋</button><button class="btn tiny" data-db="sub" data-b="${sel}" data-n="1" data-name="${esc(e.name)}">−1</button><button class="btn tiny" data-db="mv" data-b="${sel}" data-to="${other}" data-name="${esc(e.name)}">${other==="#dSide"?"→サイド":"→メイン"}</button><button class="btn tiny" data-db="sub" data-b="${sel}" data-all="1" data-name="${esc(e.name)}">全削除</button></div></div>`; }).join("")||`<div class="note">（空）</div>`;
       const mainEl=$("#dbMain"),sideEl=$("#dbSide"),ms=mainEl?mainEl.scrollTop:0,ss=sideEl?sideEl.scrollTop:0;if(mainEl){mainEl.innerHTML=mk(mainRows,"#dMain","#dSide");mainEl.scrollTop=ms;}if(sideEl){sideEl.innerHTML=mk(sideRows,"#dSide","#dMain");sideEl.scrollTop=ss;}
       $("#dbMainCount").textContent=`${mainStats.total}枚`;$("#dbSideCount").textContent=`${sideStats.total}枚`;
-      $("#dbMainStats").textContent=detailStatsText(mainStats)||"タイプ・マナ情報はカード辞書登録後に表示されます";$("#dbSideStats").innerHTML=sideStats.total?`<div class="db-stat-groups">${typeStatsHTML(sideStats)}</div>${detailStatsText(sideStats)?`<div style="margin-top:3px">${esc(detailStatsText(sideStats))}</div>`:""}`:"";
+      $("#dbMainStats").textContent=detailStatsText(mainStats)||"タイプ・マナ情報はカード辞書登録後に表示されます";$("#dbSideStats").innerHTML=sideStats.total?`<div class="db-stat-groups">${typeStatsHTML(sideStats,true)}</div>${detailStatsText(sideStats)?`<div style="margin-top:3px">${esc(detailStatsText(sideStats))}</div>`:""}`:"";
       $("#dbTotals").innerHTML=`<div class="db-summary-top"><span class="db-total">メイン ${mainStats.total}枚</span><span><b>サイド ${sideStats.total}枚</b></span>${deckWarnings(mainStats.total,sideStats.total)}</div><div class="db-stat-groups">${typeStatsHTML(mainStats)}</div><div class="db-detail-line">複数タイプのカードは各タイプへ重複して数えます。${detailStatsText(mainStats)?"　"+esc(detailStatsText(mainStats)):""}</div>`;
     }
     function addTo(sel,name,n){ const rows=rowsOf(sel); const r=rows.find(x=>x.name===name);
@@ -11142,7 +11162,7 @@ function _libSearchBind(){
 /* ============================================================
    総合安定化: 自己診断 / バックアップ / プレイテスト / ヘルプ / バージョン
    ============================================================ */
-const APP_VERSION="1.7.2";
+const APP_VERSION="1.7.3";
 const DATA_VERSION=4;
 const LS_BACKUP_KEY="cpt_backups_v1";
 let _cptMigrationNote="";
