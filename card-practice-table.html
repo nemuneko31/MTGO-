@@ -1278,6 +1278,10 @@
 #dePtFormulaWrap .dict-pt-formula{margin-top:8px}.dict-editor-shell[data-de-mode="simple"] #dePtFormulaWrap .pt-ref-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
 @media(max-width:720px){.modal.dict-editor{width:100vw;height:100dvh;max-height:none;border-radius:0}.dict-editor-toolbar{align-items:flex-start;padding:7px 9px}.dict-editor-help{display:none}.dict-editor-tabs{padding:5px 7px}.dict-editor-tabs button{padding:7px 11px}.dict-editor-panel{padding:8px}.dict-editor-shell .grid2,.dict-editor-shell .pt-ref-grid{grid-template-columns:1fr}.dict-section-card{padding:9px}.dict-mode-switch{margin-left:3px}}
 </style>
+
+<style id="rule-suite-style">
+.rule-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:7px;margin:7px 0}.rule-grid label,.rule-row{border:1px solid var(--line);border-radius:7px;background:var(--panel2);padding:8px}.rule-row{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:6px 0}.rule-row>label{flex:1;min-width:220px}.rule-target-illegal{opacity:.22!important;filter:grayscale(1)!important;outline:2px solid #d9534f!important;pointer-events:auto}.rule-target-ward{outline:2px dashed #d9a441!important;opacity:.9!important}.rule-preset-card{border-color:color-mix(in srgb,var(--accent) 55%,var(--line))!important}.rule-dash{display:grid;gap:6px;margin:8px 0}.rule-dash-row{display:grid;grid-template-columns:minmax(140px,1fr) 90px 2fr;gap:8px;padding:7px;border:1px solid var(--line);border-radius:7px;background:var(--panel2)}.auto-cost-list{max-height:48vh;overflow:auto;border:1px solid var(--line);border-radius:7px;padding:5px}.dict-editor-panel[data-depanel="rules"] .dict-section-card{margin-bottom:10px}@media(max-width:720px){.rule-dash-row{grid-template-columns:1fr}.rule-row>label{min-width:160px}}
+</style>
 </head>
 <body>
 <div class="client" id="client">
@@ -1937,7 +1941,7 @@ function newPlayer(){
 function defaultState(){
   return {
     version:1,
-    appVersion:"1.9.2",
+    appVersion:"2.0.0",
     dataVersion:4,
     meta:{ lastSaved:null, lastBackup:null, lastDiag:null },
     integrityLog:[],
@@ -2374,7 +2378,7 @@ function _applySourceAutoEffects(src,x,choice){
     else if(e.kind==="draw") for(const p of players){ const n=_aeDraw(p,Math.max(0,amt));logs.push(`${pname(p)} が${n}枚ドロー`); }
     else if(e.kind==="drawControl") for(const p of players){ const fx=addPlayerDrawEffect(p,{kind:e.drawControlKind,amount:amt,duration:e.drawControlDuration,sourceCardId:src.id||"",sourceName:e.label||src.name||"カード効果",createdTurn:state.turn.number});logs.push(`${pname(p)} に「${DRAW_EFFECT_KIND_JP[fx.kind]}」を付与（${DRAW_EFFECT_DURATION_JP[fx.duration]}）`); }
     else if(e.kind==="discard") for(const p of players){ const ids=(disc[e.id+":"+p]||[]).slice(0,Math.max(0,amt));let n=0;for(const id of ids){const f=findCard(id);if(f&&f.player===p&&f.zone==="hand"){_aeMoveCard(f.card,"graveyard");n++;}}logs.push(`${pname(p)} が${n}枚捨てる`); }
-    else if(e.kind==="move") for(const c of cards){ const nm=c.name;if(_aeMoveCard(c,e.destination))logs.push(`[${nm}] を${AUTO_EFFECT_DEST_JP[e.destination]}へ`); }
+    else if(e.kind==="move") for(const c of cards){ const nm=c.name;if(e.destination==="graveyard"&&ruleIsIndestructible(c)&&/破壊|destroy/i.test(String(e.label||""))){logs.push(`[${nm}] は破壊不能のため破壊されない`);continue;}if(_aeMoveCard(c,e.destination))logs.push(`[${nm}] を${AUTO_EFFECT_DEST_JP[e.destination]}へ`); }
     else if(e.kind==="token") for(const p of players){ const n=_aeCreateToken(src,e,p,Math.max(0,amt));logs.push(`${pname(p)} が${e.tokenName}を${n}体生成`); }
     else if(e.kind==="type") for(const c of cards){ if(!_aeCardValidFor(e,c))continue;if(e.duration==="eot")c.untilEndOfTurnTypes=normalizeExtraTypeList([...(c.untilEndOfTurnTypes||[]),e.addedType]);else c.addedTypes=normalizeExtraTypeList([...(c.addedTypes||[]),e.addedType]);logs.push(`[${c.name}] に${TYPE_JP[e.addedType]||e.addedType}を追加（${AUTO_EFFECT_DURATION_JP[e.duration]}）`); }
     else if(e.kind==="keyword") for(const c of cards){ if(!_aeCardValidFor(e,c))continue;if(e.duration==="eot")c.untilEndOfTurnCombatKeywords=normalizeCombatKeywords([...(c.untilEndOfTurnCombatKeywords||[]),e.combatKeyword]);else c.addedCombatKeywords=normalizeCombatKeywords([...(c.addedCombatKeywords||[]),e.combatKeyword]);logs.push(`[${c.name}] に${COMBAT_KEYWORD_JP[e.combatKeyword]}を追加（${AUTO_EFFECT_DURATION_JP[e.duration]}）`); }
@@ -11379,7 +11383,7 @@ function _libSearchBind(){
 /* ============================================================
    総合安定化: 自己診断 / バックアップ / プレイテスト / ヘルプ / バージョン
    ============================================================ */
-const APP_VERSION="1.9.2";
+const APP_VERSION="2.0.0";
 const DATA_VERSION=4;
 const LS_BACKUP_KEY="cpt_backups_v1";
 let _cptMigrationNote="";
@@ -11657,6 +11661,12 @@ const HELP_SECTIONS=[
     "S / G / E / H: 選択カードを スタック/墓地/追放/手札 へ",
     "対象指定はカードメニューや対象一覧パネルから。対象線で可視化。",
     "スタックは『連続解決』ウィザードで上から順に解決。"]],
+  ["ルール補助（対象・置換・コスト・誘発）", [
+    "ツールバーの『ルール補助』から、現在戦場にある登録済み常在効果とコスト増減を確認できます。",
+    "カード辞書の『ルール補助』タブで、呪禁/被覆/護法/色プロテクション/破壊不能/生け贄不可を登録できます。",
+    "墓地→追放、ライフ獲得不可、ダメージ軽減、タップイン、カウンター付きで出る、手札上限などは確認付きの補助処理です。",
+    "特殊コストはピッチ/召集/探査/即席/ファイレクシア/混成(手動)/キッカーを登録できます。完全な公式ルールエンジンではないため、例外時は手動処理を優先してください。",
+    "誘発候補ではAPNAP順の候補作成と、対象・支払い不要の誘発をまとめてスタックへ置けます。"]],
   ["戦闘", [
     "攻撃指定→ブロック指定→戦闘解決ウィザードでダメージ処理→戦闘終了→Cleanup。",
     "全ダメージ0・致死ハイライトなどの補助あり。"]],
@@ -15343,6 +15353,194 @@ openCardMenu=function(id){const r=_asOpenCardMenu(id);setTimeout(()=>{const f=fi
 
 /* ツールボタン用の補助 */
 function openAutoManaAdvisor(){const p=state.turn.active;openManaPanel(p);}
+
+
+/* ============================================================
+   ルール補助統合パック v2.0.0
+   - 対象適正（呪禁/被覆/護法/プロテクション色）
+   - 常在/置換効果（墓地→追放、ライフ獲得不可、ダメージ軽減、タップイン等）
+   - 特殊コスト補助（ピッチ/召集/探査/即席/ファイレクシア/キッカー）
+   - APNAP誘発順補助
+   - 戦闘の破壊不能/軽減補助
+   - カード登録プリセット
+   完全ルールエンジンではなく、登録情報と確認UIによる安全な半自動補助。
+   ============================================================ */
+const RULE_SUITE_VERSION="2.0.0";
+const RULE_SCOPES=["controller","opponent","both"];
+const RULE_SCOPE_JP={controller:"自分",opponent:"相手",both:"両方"};
+const RULE_SPECIAL_KINDS=["none","pitchExile","convoke","delve","improvise","phyrexian","hybrid","kicker"];
+const RULE_SPECIAL_KIND_JP={none:"なし",pitchExile:"手札を追放する代替コスト（ピッチ）",convoke:"召集（クリーチャーをタップ）",delve:"探査（墓地を追放）",improvise:"即席（アーティファクトをタップ）",phyrexian:"ファイレクシア・マナ補助",hybrid:"混成マナ（手動選択）",kicker:"キッカー／追加コスト"};
+function _ruleNum(v,d){const n=Number(v);return Number.isFinite(n)?n:(d||0);}
+function normalizeRuleProfile(o){
+  o=o||{};const k=o.keywords||{},r=o.replacements||{},s=o.staticRules||{};
+  const scope=v=>RULE_SCOPES.includes(v)?v:"both";
+  return {
+    keywords:{hexproof:!!k.hexproof,shroud:!!k.shroud,indestructible:!!k.indestructible,cantSacrifice:!!k.cantSacrifice,wardCost:String(k.wardCost||"").trim(),protectionColors:dedupColors(k.protectionColors||[])},
+    replacements:{
+      graveToExile:{enabled:!!(r.graveToExile&&r.graveToExile.enabled),scope:scope(r.graveToExile&&r.graveToExile.scope)},
+      cantGainLife:{enabled:!!(r.cantGainLife&&r.cantGainLife.enabled),scope:scope(r.cantGainLife&&r.cantGainLife.scope)},
+      preventDamage:{enabled:!!(r.preventDamage&&r.preventDamage.enabled),scope:scope(r.preventDamage&&r.preventDamage.scope),amount:Math.max(0,_ruleNum(r.preventDamage&&r.preventDamage.amount,0)),all:!!(r.preventDamage&&r.preventDamage.all)},
+      enterTapped:{enabled:!!(r.enterTapped&&r.enterTapped.enabled),scope:scope(r.enterTapped&&r.enterTapped.scope)},
+      enterCounters:{enabled:!!(r.enterCounters&&r.enterCounters.enabled),scope:scope(r.enterCounters&&r.enterCounters.scope),name:String(r.enterCounters&&r.enterCounters.name||"+1/+1").trim()||"+1/+1",amount:Math.max(0,Math.trunc(_ruleNum(r.enterCounters&&r.enterCounters.amount,0)))}
+    },
+    staticRules:{spellTax:Math.max(0,Math.trunc(_ruleNum(s.spellTax,0))),spellReduction:Math.max(0,Math.trunc(_ruleNum(s.spellReduction,0))),handLimit:(s.handLimit===""||s.handLimit==null)?"":Math.max(0,Math.trunc(_ruleNum(s.handLimit,0))),castRestrictionNote:String(s.castRestrictionNote||"")},
+    note:String(o.note||"")
+  };
+}
+function normalizeSpellCostProfile(o){
+  o=o||{};const kind=RULE_SPECIAL_KINDS.includes(o.kind)?o.kind:"none";
+  return {enabled:!!o.enabled&&kind!=="none",kind,color:["W","U","B","R","G","C"].includes(o.color)?o.color:"R",count:Math.max(1,Math.trunc(_ruleNum(o.count,1))),genericReduction:Math.max(0,Math.trunc(_ruleNum(o.genericReduction,0))),lifePayment:Math.max(0,Math.trunc(_ruleNum(o.lifePayment,2))),extraCost:String(o.extraCost||"").trim(),alternativeCost:String(o.alternativeCost||"").trim(),useManaValueAsX:!!o.useManaValueAsX,note:String(o.note||"")};
+}
+function ruleProfileOf(c){const e=c&&c.name&&dictGet(c.name);return normalizeRuleProfile((c&&c.ruleProfile)||(e&&e.ruleProfile)||{});}
+function spellCostProfileOf(c){const e=c&&c.name&&dictGet(c.name);return normalizeSpellCostProfile((c&&c.spellCostProfile)||(e&&e.spellCostProfile)||{});}
+function ruleControllerOf(c){return (c&&c.controller)||(c&&c.sourceController)||(c&&c.owner)||state.turn.active||"A";}
+function ruleOther(p){return p==="A"?"B":"A";}
+function ruleScopeApplies(sourceController,affected,scope){return scope==="both"||(scope==="controller"&&sourceController===affected)||(scope==="opponent"&&sourceController!==affected);}
+function activeRuleSources(){const out=[];for(const p of ["A","B"])for(const z of ["creatures","lands","others"])for(const c of (state.players[p][z]||[])){const rp=ruleProfileOf(c);if(rp)out.push({card:c,controller:c.controller||c.owner||p,profile:rp});}return out;}
+function ruleStaticSummary(c){const p=ruleProfileOf(c),a=[];if(p.keywords.hexproof)a.push("呪禁");if(p.keywords.shroud)a.push("被覆");if(p.keywords.indestructible)a.push("破壊不能");if(p.keywords.wardCost)a.push("護法 "+p.keywords.wardCost);if(p.keywords.protectionColors.length)a.push("プロテクション("+p.keywords.protectionColors.join("/")+")");if(p.replacements.graveToExile.enabled)a.push("墓地→追放");if(p.replacements.cantGainLife.enabled)a.push("ライフ獲得不可");if(p.replacements.preventDamage.enabled)a.push("軽減"+(p.replacements.preventDamage.all?"すべて":p.replacements.preventDamage.amount));if(p.staticRules.spellTax)a.push("コスト増+"+p.staticRules.spellTax);if(p.staticRules.spellReduction)a.push("コスト軽減-"+p.staticRules.spellReduction);return a.join(" / ");}
+
+/* 辞書保存を後方互換で拡張 */
+const _ruleDictEntryFrom=dictEntryFrom;
+dictEntryFrom=function(o){const r=_ruleDictEntryFrom(o);o=o||{};r.ruleProfile=normalizeRuleProfile(o.ruleProfile||{});r.spellCostProfile=normalizeSpellCostProfile(o.spellCostProfile||{});r.registrationPreset=String(o.registrationPreset||"");return r;};
+const _ruleDictSet=dictSet;
+let _ruleEditorPresetTarget=null;
+dictSet=function(o,silent){o=o||{};const ex=o.name?dictGet(o.name):null,q=Object.assign({},o);if(q.ruleProfile===undefined&&ex)q.ruleProfile=ex.ruleProfile;if(q.spellCostProfile===undefined&&ex)q.spellCostProfile=ex.spellCostProfile;if(q.registrationPreset===undefined&&ex)q.registrationPreset=ex.registrationPreset||"";
+  const de=document.getElementById("deName"),editing=!!(de&&dictKey(de.value)===dictKey(q.name));if(editing){try{q.ruleProfile=dictRuleProfileRead();q.spellCostProfile=dictSpellCostRead();const pr=document.getElementById("deRegPreset");if(pr)q.registrationPreset=pr.value||"";if(_ruleEditorPresetTarget)q.targetProfile=normalizeTargetProfile(_ruleEditorPresetTarget);}catch(_){}}
+  const ok=_ruleDictSet(q,silent);if(ok&&editing)_ruleEditorPresetTarget=null;return ok;
+};
+
+/* ---------- 登録プリセット ---------- */
+const RULE_REG_PRESETS={
+  creature:{label:"通常クリーチャー",types:["Creature"],power:"2",toughness:"2"},
+  removal:{label:"対象を取る除去",types:["Instant"],target:{enabled:true,zones:["battlefield"],types:["Creature"],relation:"opponent",minTargets:1,maxTargets:1,allowCards:true},effect:{kind:"move",targetMode:"targets",destination:"graveyard",label:"対象を破壊"}},
+  burn:{label:"火力（3点）",types:["Instant"],target:{enabled:true,zones:["battlefield"],types:["Creature"],relation:"any",minTargets:1,maxTargets:1,allowCards:true,allowPlayers:true,playerRelation:"any"},effect:{kind:"damage",targetMode:"targets",amountFixed:3,label:"3点ダメージ"}},
+  counter:{label:"打ち消し",types:["Instant"],target:{enabled:true,zones:["stack"],types:[],relation:"any",minTargets:1,maxTargets:1,allowCards:true},effect:{kind:"move",targetMode:"targets",destination:"graveyard",label:"対象の呪文を打ち消す"}},
+  fetch:{label:"フェッチランド",types:["Land"],search:"fetch"},
+  tutor:{label:"Tutor",types:["Sorcery"],search:"tutor"},
+  etb:{label:"ETBクリーチャー",types:["Creature"],power:"2",toughness:"2",ability:"etb_draw"},
+  actland:{label:"起動型能力を持つ土地",types:["Land"],ability:"activated"},
+  goyf:{label:"墓地参照P/T",types:["Creature"],power:"*",toughness:"1+*",pt:"tarmogoyf"}
+};
+function rulePresetBarHTML(e){return `<div class="dict-section-card rule-preset-card"><div class="dict-section-title">カード登録プリセット</div><div class="note">近い種類を選ぶと、タイプ・対象・能力・自動効果の初期値をまとめて入れます。既存入力は確認してから保存してください。</div><div class="row-inline" style="gap:6px;flex-wrap:wrap"><select id="deRegPreset"><option value="">選択してください</option>${Object.entries(RULE_REG_PRESETS).map(([k,v])=>`<option value="${k}"${e&&e.registrationPreset===k?" selected":""}>${esc(v.label)}</option>`).join("")}</select><button type="button" class="btn sm primary" data-regpreset-apply="1">プリセットを適用</button></div></div>`;}
+function _ruleSetTypes(types){document.querySelectorAll(".deTypeChk").forEach(x=>x.checked=types.includes(x.value));const p=document.getElementById("deType");if(p)p.value=types[0]||"Unknown";}
+function applyRuleRegistrationPreset(id){const pr=RULE_REG_PRESETS[id];if(!pr)return;_ruleSetTypes(pr.types||[]);if(pr.power!=null&&document.getElementById("dePow"))document.getElementById("dePow").value=pr.power;if(pr.toughness!=null&&document.getElementById("deTou"))document.getElementById("deTou").value=pr.toughness;
+  if(pr.target){const t=normalizeTargetProfile(pr.target);_ruleEditorPresetTarget=t;const en=document.getElementById("deCanTarget"),rq=document.getElementById("deTgtReq");if(en)en.checked=true;if(rq)rq.checked=t.minTargets>0;document.querySelectorAll(".deTgtKind").forEach(x=>x.checked=(t.allowPlayers&&x.value==="Player")||(t.types.includes("Creature")&&x.value==="Creature")||(t.zones.includes("stack")&&x.value==="Spell")||(x.value==="Permanent"&&t.zones.includes("battlefield")));}
+  if(pr.effect&&typeof _deAutoEffects!=="undefined"){const ne=normalizeAutoEffect(pr.effect);_deAutoEffects=_deAutoEffects.filter(e=>!(e.kind===ne.kind&&String(e.label||"")===String(ne.label||"")));_deAutoEffects.push(ne);if(typeof _deAutoEffectsRender==="function")_deAutoEffectsRender();if(typeof dictAutoEffectsBind==="function")dictAutoEffectsBind();}
+  if(pr.search&&typeof _deSearchProfiles!=="undefined"){const np=_searchPreset(pr.search);_deSearchProfiles=_deSearchProfiles.filter(e=>String(e.label||"")!==String(np.label||""));_deSearchProfiles.push(np);_deSearchProfilesRender();dictSearchProfilesBind();}
+  if(pr.ability&&typeof _deAbilities!=="undefined"){if(pr.ability==="etb_draw")_abilitySetInsert("etb_draw");else _abilityTemplateInsert(pr.ability);const seen=new Set();_deAbilities=[..._deAbilities].reverse().filter(a=>{const k=[a.name,a.kind,a.timing].join("|");if(seen.has(k))return false;seen.add(k);return true;}).reverse();_deAbilitiesRender();dictAbilitiesBind();}
+  if(pr.pt&&typeof _ptFormulaPreset==="function"&&typeof dictPtFormulaApplyUI==="function")dictPtFormulaApplyUI(_ptFormulaPreset(pr.pt));
+  const tab=document.querySelector('[data-detab="automation"]');if((pr.target||pr.effect||pr.search)&&tab)tab.click();toast(`プリセット「${pr.label}」を適用しました。内容を確認して保存してください`);
+}
+
+/* ---------- ルール補助エディタ ---------- */
+function ruleScopeOptions(v){return RULE_SCOPES.map(x=>`<option value="${x}"${v===x?" selected":""}>${RULE_SCOPE_JP[x]}</option>`).join("");}
+function dictRuleProfileSectionHTML(e){const p=normalizeRuleProfile(e&&e.ruleProfile||{}),sp=normalizeSpellCostProfile(e&&e.spellCostProfile||{});return `<div class="dict-section-card" id="deRuleProfile"><div class="dict-section-title">対象耐性・常在能力</div><div class="note">対象候補の絞り込みや、よくある置換を補助します。例外時は警告を無視して手動処理できます。</div><div class="rule-grid"><label><input type="checkbox" id="deRuleHex"${p.keywords.hexproof?" checked":""}> 呪禁</label><label><input type="checkbox" id="deRuleShroud"${p.keywords.shroud?" checked":""}> 被覆</label><label><input type="checkbox" id="deRuleInd"${p.keywords.indestructible?" checked":""}> 破壊不能</label><label><input type="checkbox" id="deRuleCantSac"${p.keywords.cantSacrifice?" checked":""}> 生け贄にできない</label></div><div class="grid2"><label class="field">護法コスト<input id="deRuleWard" value="${esc(p.keywords.wardCost)}" placeholder="例: 2 / 1U / 3点のライフ"></label><div class="field">プロテクション（色）<div class="ckrow">${["W","U","B","R","G","C"].map(c=>`<label class="ckbadge c-${c}"><input type="checkbox" class="deRuleProt" value="${c}"${p.keywords.protectionColors.includes(c)?" checked":""}>${c}</label>`).join("")}</div></div></div></div>
+  <div class="dict-section-card"><div class="dict-section-title">置換・常在ルール</div><div class="rule-row"><label><input type="checkbox" id="deRuleG2E"${p.replacements.graveToExile.enabled?" checked":""}> 墓地へ行く代わりに追放</label><select id="deRuleG2EScope">${ruleScopeOptions(p.replacements.graveToExile.scope)}</select></div><div class="rule-row"><label><input type="checkbox" id="deRuleNoGain"${p.replacements.cantGainLife.enabled?" checked":""}> ライフを得られない</label><select id="deRuleNoGainScope">${ruleScopeOptions(p.replacements.cantGainLife.scope)}</select></div><div class="rule-row"><label><input type="checkbox" id="deRulePrevent"${p.replacements.preventDamage.enabled?" checked":""}> ダメージ軽減</label><select id="deRulePreventScope">${ruleScopeOptions(p.replacements.preventDamage.scope)}</select><input id="deRulePreventN" type="number" min="0" value="${p.replacements.preventDamage.amount}" style="width:75px"><label><input type="checkbox" id="deRulePreventAll"${p.replacements.preventDamage.all?" checked":""}>すべて</label></div><div class="rule-row"><label><input type="checkbox" id="deRuleETap"${p.replacements.enterTapped.enabled?" checked":""}> パーマネントはタップ状態で出る</label><select id="deRuleETapScope">${ruleScopeOptions(p.replacements.enterTapped.scope)}</select></div><div class="rule-row"><label><input type="checkbox" id="deRuleECounter"${p.replacements.enterCounters.enabled?" checked":""}> カウンターを置いて出る</label><select id="deRuleECounterScope">${ruleScopeOptions(p.replacements.enterCounters.scope)}</select><input id="deRuleECounterName" value="${esc(p.replacements.enterCounters.name)}" style="width:120px"><input id="deRuleECounterN" type="number" min="0" value="${p.replacements.enterCounters.amount}" style="width:65px"></div><div class="grid2"><label class="field">相手の呪文コスト増加（不特定）<input id="deRuleTax" type="number" min="0" value="${p.staticRules.spellTax}"></label><label class="field">自分の呪文コスト軽減（不特定）<input id="deRuleReduce" type="number" min="0" value="${p.staticRules.spellReduction}"></label><label class="field">手札上限（空欄=通常）<input id="deRuleHandLimit" type="number" min="0" value="${p.staticRules.handLimit}"></label><label class="field">唱え方の制限メモ<input id="deRuleCastNote" value="${esc(p.staticRules.castRestrictionNote)}" placeholder="例: 各ターン1つまで"></label></div><label class="field">補足メモ<input id="deRuleNote" value="${esc(p.note)}"></label></div>
+  <div class="dict-section-card"><div class="dict-section-title">特殊コスト・追加コスト</div><label><input type="checkbox" id="deSCEnabled"${sp.enabled?" checked":""}> 特殊コスト補助を使う</label><div class="grid2"><label class="field">方式<select id="deSCKind">${RULE_SPECIAL_KINDS.map(x=>`<option value="${x}"${sp.kind===x?" selected":""}>${RULE_SPECIAL_KIND_JP[x]}</option>`).join("")}</select></label><label class="field">参照色<select id="deSCColor">${["W","U","B","R","G","C"].map(x=>`<option value="${x}"${sp.color===x?" selected":""}>${x}</option>`).join("")}</select></label><label class="field">使用枚数／体数<input id="deSCCount" type="number" min="1" value="${sp.count}"></label><label class="field">不特定軽減量<input id="deSCReduce" type="number" min="0" value="${sp.genericReduction}"></label><label class="field">ライフ支払い<input id="deSCLife" type="number" min="0" value="${sp.lifePayment}"></label><label class="field">追加コスト<input id="deSCExtra" value="${esc(sp.extraCost)}" placeholder="例: 1R"></label><label class="field">代替コスト表示<input id="deSCAlt" value="${esc(sp.alternativeCost)}" placeholder="例: 手札の青いカードを追放"></label><label><input type="checkbox" id="deSCMvX"${sp.useManaValueAsX?" checked":""}> 追放カードのMVをXにする</label></div><label class="field">特殊コストメモ<input id="deSCNote" value="${esc(sp.note)}"></label></div>`;}
+function _ruleEl(id){return document.getElementById(id);}
+function dictRuleProfileRead(){const ck=id=>!!(_ruleEl(id)&&_ruleEl(id).checked),v=id=>(_ruleEl(id)?_ruleEl(id).value:"");return normalizeRuleProfile({keywords:{hexproof:ck("deRuleHex"),shroud:ck("deRuleShroud"),indestructible:ck("deRuleInd"),cantSacrifice:ck("deRuleCantSac"),wardCost:v("deRuleWard"),protectionColors:[...document.querySelectorAll(".deRuleProt:checked")].map(x=>x.value)},replacements:{graveToExile:{enabled:ck("deRuleG2E"),scope:v("deRuleG2EScope")},cantGainLife:{enabled:ck("deRuleNoGain"),scope:v("deRuleNoGainScope")},preventDamage:{enabled:ck("deRulePrevent"),scope:v("deRulePreventScope"),amount:v("deRulePreventN"),all:ck("deRulePreventAll")},enterTapped:{enabled:ck("deRuleETap"),scope:v("deRuleETapScope")},enterCounters:{enabled:ck("deRuleECounter"),scope:v("deRuleECounterScope"),name:v("deRuleECounterName"),amount:v("deRuleECounterN")}},staticRules:{spellTax:v("deRuleTax"),spellReduction:v("deRuleReduce"),handLimit:v("deRuleHandLimit"),castRestrictionNote:v("deRuleCastNote")},note:v("deRuleNote")});}
+function dictSpellCostRead(){const ck=id=>!!(_ruleEl(id)&&_ruleEl(id).checked),v=id=>(_ruleEl(id)?_ruleEl(id).value:"");return normalizeSpellCostProfile({enabled:ck("deSCEnabled"),kind:v("deSCKind"),color:v("deSCColor"),count:v("deSCCount"),genericReduction:v("deSCReduce"),lifePayment:v("deSCLife"),extraCost:v("deSCExtra"),alternativeCost:v("deSCAlt"),useManaValueAsX:ck("deSCMvX"),note:v("deSCNote")});}
+const _ruleDictEditorBodyHTML=dictEditorBodyHTML;
+dictEditorBodyHTML=function(e,ex,zones){let h=_ruleDictEditorBodyHTML(e,ex,zones);h=h.replace('<button type="button" data-detab="special">特殊形式</button>','<button type="button" data-detab="rules">ルール補助</button><button type="button" data-detab="special">特殊形式</button>');h=h.replace('<div class="dict-editor-panel active" data-depanel="basic">','<div class="dict-editor-panel active" data-depanel="basic">'+rulePresetBarHTML(e));h=h.replace('<div class="dict-editor-panel" data-depanel="special">','<div class="dict-editor-panel" data-depanel="rules">'+dictRuleProfileSectionHTML(e)+'</div><div class="dict-editor-panel" data-depanel="special">');return h;};
+const _ruleDictEditorUiBind=dictEditorUiBind;
+dictEditorUiBind=function(e){_ruleDictEditorUiBind(e);const b=document.querySelector("[data-regpreset-apply]");if(b)b.onclick=()=>{const s=document.getElementById("deRegPreset");if(s&&s.value)applyRuleRegistrationPreset(s.value);};};
+const _ruleOpenDictEditor=openDictEditor;
+openDictEditor=function(name){const r=_ruleOpenDictEditor(name);setTimeout(()=>{const old=_modalDirty,base=ruleEditorSnapshot();if(old&&document.getElementById("deRuleProfile"))setModalDirty({isDirty:()=>{let a=false;try{a=old.isDirty();}catch(_){}return a||ruleEditorSnapshot()!==base;},onDiscard:old.onDiscard});},0);return r;};
+function ruleEditorSnapshot(){const root=document.getElementById("deRuleProfile");if(!root)return"";return JSON.stringify([...root.querySelectorAll("input,select,textarea")].map(x=>[x.id||x.className,x.type==="checkbox"?x.checked:x.value]));}
+
+/* ---------- 対象適正 ---------- */
+function ruleSourceColors(src){return _cardRegColors(src)||[];}
+function ruleTargetLegality(src,c){const rp=ruleProfileOf(c),sc=ruleControllerOf(src),tc=c.controller||c.owner;const reasons=[],warn=[];if(rp.keywords.shroud)reasons.push("被覆");if(rp.keywords.hexproof&&sc!==tc)reasons.push("呪禁");const inter=rp.keywords.protectionColors.filter(x=>ruleSourceColors(src).includes(x));if(inter.length)reasons.push("プロテクション（"+inter.join("/")+"）");if(rp.keywords.wardCost&&sc!==tc)warn.push("護法 "+rp.keywords.wardCost);return {legal:!reasons.length,reasons,warn,wardCost:warn.length?rp.keywords.wardCost:""};}
+let _ruleWardBypass=false;
+const _ruleTargetToggleCard=targetToggleCard;
+targetToggleCard=function(srcId,destId){const sf=findCard(srcId),df=findCard(destId);if(sf&&df&&!tgtIds(sf.card).includes(destId)){const z=ruleTargetLegality(sf.card,df.card);if(!z.legal){toast("対象にできません: "+z.reasons.join(" / "));return;}if(z.wardCost&&!_ruleWardBypass){openModal(`護法 — ${esc(df.card.name)}`,`<div class="note">この対象には <b>護法 ${esc(z.wardCost)}</b> があります。追加コストを支払うか、手動処理として続行してください。</div>`,`<button class="btn" data-app="closem">キャンセル</button><button class="btn" data-rward="manual">手動処理として対象にする</button><button class="btn primary" data-rward="paid">支払ったとして対象にする</button>`);setModalHandler(function(e){const b=e.target.closest("[data-rward]");if(!b)return;closeModal();sf.card.wardPayments=sf.card.wardPayments||{};sf.card.wardPayments[destId]=b.getAttribute("data-rward");_ruleWardBypass=true;try{_ruleTargetToggleCard(srcId,destId);}finally{_ruleWardBypass=false;}saveState(true);render();});return;}}
+  return _ruleTargetToggleCard(srcId,destId);
+};
+const _ruleAutoApplyTargetCandidateUI=autoApplyTargetCandidateUI;
+autoApplyTargetCandidateUI=function(){_ruleAutoApplyTargetCandidateUI();if(!_tgtMode)return;const sf=findCard(_tgtMode.sourceId);if(!sf)return;document.querySelectorAll("[data-card-id]").forEach(el=>{const f=findCard(el.getAttribute("data-card-id"));if(!f||f.card.id===sf.card.id)return;const q=ruleTargetLegality(sf.card,f.card);el.classList.toggle("rule-target-illegal",!q.legal);el.classList.toggle("rule-target-ward",q.legal&&!!q.wardCost);if(!q.legal)el.title="対象不可: "+q.reasons.join(" / ");else if(q.wardCost)el.title="護法 "+q.wardCost;});};
+const _ruleEndTargetMode=endTargetMode;
+endTargetMode=function(){if(_tgtMode){const f=findCard(_tgtMode.sourceId);if(f){const bad=tgtIds(f.card).map(id=>{const d=findCard(id);return d&&!ruleTargetLegality(f.card,d.card).legal?d.card:null;}).filter(Boolean);if(bad.length){openModal("対象適正の警告",`<div class="oh-warn">現在対象にできないカードがあります: ${bad.map(c=>esc(c.name)).join("、")}</div>`,`<button class="btn" data-app="closem">選び直す</button><button class="btn warn" data-rule-target-ignore="1">警告を無視して確定</button>`);setModalHandler(function(e){if(!e.target.closest("[data-rule-target-ignore]"))return;closeModal();_ruleEndTargetMode();});return;}}}return _ruleEndTargetMode();};
+
+/* ---------- 常在/置換効果 ---------- */
+function ruleReplacementSources(kind,affected){return activeRuleSources().filter(x=>{const r=x.profile.replacements[kind];return r&&r.enabled&&ruleScopeApplies(x.controller,affected,r.scope);});}
+function ruleLifeGainBlocked(p){return ruleReplacementSources("cantGainLife",p);}
+function rulePreventAmount(p,amount){let left=Math.max(0,amount),used=0;for(const s of ruleReplacementSources("preventDamage",p)){const r=s.profile.replacements.preventDamage,cut=r.all?left:Math.min(left,r.amount);left-=cut;used+=cut;if(left<=0)break;}return {amount:left,prevented:used};}
+const _ruleMoveCard=moveCard;
+moveCard=function(id,destPlayer,destZone,pos,skipUndo){const f=findCard(id),c=f&&f.card,owner=(c&&c.owner)||destPlayer;let finalZone=destZone,repl=null;if(c&&destZone==="graveyard"){const srcs=ruleReplacementSources("graveToExile",owner);if(srcs.length){finalZone="exile";repl=srcs[0];}}
+  const card=_ruleMoveCard(id,destPlayer,finalZone,pos,skipUndo);if(card&&repl)addLog(`置換: [${card.name}] は墓地へ行く代わりに [${repl.card.name}] により追放`);
+  if(card&&["creatures","lands","others"].includes(finalZone)){const p=card.controller||card.owner||destPlayer;for(const s of activeRuleSources()){const rt=s.profile.replacements.enterTapped;if(rt.enabled&&ruleScopeApplies(s.controller,p,rt.scope))card.tapped=true;const rc=s.profile.replacements.enterCounters;if(rc.enabled&&rc.amount&&ruleScopeApplies(s.controller,p,rc.scope)){card.counters=card.counters||{};card.counters[rc.name]=Number(card.counters[rc.name]||0)+rc.amount;}}
+  }return card;};
+const _ruleLife=life;
+life=function(p,d){if(d>0){const b=ruleLifeGainBlocked(p);if(b.length){addLog(`置換: ${pname(p)} は [${b[0].card.name}] によりライフを得られない`);toast("ライフ獲得が禁止されています");return;}}return _ruleLife(p,d);};
+const _ruleApplySourceAutoEffects=_applySourceAutoEffects;
+_applySourceAutoEffects=function(src,x,choice){
+  const dmg0={};forEachCard(c=>dmg0[c.id]=Number(c.damage||0));
+  const effects=_sourceAutoEffects(src),selected=new Set((choice&&choice.stepIds)||effects.map(e=>e.id));
+  const planned={A:{gain:0,damage:0},B:{gain:0,damage:0}};x=Math.max(0,_aeNum(x));
+  for(const e of effects){if(!selected.has(e.id))continue;const amt=_aeAmount(e,x);if(e.kind==="life"&&amt>0)for(const p of _aePlayerTargets(src,e))planned[p].gain+=amt;else if(e.kind==="damage"&&amt>0)for(const p of _aePlayerTargets(src,e))planned[p].damage+=amt;}
+  const logs=_ruleApplySourceAutoEffects(src,x,choice);
+  for(const p of ["A","B"]){
+    if(planned[p].gain>0&&ruleLifeGainBlocked(p).length){state.players[p].life-=planned[p].gain;addLog(`置換: ${pname(p)} のライフ獲得${planned[p].gain}点を無効化`);}
+    if(planned[p].damage>0){const q=rulePreventAmount(p,planned[p].damage);if(q.prevented){state.players[p].life+=q.prevented;addLog(`軽減: ${pname(p)} へのダメージを${q.prevented}点軽減`);}}
+  }
+  forEachCard(c=>{const inc=Number(c.damage||0)-Number(dmg0[c.id]||0);if(inc>0){const p=c.controller||c.owner,q=rulePreventAmount(p,inc);if(q.prevented){c.damage=Math.max(0,Number(c.damage||0)-q.prevented);addLog(`軽減: [${c.name}] へのダメージを${q.prevented}点軽減`);}}});return logs;};
+function ruleIsIndestructible(c){return !!ruleProfileOf(c).keywords.indestructible;}
+function ruleCantSacrifice(c){return !!ruleProfileOf(c).keywords.cantSacrifice;}
+const _ruleCollectSbaCandidates=collectSbaCandidates;
+collectSbaCandidates=function(){return _ruleCollectSbaCandidates().filter(x=>{if(x.kind!=="grave"||!/\:lethal$/.test(x.id))return true;const f=findCard(x.cardId);return !(f&&ruleIsIndestructible(f.card));});};
+const _ruleAutoCostCandidateCards=autoCostCandidateCards;
+autoCostCandidateCards=function(owner,types,excludeId){return _ruleAutoCostCandidateCards(owner,types,excludeId).filter(c=>!ruleCantSacrifice(c));};
+const _ruleOpenStructuredAbilityCost=openStructuredAbilityCost;
+openStructuredAbilityCost=function(cardId,abilityId){const f=findCard(cardId),ab=f&&getCardAbilities(f.card).find(a=>a.id===abilityId),cp=ab&&normalizeCostProfile(ab.costProfile||{});if(f&&cp&&cp.sacrificeSource&&ruleCantSacrifice(f.card)){toast(`[${f.card.name}] は生け贄にできません`);return;}return _ruleOpenStructuredAbilityCost(cardId,abilityId);};
+const _ruleAutoCommitStructuredAbility=autoCommitStructuredAbility;
+autoCommitStructuredAbility=function(c,ab,owner,cp,sel,pay){if(cp.sacrificeSource&&ruleCantSacrifice(c)){toast(`[${c.name}] は生け贄にできません`);return;}const bad=(sel.sac||[]).map(id=>findCard(id)).filter(f=>f&&ruleCantSacrifice(f.card));if(bad.length){toast(`生け贄にできないカードが含まれています: ${bad.map(f=>f.card.name).join("、")}`);return;}return _ruleAutoCommitStructuredAbility(c,ab,owner,cp,sel,pay);};
+
+/* ---------- コスト増減・特殊コスト ---------- */
+let _ruleCastingOwner=null,_ruleCostReductionOnce=0,_ruleExtraCostOnce="",_ruleSpecialPending={};
+function ruleStaticCostAdjustment(owner){let tax=0,red=0;for(const s of activeRuleSources()){if(s.controller===owner)red+=s.profile.staticRules.spellReduction||0;else tax+=s.profile.staticRules.spellTax||0;}return {tax,red};}
+const _ruleCostWithX=_costWithX;
+_costWithX=function(cost,x){let c=_ruleCostWithX(cost,x);if(!c)return c;const a=ruleStaticCostAdjustment(_ruleCastingOwner||state.turn.active),delta=a.tax-a.red-_ruleCostReductionOnce;c=Object.assign({},c);c.generic=Math.max(0,Number(c.generic||0)+delta);if(_ruleExtraCostOnce){const ex=parseManaCostText(_ruleExtraCostOnce);c.generic+=Number(ex.generic||0);for(const k of ["W","U","B","R","G","C"])c[k]=Number(c[k]||0)+Number(ex[k]||0);c.notes=[c.notes,`追加コスト ${_ruleExtraCostOnce}`].filter(Boolean).join(" / ");c.text="";}if(delta)c.notes=[c.notes,delta>0?`常在効果で不特定+${delta}`:`常在効果/特殊コストで不特定${delta}`].filter(Boolean).join(" / ");return c;};
+function ruleCostCandidates(card,owner,sp){const hand=(state.players[owner].hand||[]).filter(c=>c.id!==card.id),grave=state.players[owner].graveyard||[],field=[];for(const z of ["creatures","lands","others"])for(const c of (state.players[owner][z]||[]))field.push(c);if(sp.kind==="pitchExile")return hand.filter(c=>_cardRegColors(c).includes(sp.color));if(sp.kind==="convoke")return field.filter(c=>cardHasType(c,"Creature")&&!c.tapped);if(sp.kind==="improvise")return field.filter(c=>cardHasType(c,"Artifact")&&!c.tapped);if(sp.kind==="delve")return grave.slice();return [];}
+function ruleSpecialCostPrompt(card,owner,sp,done){sp=normalizeSpellCostProfile(sp);if(!sp.enabled){done({});return;}if(["pitchExile","convoke","delve","improvise"].includes(sp.kind)){const cand=ruleCostCandidates(card,owner,sp),need=sp.kind==="pitchExile"?1:sp.count;openModal(`特殊コスト — ${esc(card.name)}`,`<div class="note">${esc(RULE_SPECIAL_KIND_JP[sp.kind])}。必要 ${need}枚。選択したコストは実際にスタックへ置く時に支払われます。</div><div class="auto-cost-list">${cand.map(c=>`<label class="auto-cost-row"><input type="checkbox" data-rscard="${c.id}"><span>${esc(getCardDisplayInfo(c).name)}</span><span class="note">${esc(typeText(c,true))}${sp.kind==="pitchExile"?` / MV ${_cardRegManaValue(c)??"?"}`:""}</span></label>`).join("")||'<div class="oh-warn">候補がありません</div>'}</div>${sp.note?`<div class="note">${esc(sp.note)}</div>`:""}`,`<button class="btn" data-rs="normal">通常コスト</button><button class="btn primary" data-rs="use">選択した特殊コストを使う</button><button class="btn" data-app="closem">キャンセル</button>`,`lg`);setModalHandler(function(e){const b=e.target.closest("[data-rs]");if(!b)return;const mode=b.getAttribute("data-rs");if(mode==="normal"){closeModal();done({});return;}const ids=[...document.querySelectorAll("[data-rscard]:checked")].map(x=>x.getAttribute("data-rscard"));if(ids.length!==need){toast(`${need}枚選択してください`);return;}let red=sp.kind==="pitchExile"?999:ids.length;if(sp.kind==="pitchExile"&&sp.genericReduction)red=sp.genericReduction;const mv=sp.kind==="pitchExile"?_cardRegManaValue(findCard(ids[0]).card):0;closeModal();done({kind:sp.kind,ids,reduction:red,life:0,xValue:sp.useManaValueAsX&&mv!=null?mv:null,label:RULE_SPECIAL_KIND_JP[sp.kind]});});return;}
+  if(sp.kind==="phyrexian"){openModal(`特殊コスト — ${esc(card.name)}`,`<div class="note">${sp.lifePayment}点のライフを支払い、不特定${sp.genericReduction||1}を軽減する補助です。</div>`,`<button class="btn" data-rs="normal">マナで支払う</button><button class="btn primary" data-rs="life">ライフで支払う</button>`);setModalHandler(function(e){const b=e.target.closest("[data-rs]");if(!b)return;closeModal();done(b.getAttribute("data-rs")==="life"?{kind:"phyrexian",ids:[],reduction:sp.genericReduction||1,life:sp.lifePayment,label:"ファイレクシア"}:{});});return;}
+  if(sp.kind==="kicker"){openModal(`追加コスト — ${esc(card.name)}`,`<div class="note">キッカー／追加コスト ${esc(sp.extraCost||"（未登録）")} を支払いますか？</div>`,`<button class="btn" data-rs="normal">支払わない</button><button class="btn primary" data-rs="kicker">支払う</button>`);setModalHandler(function(e){const b=e.target.closest("[data-rs]");if(!b)return;closeModal();done(b.getAttribute("data-rs")==="kicker"?{kind:"kicker",ids:[],reduction:0,life:0,kicked:true,extraCost:sp.extraCost,label:"キッカー"}:{});});return;}
+  openModal(`特殊コスト — ${esc(card.name)}`,`<div class="note">${esc(RULE_SPECIAL_KIND_JP[sp.kind])}: ${esc(sp.alternativeCost||sp.note||"支払い方法を手動で確認してください")}</div>`,`<button class="btn" data-rs="normal">通常コスト</button><button class="btn primary" data-rs="manual">手動支払い済み</button>`);setModalHandler(function(e){const b=e.target.closest("[data-rs]");if(!b)return;closeModal();done(b.getAttribute("data-rs")==="manual"?{kind:sp.kind,ids:[],manual:true,label:RULE_SPECIAL_KIND_JP[sp.kind]}:{});});
+}
+const _rulePrepareAutoEffectCast=_prepareAutoEffectCast;
+_prepareAutoEffectCast=function(card,owner,pkg,cb){const sp=spellCostProfileOf(card);ruleSpecialCostPrompt(card,owner,sp,special=>{_ruleSpecialPending[card.id]=special||{};_rulePrepareAutoEffectCast(card,owner,pkg,(ctx,pay)=>{_ruleCostReductionOnce=Number(special&&special.reduction||0);_ruleExtraCostOnce=(special&&special.kicked&&special.extraCost)||"";_ruleCastingOwner=owner;ctx=Object.assign({},ctx||{},special&&special.xValue!=null?{xValue:special.xValue,xSource:"specialManaValue"}:{},special&&special.kind==="pitchExile"?{alternative:true,paymentLabel:special.label||"代替コスト"}:{},{specialCost:special||null});let finalPay=pay;if(special&&special.kind==="pitchExile")finalPay={status:"alternative",costText:special.label||"代替コスト",note:sp.note||"手札のカードを追放"};else if(special&&special.manual)finalPay={status:"manual",costText:special.label,note:sp.note};try{cb(ctx,finalPay);}finally{_ruleCostReductionOnce=0;_ruleExtraCostOnce="";_ruleCastingOwner=null;}});});};
+const _ruleMoveCardSpecial=moveCard;
+moveCard=function(id,destPlayer,destZone,pos,skipUndo){const f=findCard(id),old=f&&f.zone,c=f&&f.card,special=(old==="hand"&&destZone==="stack")?_ruleSpecialPending[id]:null;if(special&&c){const owner=c.owner;for(const sid of special.ids||[]){const sf=findCard(sid);if(!sf)continue;if(special.kind==="pitchExile"||special.kind==="delve")_ruleMoveCardSpecial(sid,owner,"exile",null,true);else if(special.kind==="convoke"||special.kind==="improvise")sf.card.tapped=true;}if(special.life)state.players[owner].life-=special.life;c.specialCostPaid=special;c.kicked=!!special.kicked;addLog(`${pname(owner)} は [${c.name}] の特殊コスト「${special.label||special.kind}」を支払った`);delete _ruleSpecialPending[id];}
+  return _ruleMoveCardSpecial(id,destPlayer,destZone,pos,skipUndo);};
+function ruleCastRestrictionNotes(owner){return activeRuleSources().map(s=>({source:s.card.name,note:s.profile.staticRules.castRestrictionNote})).filter(x=>x.note);}
+const _rulePlaceOnStackFlow=placeOnStackFlow;
+placeOnStackFlow=function(id,opts){opts=opts||{};const f=findCard(id),owner=f&&(f.player||f.card.owner),notes=owner?ruleCastRestrictionNotes(owner):[];if(notes.length&&!opts._ruleRestrictionChecked){openModal("唱える前の常在効果確認",`<div class="oh-warn">唱えることに関する登録済みの注意があります。</div>${notes.map(x=>`<div class="rule-dash-row"><b>${esc(x.source)}</b><span>${esc(x.note)}</span></div>`).join("")}`,`<button class="btn" data-app="closem">キャンセル</button><button class="btn primary" data-rule-cast-continue="1">確認して続ける</button>`,`lg`);setModalHandler(function(e){if(!e.target.closest("[data-rule-cast-continue]"))return;closeModal();_rulePlaceOnStackFlow(id,Object.assign({},opts,{_ruleRestrictionChecked:true}));});return;}return _rulePlaceOnStackFlow(id,opts);};
+function ruleHandLimitFor(p){const vals=activeRuleSources().filter(s=>s.controller===p&&s.profile.staticRules.handLimit!=="").map(s=>({value:Number(s.profile.staticRules.handLimit),source:s.card.name}));if(!vals.length)return {value:7,sources:[]};return {value:vals[vals.length-1].value,sources:vals};}
+const _ruleEndTurnUi=endTurn;
+endTurn=function(){const p=state.turn.active,h=state.players[p].hand.length,lim=ruleHandLimitFor(p);if(h>lim.value){openModal("手札上限の確認",`<div class="oh-warn">${esc(pname(p))} の手札は ${h}枚、登録上限は ${lim.value}枚です。</div><div class="note">必要なら先に手札操作から捨てるカードを処理してください。${lim.sources.length?`<br>参照: ${lim.sources.map(x=>esc(x.source)+"="+x.value).join(" / ")}`:""}</div>`,`<button class="btn" data-app="closem">戻る</button><button class="btn warn" data-rule-end-anyway="1">そのままターン終了</button>`);setModalHandler(function(e){if(!e.target.closest("[data-rule-end-anyway]"))return;closeModal();_ruleEndTurnUi();});return;}return _ruleEndTurnUi();};
+
+/* ---------- APNAP誘発順 ---------- */
+function ruleApplyApnapOrder(){_trgSyncPhase();const c=triggerCandidates(false),active=state.turn.active;_trgOrder=[...c.filter(x=>(x.card.controller||x.card.owner)===active),...c.filter(x=>(x.card.controller||x.card.owner)!==active)].map(x=>x.key);_trgOrderMode=true;toast(`APNAP順の候補を作成しました（手番 ${pname(active)} → 非手番）`);}
+function ruleStackAllTriggers(){const ordered=_trgOrderedCands(false).slice();if(!ordered.length){toast("誘発候補がありません");return;}closeModal();let n=0;for(const x of ordered){const interactive=!!x.ab.targetRequired||costProfileActive(x.ab.costProfile)||_abilityHasMana(x.ab);if(interactive){toast(`${n}件をスタックへ置きました。「${x.ab.name||"能力"}」は対象・コスト確認が必要です`);putAbilityOnStack(x.card.id,x.ab.id);return;}_trgAck[x.key]=true;putAbilityOnStack(x.card.id,x.ab.id);n++;}toast(`誘発候補${n}件を表示順でスタックへ置きました`);}
+const _ruleOpenTriggerHintList=openTriggerHintList;
+openTriggerHintList=function(){_ruleOpenTriggerHintList();setTimeout(()=>{const root=document.getElementById("modalRoot"),bar=root&&root.querySelector(".trg-orderbar");if(!bar)return;if(!bar.querySelector("[data-rule-apnap]")){const a=document.createElement("button");a.type="button";a.className="btn sm";a.dataset.ruleApnap="1";a.textContent="APNAP順";a.onclick=()=>{ruleApplyApnapOrder();openTriggerHintList();};bar.appendChild(a);const s=document.createElement("button");s.type="button";s.className="btn sm primary";s.dataset.ruleStackall="1";s.textContent="表示順でまとめてスタックへ";s.onclick=ruleStackAllTriggers;bar.appendChild(s);}},0);};
+
+/* ---------- 戦闘補助 ---------- */
+function ruleCombatSnapshot(){const life={A:state.players.A.life,B:state.players.B.life},damage={};forEachCard(c=>damage[c.id]=Number(c.damage||0));return {life,damage};}
+function ruleCombatCorrect(snap){for(const p of ["A","B"]){const diff=state.players[p].life-snap.life[p];if(diff>0&&ruleLifeGainBlocked(p).length){state.players[p].life=snap.life[p];addLog(`置換: ${pname(p)} の絆魂等によるライフ獲得を無効化`);}else if(diff<0){const q=rulePreventAmount(p,-diff);if(q.prevented){state.players[p].life+=q.prevented;addLog(`軽減: ${pname(p)} への戦闘ダメージを${q.prevented}点軽減`);}}}
+  forEachCard(c=>{const inc=Number(c.damage||0)-Number(snap.damage[c.id]||0);if(inc>0){const q=rulePreventAmount(c.controller||c.owner,inc);if(q.prevented){c.damage=Math.max(0,Number(c.damage||0)-q.prevented);addLog(`軽減: [${c.name}] への戦闘ダメージを${q.prevented}点軽減`);}}});}
+const _ruleCrwExecute=crwExecute;
+crwExecute=function(){const snap=ruleCombatSnapshot(),lethal=_crw&&_crw.lethalChecked?[..._crw.lethalChecked]:[];if(_crw&&_crw.lethalChecked){for(const id of lethal){const f=findCard(id);if(f&&ruleIsIndestructible(f.card))_crw.lethalChecked.delete(id);}}const r=_ruleCrwExecute();ruleCombatCorrect(snap);if(lethal.some(id=>{const f=findCard(id);return f&&ruleIsIndestructible(f.card);})){addLog("破壊不能のカードは自動墓地送りから除外しました");saveState(true);render();}return r;};
+
+/* ---------- ルール補助ダッシュボード ---------- */
+function ruleDashboardRows(){const rows=[];for(const s of activeRuleSources()){const txt=ruleStaticSummary(s.card);if(txt)rows.push(`<div class="rule-dash-row"><b>${esc(s.card.name)}</b><span>${esc(pname(s.controller))}</span><span>${esc(txt)}</span></div>`);}return rows.join("")||'<div class="note">戦場に登録済みの常在・置換ルールはありません。</div>';}
+function openRuleSuite(){const adj=ruleStaticCostAdjustment(state.turn.active);openModal("ルール補助",`<div class="note">登録情報から対象適正・置換・コスト・誘発順・戦闘を補助します。完全ルールエンジンではなく、例外時は手動判断を優先してください。</div><div class="rule-dash"><div class="pvrow"><b>現在の手番:</b> ${pname(state.turn.active)} ／ 呪文コスト増 ${adj.tax} ／ 軽減 ${adj.red}</div>${ruleDashboardRows()}</div><div class="menu-grid"><button class="btn" data-rulehub="triggers">誘発候補／APNAP</button><button class="btn" data-rulehub="sba">状況起因処理</button><button class="btn" data-rulehub="combat">戦闘解決</button><button class="btn" data-rulehub="automation">カード自動化設定</button><button class="btn" data-rulehub="dict">カード辞書</button></div>`,`<button class="btn" data-app="closem">閉じる</button>`,`lg`);setModalHandler(function(e){const b=e.target.closest("[data-rulehub]");if(!b)return;const v=b.getAttribute("data-rulehub");if(v==="triggers")openTriggerHintList();else if(v==="sba")openSbaWizard();else if(v==="combat")startCombatResolveWizard();else if(v==="automation")openAutomationHub();else openDictionary();});}
+function ruleInjectToolbar(){const a=document.querySelector('[data-app="automation"]');if(a&&!document.querySelector('[data-app="rulesuite"]')){const b=document.createElement("button");b.type="button";b.className=a.className;b.dataset.app="rulesuite";b.textContent="ルール補助";b.onclick=e=>{e.preventDefault();e.stopPropagation();openRuleSuite();};a.insertAdjacentElement("afterend",b);}}
+const _ruleRenderFinal=render;
+render=function(){const r=_ruleRenderFinal.apply(this,arguments);setTimeout(ruleInjectToolbar,0);return r;};
+document.addEventListener("click",function(e){const b=e.target.closest&&e.target.closest('[data-app="rulesuite"]');if(b){e.preventDefault();e.stopImmediatePropagation();openRuleSuite();}},true);
+
+/* 自己診断 */
+function ruleSuiteDiagnose(){let invalid=0,profiles=0,special=0;for(const e of Object.values(dictAll())){if(!e)continue;try{normalizeRuleProfile(e.ruleProfile||{});profiles++;}catch(_){invalid++;}try{const s=normalizeSpellCostProfile(e.spellCostProfile||{});if(s.enabled)special++;}catch(_){invalid++;}}return {invalid,profiles,special,active:activeRuleSources().length};}
 
 
 window.addEventListener("error",function(ev){ showErr(ev.message||"不明なエラー"); });
