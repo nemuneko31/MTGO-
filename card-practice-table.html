@@ -114,7 +114,12 @@
   .zresize{height:8px;margin-top:3px;border-radius:4px;background:rgba(255,255,255,.06);cursor:ns-resize;touch-action:none;flex:none}
   .zresize:hover,.zresize.on{background:rgba(224,168,60,.4)}
   .field.creatures{background:rgba(17,32,48,.6);border-color:var(--line2)}
-  .field.ohand{background:rgba(22,15,24,.6)}
+  .field.ohand{background:rgba(22,15,24,.6);position:relative;padding-bottom:13px}
+  .field.ohand.ohcustom{max-height:none;overflow:hidden}
+  .ohresize{position:absolute;left:6px;right:6px;bottom:2px;height:8px;border-radius:4px;background:rgba(255,255,255,.09);cursor:ns-resize;touch-action:none;z-index:6}
+  .ohresize::after{content:"";position:absolute;left:42%;right:42%;top:3px;border-top:2px solid rgba(255,255,255,.3)}
+  .ohresize:hover,.ohresize.on{background:rgba(224,168,60,.48)}
+
   .field-h{display:flex;align-items:center;justify-content:space-between;gap:6px;margin-bottom:4px}
   .field-h .lab{font-size:11px;color:var(--muted);font-weight:700;letter-spacing:.03em}
   .field-h .c{font-size:11px;color:var(--text);background:var(--panel);border:1px solid var(--line);
@@ -1185,6 +1190,7 @@
     justify-content:center;font-size:12px;font-weight:800;color:var(--text);letter-spacing:.04em;pointer-events:none}
   body[data-mobile-phone="1"] .field.resizable .zresize.on{background:rgba(224,168,60,.88);border-color:#ffd27a;color:#111}
   body[data-mobile-phone="1"] .hzresize::before{content:"";position:absolute;inset:-9px 0}
+  body[data-mobile-phone="1"] .ohresize::before{content:"";position:absolute;inset:-9px 0}
   body[data-mobile-phone="1"] .uifloat .ufr{width:32px;height:32px}
   body[data-mobile-phone="1"] .mhead .x{min-width:44px;min-height:44px}
   body[data-mobile-phone="1"] .mfoot .btn{min-height:44px}
@@ -2012,7 +2018,7 @@ function newPlayer(){
 function defaultState(){
   return {
     version:1,
-    appVersion:"2.3.3",
+    appVersion:"2.4.0",
     dataVersion:7,
     meta:{ lastSaved:null, lastBackup:null, lastDiag:null },
     integrityLog:[],
@@ -3005,10 +3011,10 @@ function opponentHandHTML(p){
   const arr=state.players[p].hand;
   if(state.settings.revealOpponentHand || soloBothHands()){
     const cards=arr.map(c=>cardHTML(c)).join("")||'<span class="empty">(手札なし)</span>';
-    return `<div class="field ohand"><div class="field-h"><span class="lab">相手の手札(公開${soloBothHands()?"・1人テスト":""})</span><span class="c">${arr.length}</span></div><div class="note" style="margin:-1px 0 5px;font-size:10px">相手の手札は専用サイズで表示します。「盤面サイズ」から相手手札だけ拡大・縮小できます。自分の手札サイズには連動しません。カード名はプレビューや詳細で確認できます。</div><div class="fieldcards">${cards}</div></div>`;
+    return `<div class="field ohand" id="opponentHandZone"><div class="field-h"><span class="lab">相手の手札(公開${soloBothHands()?"・1人テスト":""})</span><span class="c">${arr.length}</span></div><div class="note" style="margin:-1px 0 5px;font-size:10px">下端のバーを上下ドラッグして相手手札だけ拡大・縮小できます。カード名はプレビューや詳細で確認できます。</div><div class="fieldcards">${cards}</div><div class="ohresize" title="上下ドラッグで相手の手札サイズを調整"></div></div>`;
   }
   const backs=arr.map(()=>'<span class="cardback"></span>').join("")||'<span class="empty">(なし)</span>';
-  return `<div class="field ohand"><div class="field-h"><span class="lab">相手の手札(非公開)</span><span class="c">${arr.length}</span></div><div class="hiddenrow">${backs}</div></div>`;
+  return `<div class="field ohand" id="opponentHandZone"><div class="field-h"><span class="lab">相手の手札(非公開)</span><span class="c">${arr.length}</span></div><div class="hiddenrow">${backs}</div><div class="ohresize" title="上下ドラッグで相手の手札サイズを調整"></div></div>`;
 }
 
 // ===== スマホ横画面・タッチUI（端末ローカルのみ・state/Undo/同期に含めない） =====
@@ -3305,15 +3311,26 @@ function _handFit(){ try{
   hz.style.setProperty("--cfont",cf);
 }catch(_){} }
 function _opponentHandGet(){ boardLayout.opponentHand=boardLayout.opponentHand&&typeof boardLayout.opponentHand==="object"?boardLayout.opponentHand:{}; const h=boardLayout.opponentHand;
+  if(typeof h.h!=="number"||!isFinite(h.h)||h.h<0) h.h=null;
+  if(h.h!=null) h.h=Math.max(92,Math.min(h.h,Math.round((window.innerHeight||800)*0.5)));
   if(typeof h.scale!=="number"||!isFinite(h.scale)) h.scale=1;
   h.scale=Math.max(0.6,Math.min(h.scale,1.8)); return h; }
 function _opponentHandFit(){ try{
-  const o=_opponentHandGet();
-  const base=Math.max(72,Math.min(140,Math.round((window.innerHeight||800)*0.14)));
-  const ch=Math.max(56,Math.min(Math.round(base*o.scale),Math.round((window.innerHeight||800)*0.45)));
+  const zone=document.getElementById("opponentHandZone"); if(!zone) return;
+  const o=_opponentHandGet(), vh=window.innerHeight||800;
+  if(o.h!=null){ zone.style.height=o.h+"px"; zone.classList.add("ohcustom"); }
+  else { zone.style.height=""; zone.classList.remove("ohcustom"); }
+  const natural=Math.max(72,Math.min(140,Math.round(vh*0.14)));
+  let base=natural;
+  if(o.h!=null){
+    const head=zone.querySelector(".field-h"), note=zone.querySelector(".note");
+    const chrome=(head?head.getBoundingClientRect().height:20)+(note?note.getBoundingClientRect().height:0)+22;
+    base=Math.max(56,o.h-chrome);
+  }
+  const ch=Math.max(56,Math.min(Math.round(base*o.scale),o.h!=null?Math.round(base):Math.round(vh*0.45)));
   const cw=Math.round(ch*_CARD_AR);
-  document.body.style.setProperty("--opponent-hand-hch",ch+"px");
-  document.body.style.setProperty("--opponent-hand-hcw",cw+"px");
+  zone.style.setProperty("--opponent-hand-hch",ch+"px");
+  zone.style.setProperty("--opponent-hand-hcw",cw+"px");
 }catch(_){} }
 document.addEventListener("pointerdown",(e)=>{ const hd=e.target.closest&&e.target.closest(".hzresize"); if(!hd) return;
   e.preventDefault(); hd.classList.add("on");
@@ -3321,6 +3338,15 @@ document.addEventListener("pointerdown",(e)=>{ const hd=e.target.closest&&e.targ
   const startY=e.clientY, startH=hz.getBoundingClientRect().height;
   const mv=(e2)=>{ const nh=Math.max(72,Math.min(Math.round((window.innerHeight||800)*0.5),Math.round(startH+(startY-e2.clientY)))); // 上へドラッグ=拡大
     const h=_handGet(); h.h=nh; _handFit(); };
+  const up=()=>{ document.removeEventListener("pointermove",mv); document.removeEventListener("pointerup",up); hd.classList.remove("on"); _blSave(); };
+  document.addEventListener("pointermove",mv); document.addEventListener("pointerup",up);
+});
+document.addEventListener("pointerdown",(e)=>{ const hd=e.target.closest&&e.target.closest(".ohresize"); if(!hd) return;
+  e.preventDefault(); hd.classList.add("on");
+  const zone=document.getElementById("opponentHandZone"); if(!zone) return;
+  const startY=e.clientY, startH=zone.getBoundingClientRect().height;
+  const mv=(e2)=>{ const nh=Math.max(92,Math.min(Math.round((window.innerHeight||800)*0.5),Math.round(startH+(e2.clientY-startY)))); // 下へドラッグ=拡大
+    const h=_opponentHandGet(); h.h=nh; _opponentHandFit(); };
   const up=()=>{ document.removeEventListener("pointermove",mv); document.removeEventListener("pointerup",up); hd.classList.remove("on"); _blSave(); };
   document.addEventListener("pointermove",mv); document.addEventListener("pointerup",up);
 });
@@ -3413,7 +3439,7 @@ function openBoardLayout(){
         <button class="btn sm" data-bl="handpre" data-v="m">標準</button>
         <button class="btn sm" data-bl="handpre" data-v="l">大</button>
         <button class="btn sm" data-bl="rhand">自分の手札を初期化</button></div></div>
-    <div class="field"><span><b>相手の手札サイズ</b>（端末ローカル・自分の手札とは別設定）</span>
+    <div class="field"><span><b>相手の手札サイズ</b>（端末ローカル・相手手札ゾーン下端のバーと連動）</span>
       <div class="row-inline" style="gap:6px;flex-wrap:wrap;align-items:center">
         <input type="range" id="blOpponentHandScale" min="60" max="180" step="5" value="${Math.round(_opponentHandGet().scale*100)}" style="width:140px">
         <b id="blOpponentHandScaleV">${Math.round(_opponentHandGet().scale*100)}%</b>
@@ -3421,11 +3447,11 @@ function openBoardLayout(){
         <button class="btn sm" data-bl="ophandpre" data-v="m">標準</button>
         <button class="btn sm" data-bl="ophandpre" data-v="l">大</button>
         <button class="btn sm" data-bl="ropphand">相手の手札を初期化</button></div>
-      <div class="note">公開手札と非公開カード背面の両方に反映されます。1人テスト・オンライン表示のどちらでも共通です。</div></div>
+      <div class="note">相手手札ゾーン下端の細いバーを上下ドラッグして直接変更できます。下へドラッグで拡大、上へドラッグで縮小します。自分の手札サイズには影響しません。</div></div>
     <div class="field"><span>個別初期化</span>
       <div class="row-inline" style="gap:6px;flex-wrap:wrap">
         <button class="btn sm" data-bl="rzones">盤面ゾーンのみ初期化</button></div></div>
-    <div class="note">各ゾーン（土地/その他/クリーチャー）の高さは、ゾーン下端の細いバーを上下ドラッグ（スマホはスワイプ）で個別調整できます（A側/B側それぞれ・最低${_BL_MIN}px〜画面高70%）。これらの設定はこの端末にのみ保存され、オンライン同期・Undo・保存データには含まれません。</div>`,
+    <div class="note">各ゾーン（土地/その他/クリーチャー）と相手手札の高さは、ゾーン下端の細いバーを上下ドラッグ（スマホはスワイプ）で個別調整できます（A側/B側それぞれ・最低${_BL_MIN}px〜画面高70%）。これらの設定はこの端末にのみ保存され、オンライン同期・Undo・保存データには含まれません。</div>`,
     `<button class="btn" data-bl="reset">初期レイアウトに戻す</button><button class="btn primary" data-app="closem">閉じる</button>`);
   const mb=document.querySelector(".modal");
   mb.addEventListener("click",(ev)=>{ const b=ev.target.closest("[data-bl]"); if(!b) return;
@@ -3455,7 +3481,7 @@ function openBoardLayout(){
     else if(k==="rhand"){ boardLayout.hand={}; }
     else if(k==="ropphand"){ boardLayout.opponentHand={}; }
     else if(k==="handpre"){ const h=_handGet(); const v=b.dataset.v; if(v==="s"){h.h=88;h.scale=0.8;} else if(v==="l"){h.h=190;h.scale=1.3;} else {h.h=null;h.scale=1;} }
-    else if(k==="ophandpre"){ const h=_opponentHandGet(); const v=b.dataset.v; h.scale=v==="s"?0.8:(v==="l"?1.3:1); }
+    else if(k==="ophandpre"){ const h=_opponentHandGet(); const v=b.dataset.v; if(v==="s"){h.h=112;h.scale=0.8;} else if(v==="l"){h.h=230;h.scale=1.3;} else {h.h=null;h.scale=1;} }
     else if(k==="reset"){ _blReset(); }
     _blSave(); applyBoardLayout(); try{ _flSyncAll(); _opponentHandFit(); render(); }catch(_){} openBoardLayout();
   },{once:true});
@@ -11559,7 +11585,7 @@ function _libSearchBind(){
 /* ============================================================
    総合安定化: 自己診断 / バックアップ / プレイテスト / ヘルプ / バージョン
    ============================================================ */
-const APP_VERSION="2.3.0";
+const APP_VERSION="2.4.0";
 const DATA_VERSION=7;
 const LS_BACKUP_KEY="cpt_backups_v1";
 let _cptMigrationNote="";
@@ -11835,13 +11861,13 @@ const HELP_SECTIONS=[
   ["フェーズ / 優先権 / スタック / 対象", [
     "N / B: 次/前フェーズ、Space: 優先権パス",
     "S / G / E / H: 選択カードを スタック/墓地/追放/手札 へ",
-    "対象指定はカードメニューや対象一覧パネルから。対象線で可視化。",
+    "対象を取る呪文は、ダブルクリック/▶/カードメニューのどの経路でも、唱え方とXを決めた後・支払いの前に対象選択へ入ります。対象線で可視化。",
     "スタックは『連続解決』ウィザードで上から順に解決。"]],
   ["ルール補助（対象・置換・コスト・誘発）", [
     "ツールバーの『ルール補助』から、現在戦場にある登録済み常在効果とコスト増減を確認できます。",
     "カード辞書の『ルール補助』タブで、呪禁/被覆/護法/色プロテクション/破壊不能/生け贄不可を登録できます。",
     "墓地→追放、ライフ獲得不可、ダメージ軽減、タップイン、カウンター付きで出る、手札上限などは確認付きの補助処理です。",
-    "特殊コストはピッチ/召集/探査/即席/ファイレクシア/混成(手動)/キッカーを登録できます。完全な公式ルールエンジンではないため、例外時は手動処理を優先してください。",
+    "特殊コストはピッチ/召集/探査/即席/親和/献身/現出/ファイレクシア補助/混成/キッカー/協約/犠牲/共謀/カスタム代替コストを登録できます。複数の代替コストや複雑な例外は手動処理を優先してください。",
     "誘発候補ではAPNAP順の候補作成と、対象・支払い不要の誘発をまとめてスタックへ置けます。"]],
   ["戦闘", [
     "攻撃指定→ブロック指定→戦闘解決ウィザードでダメージ処理→戦闘終了→Cleanup。",
@@ -11879,14 +11905,14 @@ const HELP_SECTIONS=[
     "土地は即・土地エリアへ。stackFirst（既定）では土地以外の登録済みカードはスタックへ置きます。",
     "simpleBattlefield では旧挙動に近く、クリーチャーはクリーチャー欄、Artifact等はその他、Instant/Sorceryはスタックへ。",
     "menu では従来の操作メニューを出します。未登録/Unknownは手動の選択メニューになります。",
-    "複数面カードは現在面のtypeで判定し、スタックへ置く時は面選択が出ます。マナ支払いはまだ自動処理しません。",
+    "複数面カードは現在面のtypeで判定し、スタックへ置く時は面選択が出ます。対象・特殊コスト・マナ支払いも通常の唱えるフローへ接続されます。",
     "土地即置き・スタック配置・戦場配置・面選択込みの移動はUndo/Redo可能です。"]],
   ["マナコストと支払い確認", [
     "manaCostは辞書に手動登録します。公式マナシンボルは使わず、1R / UU / XG / 0 のように入力します。",
-    "スタックへ置く時に必要マナ（例:1R、内訳 無色1/赤1）を表示できます。マナプールや自動消費はまだ未実装です。",
-    "支払いは『支払って唱える/支払わずに唱える/手動支払い済み/後で処理』から選べます（手動記録のみ）。",
+    "唱える手順は、唱え方/追加コスト/X → 対象 → コスト増減 → 支払い → スタック確定の順です。必要マナ（例:1R、内訳 無色1/赤1）を表示し、登録済みマナプールからの消費にも対応します。",
+    "支払いは『支払って唱える/支払わずに唱える/手動支払い済み/後で処理』から選べます。『支払って唱える』では登録済みマナプールを消費します。",
     "無料キャストや代替コストと競合しないよう、支払いは強制しません。manaCost未登録は既定で確認なしです。",
-    "複数面カードは面選択→選択面のコスト→支払い確認の順。スタック上で支払い状態を後から変更できます。",
+    "複数面カードは面選択→唱え方/X→対象→選択面のコスト→支払い確認の順。スタック上で支払い状態を後から変更できます。",
     "支払い確認込みのスタック配置・支払い状態変更はUndo/Redo可能です。"]],
   ["マナ自動消費補助", [
     "「支払って唱える」を選んだ時だけ、manaCostに応じて manaPool からマナを減らします（確認モーダル経由）。",
@@ -15550,8 +15576,8 @@ function openAutoManaAdvisor(){const p=state.turn.active;openManaPanel(p);}
 const RULE_SUITE_VERSION="2.1.0";
 const RULE_SCOPES=["controller","opponent","both"];
 const RULE_SCOPE_JP={controller:"自分",opponent:"相手",both:"両方"};
-const RULE_SPECIAL_KINDS=["none","pitchExile","convoke","delve","improvise","phyrexian","hybrid","kicker"];
-const RULE_SPECIAL_KIND_JP={none:"なし",pitchExile:"手札を追放する代替コスト（ピッチ）",convoke:"召集（クリーチャーをタップ）",delve:"探査（墓地を追放）",improvise:"即席（アーティファクトをタップ）",phyrexian:"ファイレクシア・マナ補助",hybrid:"混成マナ（手動選択）",kicker:"キッカー／追加コスト"};
+const RULE_SPECIAL_KINDS=["none","pitchExile","convoke","delve","improvise","affinity","offering","emerge","phyrexian","hybrid","kicker","bargain","casualty","conspire","customAlternative"];
+const RULE_SPECIAL_KIND_JP={none:"なし",pitchExile:"手札を追放する代替コスト（ピッチ）",convoke:"召集（クリーチャーをタップ）",delve:"探査（墓地を追放）",improvise:"即席（アーティファクトをタップ）",affinity:"親和（該当パーマネント数で軽減）",offering:"献身（パーマネントを生け贄＋コスト軽減）",emerge:"現出（代替コスト＋生け贄＋MV軽減）",phyrexian:"ファイレクシア・マナ補助",hybrid:"混成マナ（手動選択）",kicker:"キッカー／追加コスト",bargain:"協約（アーティファクト／エンチャント／トークンを生け贄）",casualty:"犠牲（指定パワー以上のクリーチャーを生け贄）",conspire:"共謀（共通色のクリーチャー2体をタップ）",customAlternative:"カスタム代替コスト"};
 function _ruleNum(v,d){const n=Number(v);return Number.isFinite(n)?n:(d||0);}
 function normalizeRuleProfile(o){
   o=o||{};const k=o.keywords||{},r=o.replacements||{},s=o.staticRules||{};
@@ -15571,7 +15597,7 @@ function normalizeRuleProfile(o){
 }
 function normalizeSpellCostProfile(o){
   o=o||{};const kind=RULE_SPECIAL_KINDS.includes(o.kind)?o.kind:"none";
-  return {enabled:!!o.enabled&&kind!=="none",kind,color:["W","U","B","R","G","C"].includes(o.color)?o.color:"R",count:Math.max(1,Math.trunc(_ruleNum(o.count,1))),genericReduction:Math.max(0,Math.trunc(_ruleNum(o.genericReduction,0))),lifePayment:Math.max(0,Math.trunc(_ruleNum(o.lifePayment,2))),extraCost:String(o.extraCost||"").trim(),alternativeCost:String(o.alternativeCost||"").trim(),useManaValueAsX:!!o.useManaValueAsX,note:String(o.note||"")};
+  return {enabled:!!o.enabled&&kind!=="none",kind,color:["W","U","B","R","G","C"].includes(o.color)?o.color:"R",count:Math.max(1,Math.trunc(_ruleNum(o.count,1))),flexibleCount:o.flexibleCount!==false,genericReduction:Math.max(0,Math.trunc(_ruleNum(o.genericReduction,0))),lifePayment:(o.lifePayment==null||o.lifePayment==="")?(kind==="phyrexian"?2:0):Math.max(0,Math.trunc(_ruleNum(o.lifePayment,0))),extraCost:String(o.extraCost||"").trim(),alternativeCost:String(o.alternativeCost||"").trim(),alternativeManaCost:String(o.alternativeManaCost||"").trim(),candidateTypes:dedupArr(Array.isArray(o.candidateTypes)?o.candidateTypes:String(o.candidateTypes||"").split(/[|,／\s]+/)),powerThreshold:Math.max(0,Math.trunc(_ruleNum(o.powerThreshold,0))),useManaValueAsX:!!o.useManaValueAsX,note:String(o.note||"")};
 }
 function ruleProfileOf(c){const e=c&&c.name&&dictGet(c.name);return normalizeRuleProfile((c&&c.ruleProfile)||(e&&e.ruleProfile)||{});}
 function spellCostProfileOf(c){const e=c&&c.name&&dictGet(c.name);return normalizeSpellCostProfile((c&&c.spellCostProfile)||(e&&e.spellCostProfile)||{});}
@@ -15618,10 +15644,10 @@ function applyRuleRegistrationPreset(id){const pr=RULE_REG_PRESETS[id];if(!pr)re
 function ruleScopeOptions(v){return RULE_SCOPES.map(x=>`<option value="${x}"${v===x?" selected":""}>${RULE_SCOPE_JP[x]}</option>`).join("");}
 function dictRuleProfileSectionHTML(e){const p=normalizeRuleProfile(e&&e.ruleProfile||{}),sp=normalizeSpellCostProfile(e&&e.spellCostProfile||{});return `<div class="dict-section-card" id="deRuleProfile"><div class="dict-section-title">対象耐性・常在能力</div><div class="note">対象候補の絞り込みや、よくある置換を補助します。例外時は警告を無視して手動処理できます。</div><div class="rule-grid"><label><input type="checkbox" id="deRuleHex"${p.keywords.hexproof?" checked":""}> 呪禁</label><label><input type="checkbox" id="deRuleShroud"${p.keywords.shroud?" checked":""}> 被覆</label><label><input type="checkbox" id="deRuleInd"${p.keywords.indestructible?" checked":""}> 破壊不能</label><label><input type="checkbox" id="deRuleCantSac"${p.keywords.cantSacrifice?" checked":""}> 生け贄にできない</label></div><div class="grid2"><label class="field">護法コスト<input id="deRuleWard" value="${esc(p.keywords.wardCost)}" placeholder="例: 2 / 1U / 3点のライフ"></label><div class="field">プロテクション（色）<div class="ckrow">${["W","U","B","R","G","C"].map(c=>`<label class="ckbadge c-${c}"><input type="checkbox" class="deRuleProt" value="${c}"${p.keywords.protectionColors.includes(c)?" checked":""}>${c}</label>`).join("")}</div></div></div></div>
   <div class="dict-section-card"><div class="dict-section-title">置換・常在ルール</div><div class="rule-row"><label><input type="checkbox" id="deRuleG2E"${p.replacements.graveToExile.enabled?" checked":""}> 墓地へ行く代わりに追放</label><select id="deRuleG2EScope">${ruleScopeOptions(p.replacements.graveToExile.scope)}</select></div><div class="rule-row"><label><input type="checkbox" id="deRuleNoGain"${p.replacements.cantGainLife.enabled?" checked":""}> ライフを得られない</label><select id="deRuleNoGainScope">${ruleScopeOptions(p.replacements.cantGainLife.scope)}</select></div><div class="rule-row"><label><input type="checkbox" id="deRulePrevent"${p.replacements.preventDamage.enabled?" checked":""}> ダメージ軽減</label><select id="deRulePreventScope">${ruleScopeOptions(p.replacements.preventDamage.scope)}</select><input id="deRulePreventN" type="number" min="0" value="${p.replacements.preventDamage.amount}" style="width:75px"><label><input type="checkbox" id="deRulePreventAll"${p.replacements.preventDamage.all?" checked":""}>すべて</label></div><div class="rule-row"><label><input type="checkbox" id="deRuleETap"${p.replacements.enterTapped.enabled?" checked":""}> パーマネントはタップ状態で出る</label><select id="deRuleETapScope">${ruleScopeOptions(p.replacements.enterTapped.scope)}</select></div><div class="rule-row"><label><input type="checkbox" id="deRuleECounter"${p.replacements.enterCounters.enabled?" checked":""}> カウンターを置いて出る</label><select id="deRuleECounterScope">${ruleScopeOptions(p.replacements.enterCounters.scope)}</select><input id="deRuleECounterName" value="${esc(p.replacements.enterCounters.name)}" style="width:120px"><input id="deRuleECounterN" type="number" min="0" value="${p.replacements.enterCounters.amount}" style="width:65px"></div><div class="grid2"><label class="field">相手の呪文コスト増加（不特定）<input id="deRuleTax" type="number" min="0" value="${p.staticRules.spellTax}"></label><label class="field">自分の呪文コスト軽減（不特定）<input id="deRuleReduce" type="number" min="0" value="${p.staticRules.spellReduction}"></label><label class="field">手札上限（空欄=通常）<input id="deRuleHandLimit" type="number" min="0" value="${p.staticRules.handLimit}"></label><label class="field">唱え方の制限メモ<input id="deRuleCastNote" value="${esc(p.staticRules.castRestrictionNote)}" placeholder="例: 各ターン1つまで"></label></div><label class="field">補足メモ<input id="deRuleNote" value="${esc(p.note)}"></label></div>
-  <div class="dict-section-card"><div class="dict-section-title">特殊コスト・追加コスト</div><label><input type="checkbox" id="deSCEnabled"${sp.enabled?" checked":""}> 特殊コスト補助を使う</label><div class="grid2"><label class="field">方式<select id="deSCKind">${RULE_SPECIAL_KINDS.map(x=>`<option value="${x}"${sp.kind===x?" selected":""}>${RULE_SPECIAL_KIND_JP[x]}</option>`).join("")}</select></label><label class="field">参照色<select id="deSCColor">${["W","U","B","R","G","C"].map(x=>`<option value="${x}"${sp.color===x?" selected":""}>${x}</option>`).join("")}</select></label><label class="field">使用枚数／体数<input id="deSCCount" type="number" min="1" value="${sp.count}"></label><label class="field">不特定軽減量<input id="deSCReduce" type="number" min="0" value="${sp.genericReduction}"></label><label class="field">ライフ支払い<input id="deSCLife" type="number" min="0" value="${sp.lifePayment}"></label><label class="field">追加コスト<input id="deSCExtra" value="${esc(sp.extraCost)}" placeholder="例: 1R"></label><label class="field">代替コスト表示<input id="deSCAlt" value="${esc(sp.alternativeCost)}" placeholder="例: 手札の青いカードを追放"></label><label><input type="checkbox" id="deSCMvX"${sp.useManaValueAsX?" checked":""}> 追放カードのMVをXにする</label></div><label class="field">特殊コストメモ<input id="deSCNote" value="${esc(sp.note)}"></label></div>`;}
+  <div class="dict-section-card"><div class="dict-section-title">特殊コスト・追加コスト</div><label><input type="checkbox" id="deSCEnabled"${sp.enabled?" checked":""}> 特殊コスト補助を使う</label><div class="grid2"><label class="field">方式<select id="deSCKind">${RULE_SPECIAL_KINDS.map(x=>`<option value="${x}"${sp.kind===x?" selected":""}>${RULE_SPECIAL_KIND_JP[x]}</option>`).join("")}</select></label><label class="field">参照色<select id="deSCColor">${["W","U","B","R","G","C"].map(x=>`<option value="${x}"${sp.color===x?" selected":""}>${x}</option>`).join("")}</select></label><label class="field">最大使用枚数／体数<input id="deSCCount" type="number" min="1" value="${sp.count}"></label><label><input type="checkbox" id="deSCFlexible"${sp.flexibleCount?" checked":""}> 0〜上限まで任意数を選べる</label><label class="field">1件あたり／固定の不特定軽減<input id="deSCReduce" type="number" min="0" value="${sp.genericReduction}"></label><label class="field">ライフ支払い<input id="deSCLife" type="number" min="0" value="${sp.lifePayment}"></label><label class="field">追加コスト<input id="deSCExtra" value="${esc(sp.extraCost)}" placeholder="例: 1R"></label><label class="field">代替マナコスト<input id="deSCAltMana" value="${esc(sp.alternativeManaCost)}" placeholder="例: 3U / 0"></label><label class="field">代替コスト表示<input id="deSCAlt" value="${esc(sp.alternativeCost)}" placeholder="例: 青いカード1枚を追放"></label><label class="field">候補タイプ（|区切り）<input id="deSCTypes" value="${esc(sp.candidateTypes.join("|"))}" placeholder="例: Creature|Artifact"></label><label class="field">必要パワー（犠牲など）<input id="deSCPower" type="number" min="0" value="${sp.powerThreshold}"></label><label><input type="checkbox" id="deSCMvX"${sp.useManaValueAsX?" checked":""}> 選択カードのMVをXにする</label></div><div class="note" style="font-size:10px">召集・探査・即席は必要な範囲で任意数を選択できます。現出・献身・親和・協約・犠牲・共謀・カスタム代替コストも登録できます。複数の代替コストを同時には使えません。</div><label class="field">特殊コストメモ<input id="deSCNote" value="${esc(sp.note)}"></label></div>`;}
 function _ruleEl(id){return document.getElementById(id);}
 function dictRuleProfileRead(){const ck=id=>!!(_ruleEl(id)&&_ruleEl(id).checked),v=id=>(_ruleEl(id)?_ruleEl(id).value:"");return normalizeRuleProfile({keywords:{hexproof:ck("deRuleHex"),shroud:ck("deRuleShroud"),indestructible:ck("deRuleInd"),cantSacrifice:ck("deRuleCantSac"),wardCost:v("deRuleWard"),protectionColors:[...document.querySelectorAll(".deRuleProt:checked")].map(x=>x.value)},replacements:{graveToExile:{enabled:ck("deRuleG2E"),scope:v("deRuleG2EScope")},cantGainLife:{enabled:ck("deRuleNoGain"),scope:v("deRuleNoGainScope")},preventDamage:{enabled:ck("deRulePrevent"),scope:v("deRulePreventScope"),amount:v("deRulePreventN"),all:ck("deRulePreventAll")},enterTapped:{enabled:ck("deRuleETap"),scope:v("deRuleETapScope")},enterCounters:{enabled:ck("deRuleECounter"),scope:v("deRuleECounterScope"),name:v("deRuleECounterName"),amount:v("deRuleECounterN")}},staticRules:{spellTax:v("deRuleTax"),spellReduction:v("deRuleReduce"),handLimit:v("deRuleHandLimit"),castRestrictionNote:v("deRuleCastNote")},note:v("deRuleNote")});}
-function dictSpellCostRead(){const ck=id=>!!(_ruleEl(id)&&_ruleEl(id).checked),v=id=>(_ruleEl(id)?_ruleEl(id).value:"");return normalizeSpellCostProfile({enabled:ck("deSCEnabled"),kind:v("deSCKind"),color:v("deSCColor"),count:v("deSCCount"),genericReduction:v("deSCReduce"),lifePayment:v("deSCLife"),extraCost:v("deSCExtra"),alternativeCost:v("deSCAlt"),useManaValueAsX:ck("deSCMvX"),note:v("deSCNote")});}
+function dictSpellCostRead(){const ck=id=>!!(_ruleEl(id)&&_ruleEl(id).checked),v=id=>(_ruleEl(id)?_ruleEl(id).value:"");return normalizeSpellCostProfile({enabled:ck("deSCEnabled"),kind:v("deSCKind"),color:v("deSCColor"),count:v("deSCCount"),flexibleCount:ck("deSCFlexible"),genericReduction:v("deSCReduce"),lifePayment:v("deSCLife"),extraCost:v("deSCExtra"),alternativeManaCost:v("deSCAltMana"),alternativeCost:v("deSCAlt"),candidateTypes:v("deSCTypes"),powerThreshold:v("deSCPower"),useManaValueAsX:ck("deSCMvX"),note:v("deSCNote")});}
 const _ruleDictEditorBodyHTML=dictEditorBodyHTML;
 dictEditorBodyHTML=function(e,ex,zones){let h=_ruleDictEditorBodyHTML(e,ex,zones);h=h.replace('<button type="button" data-detab="special">特殊形式</button>','<button type="button" data-detab="rules">ルール補助</button><button type="button" data-detab="special">特殊形式</button>');h=h.replace('<div class="dict-editor-panel active" data-depanel="basic">','<div class="dict-editor-panel active" data-depanel="basic">'+rulePresetBarHTML(e));h=h.replace('<div class="dict-editor-panel" data-depanel="special">','<div class="dict-editor-panel" data-depanel="rules">'+dictRuleProfileSectionHTML(e)+'</div><div class="dict-editor-panel" data-depanel="special">');return h;};
 const _ruleDictEditorUiBind=dictEditorUiBind;
@@ -15691,7 +15717,7 @@ function ruleSpecialCostPrompt(card,owner,sp,done){sp=normalizeSpellCostProfile(
 const _rulePrepareAutoEffectCast=_prepareAutoEffectCast;
 _prepareAutoEffectCast=function(card,owner,pkg,cb){const sp=spellCostProfileOf(card);ruleSpecialCostPrompt(card,owner,sp,special=>{_ruleSpecialPending[card.id]=special||{};_rulePrepareAutoEffectCast(card,owner,pkg,(ctx,pay)=>{_ruleCostReductionOnce=Number(special&&special.reduction||0);_ruleExtraCostOnce=(special&&special.kicked&&special.extraCost)||"";_ruleCastingOwner=owner;ctx=Object.assign({},ctx||{},special&&special.xValue!=null?{xValue:special.xValue,xSource:"specialManaValue"}:{},special&&special.kind==="pitchExile"?{alternative:true,paymentLabel:special.label||"代替コスト"}:{},{specialCost:special||null});let finalPay=pay;if(special&&special.kind==="pitchExile")finalPay={status:"alternative",costText:special.label||"代替コスト",note:sp.note||"手札のカードを追放"};else if(special&&special.manual)finalPay={status:"manual",costText:special.label,note:sp.note};try{cb(ctx,finalPay);}finally{_ruleCostReductionOnce=0;_ruleExtraCostOnce="";_ruleCastingOwner=null;}});});};
 const _ruleMoveCardSpecial=moveCard;
-moveCard=function(id,destPlayer,destZone,pos,skipUndo){const f=findCard(id),old=f&&f.zone,c=f&&f.card,special=(old==="hand"&&destZone==="stack")?_ruleSpecialPending[id]:null;if(special&&c){const owner=c.owner;for(const sid of special.ids||[]){const sf=findCard(sid);if(!sf)continue;if(special.kind==="pitchExile"||special.kind==="delve")_ruleMoveCardSpecial(sid,owner,"exile",null,true);else if(special.kind==="convoke"||special.kind==="improvise")sf.card.tapped=true;}if(special.life)state.players[owner].life-=special.life;c.specialCostPaid=special;c.kicked=!!special.kicked;addLog(`${pname(owner)} は [${c.name}] の特殊コスト「${special.label||special.kind}」を支払った`);delete _ruleSpecialPending[id];}
+moveCard=function(id,destPlayer,destZone,pos,skipUndo){const f=findCard(id),old=f&&f.zone,c=f&&f.card,special=(old==="hand"&&destZone==="stack")?_ruleSpecialPending[id]:null;if(special&&c){const owner=c.owner;for(const sid of special.ids||[]){const sf=findCard(sid);if(!sf)continue;if(special.kind==="pitchExile"||special.kind==="delve")_ruleMoveCardSpecial(sid,owner,"exile",null,true);else if(["convoke","improvise","conspire"].includes(special.kind))sf.card.tapped=true;else if(["offering","emerge","bargain","casualty"].includes(special.kind))_ruleMoveCardSpecial(sid,sf.card.owner,"graveyard",null,true);}if(special.life)state.players[owner].life-=special.life;c.specialCostPaid=special;c.kicked=!!special.kicked;c.bargained=!!special.bargained;c.casualtyPaid=!!special.casualtyPaid;c.conspired=!!special.conspired;c.offeringPaid=!!special.offeringPaid;c.emergePaid=!!special.emergePaid;addLog(`${pname(owner)} は [${c.name}] の特殊コスト「${special.label||special.kind}」を支払った`);delete _ruleSpecialPending[id];}
   return _ruleMoveCardSpecial(id,destPlayer,destZone,pos,skipUndo);};
 function ruleCastRestrictionNotes(owner){return activeRuleSources().map(s=>({source:s.card.name,note:s.profile.staticRules.castRestrictionNote})).filter(x=>x.note);}
 const _rulePlaceOnStackFlow=placeOnStackFlow;
@@ -16004,6 +16030,101 @@ let _phaseEntryAutoTimer=null;
 function scheduleAutomaticStepEntry(){clearTimeout(_phaseEntryAutoTimer);_phaseEntryAutoTimer=setTimeout(()=>{try{if(typeof topLayerOpen==="function"&&topLayerOpen())return;const t=state.turn||{},cfg=(state.settings&&state.settings.safeAutomation)||{};if(cfg.paused===true)return;if(t.phase===0&&cfg.autoUntapStep!==false&&(state.settings||{}).untapStepAutoEnabled!==false&&!untapStepHandled(t.active))handleUntapStepEntry(false);else if(t.phase===2&&cfg.autoDrawStep!==false&&(state.settings||{}).drawStepAutoDrawEnabled!==false&&!drawStepHandled(t.active))handleDrawStepEntry(false);}catch(e){console.error(e);if(typeof saPause==="function")saPause("error",`ステップ自動処理エラー: ${e.message||e}`);}},0);}
 const _phaseEntryRenderBase=render;
 render=function(){const r=_phaseEntryRenderBase.apply(this,arguments);scheduleAutomaticStepEntry();return r;};
+
+
+/* ============================================================
+   v2.4.0 Casting Workflow / Expanded Cost Suite
+   - 唱える手順を「方式/X → 対象 → 総コスト → 支払い → スタック確定」に統一
+   - 召集/探査/即席の任意数支払い、親和/献身/現出/協約/犠牲/共謀/カスタム代替
+   ============================================================ */
+const CAST_WORKFLOW_VERSION="2.4.0";
+let _v24SpecialContext=null;
+function v24EmptyManaVector(){return {generic:0,W:0,U:0,B:0,R:0,G:0,C:0};}
+function v24ManaVectorFromCard(c){const mc=getCardManaCost(c),o=v24EmptyManaVector();if(!mc)return o;o.generic=Number(mc.generic||0);for(const k of ["W","U","B","R","G","C"])o[k]=Number(mc[k]||0);return o;}
+function v24ApplyManaReduction(cost,red){if(!cost||!red)return cost;const c=Object.assign({},cost);c.text="";for(const k of ["W","U","B","R","G","C"]){const n=Math.max(0,Number(red[k]||0));c[k]=Math.max(0,Number(c[k]||0)-n);}c.generic=Math.max(0,Number(c.generic||0)-Math.max(0,Number(red.generic||0)));c.notes=[c.notes,red.note||"特殊コストによる軽減"].filter(Boolean).join(" / ");c.text=manaCostToText(c);return c;}
+const _v24CostWithXBase=_costWithX;
+_costWithX=function(cost,x){const sp=_v24SpecialContext;let base=cost;if(sp&&sp.alternativeManaCost){base=parseManaCostText(sp.alternativeManaCost);base.notes=[base.notes,`代替マナコスト ${sp.alternativeManaCost}`].filter(Boolean).join(" / ");}let c=_v24CostWithXBase(base,x);if(c&&sp&&sp.reduceMana)c=v24ApplyManaReduction(c,sp.reduceMana);if(c){c.text="";c.text=manaCostToText(c);}return c;};
+const _v24PrepareCastBase=_prepareAutoEffectCast;
+_prepareAutoEffectCast=function(card,owner,pkg,cb){return _v24PrepareCastBase(card,owner,pkg,(ctx,pay)=>{_v24SpecialContext=ctx&&ctx.specialCost||null;try{return cb(ctx,pay);}finally{_v24SpecialContext=null;}});};
+function v24Battlefield(owner){const a=[];for(const z of ["creatures","lands","others"])for(const c of state.players[owner][z]||[])a.push(c);return a;}
+function v24TypeMatch(c,types){return !types.length||types.some(t=>cardHasType(c,t)||(t==="Token"&&c.isToken));}
+function v24CostCandidates(card,owner,sp){const hand=(state.players[owner].hand||[]).filter(c=>c.id!==card.id),grave=state.players[owner].graveyard||[],field=v24Battlefield(owner),types=sp.candidateTypes||[];
+  if(sp.kind==="pitchExile")return hand.filter(c=>_cardRegColors(c).includes(sp.color));
+  if(sp.kind==="convoke")return field.filter(c=>cardHasType(c,"Creature")&&!c.tapped&&v24TypeMatch(c,types));
+  if(sp.kind==="improvise")return field.filter(c=>cardHasType(c,"Artifact")&&!c.tapped&&v24TypeMatch(c,types));
+  if(sp.kind==="delve")return grave.filter(c=>v24TypeMatch(c,types));
+  if(sp.kind==="offering")return field.filter(c=>v24TypeMatch(c,types.length?types:["Creature"]));
+  if(sp.kind==="emerge")return field.filter(c=>cardHasType(c,"Creature")&&v24TypeMatch(c,types));
+  if(sp.kind==="bargain")return field.filter(c=>c.isToken||cardHasType(c,"Artifact")||cardHasType(c,"Enchantment"));
+  if(sp.kind==="casualty")return field.filter(c=>cardHasType(c,"Creature")&&Number(effPow(c)||0)>=sp.powerThreshold);
+  if(sp.kind==="conspire"){const cols=_cardRegColors(card);return field.filter(c=>cardHasType(c,"Creature")&&!c.tapped&&_cardRegColors(c).some(x=>cols.includes(x)));}
+  if(sp.kind==="affinity")return field.filter(c=>v24TypeMatch(c,types.length?types:["Artifact"]));
+  return [];
+}
+function v24CostRow(c,sp){const mv=_cardRegManaValue(c),colors=_cardRegColors(c),kind=sp.kind;let extra=mv!=null?` / MV ${mv}`:"";if(kind==="casualty")extra+=` / P ${effPow(c)}`;let select="";if(kind==="convoke"){const opts=[`<option value="generic">不特定1</option>`].concat(colors.map(x=>`<option value="${x}">${x} 1点</option>`));select=`<select data-rscontrib="${c.id}" style="width:auto;padding:4px">${opts.join("")}</select>`;}return `<label class="auto-cost-row"><input type="checkbox" data-rscard="${c.id}"><span>${esc(getCardDisplayInfo(c).name)}</span><span class="note">${esc(typeText(c,true))}${extra}</span>${select}</label>`;}
+function v24SpecialChoice(card,owner,sp,done){sp=normalizeSpellCostProfile(sp);if(!sp.enabled){done({});return;}const normal=()=>done({}),label=RULE_SPECIAL_KIND_JP[sp.kind]||sp.kind;
+  if(["pitchExile","convoke","delve","improvise","offering","emerge","bargain","casualty","conspire"].includes(sp.kind)){
+    const cand=v24CostCandidates(card,owner,sp),fixed=sp.kind==="pitchExile"||["offering","emerge","bargain","casualty"].includes(sp.kind)?1:(sp.kind==="conspire"?2:sp.count),min=sp.flexibleCount&&["convoke","delve","improvise"].includes(sp.kind)?0:fixed,max=sp.flexibleCount&&["convoke","delve","improvise"].includes(sp.kind)?(sp.count>1?Math.min(sp.count,cand.length):cand.length):fixed;
+    openModal(`特殊コスト — ${esc(card.name)}`,`<div class="note"><b>${esc(label)}</b>。${min===max?`${min}枚／体を選択`:`0〜${max}枚／体を選択`}。対象の選択より前に唱え方を決めます。</div><div class="auto-cost-list">${cand.map(c=>v24CostRow(c,sp)).join("")||'<div class="oh-warn">条件を満たす候補がありません</div>'}</div>${sp.alternativeManaCost?`<div class="note">代替マナコスト: <b>${esc(sp.alternativeManaCost)}</b></div>`:""}${sp.note?`<div class="note">${esc(sp.note)}</div>`:""}`,`<button class="btn" data-rs="normal">通常コスト</button><button class="btn primary" data-rs="use">選択した方式を使う</button><button class="btn" data-app="closem">キャンセル</button>`,`lg`);
+    setModalHandler(function(e){const b=e.target.closest("[data-rs]");if(!b)return;if(b.getAttribute("data-rs")==="normal"){closeModal();normal();return;}const ids=[...document.querySelectorAll("[data-rscard]:checked")].map(x=>x.getAttribute("data-rscard"));if(ids.length<min||ids.length>max){toast(min===max?`${min}枚／体を選択してください`:`${min}〜${max}枚／体で選択してください`);return;}const special={kind:sp.kind,ids,reduction:0,reduceMana:v24EmptyManaVector(),life:0,label,usedAlternative:false};
+      if(sp.kind==="pitchExile"){special.alternativeManaCost=sp.alternativeManaCost||"0";special.usedAlternative=true;special.reduction=0;special.life=sp.lifePayment||0;const f=findCard(ids[0]),mv=f?_cardRegManaValue(f.card):null;if(sp.useManaValueAsX&&mv!=null)special.xValue=mv;}
+      else if(sp.kind==="delve"||sp.kind==="improvise")special.reduction=ids.length;
+      else if(sp.kind==="convoke"){for(const id of ids){const el=document.querySelector(`[data-rscontrib="${CSS.escape(id)}"]`),v=el?el.value:"generic";if(v==="generic")special.reduction++;else special.reduceMana[v]=(special.reduceMana[v]||0)+1;}}
+      else if(sp.kind==="offering"){const f=findCard(ids[0]);special.reduceMana=f?v24ManaVectorFromCard(f.card):v24EmptyManaVector();special.offeringPaid=true;}
+      else if(sp.kind==="emerge"){const f=findCard(ids[0]),mv=f?_cardRegManaValue(f.card):0;special.alternativeManaCost=sp.alternativeManaCost||sp.extraCost||"0";special.reduction=Math.max(0,Number(mv||0));special.usedAlternative=true;special.emergePaid=true;}
+      else if(sp.kind==="bargain")special.bargained=true;
+      else if(sp.kind==="casualty")special.casualtyPaid=true;
+      else if(sp.kind==="conspire")special.conspired=true;
+      closeModal();done(special);
+    });return;
+  }
+  if(sp.kind==="affinity"){const n=v24CostCandidates(card,owner,sp).length,per=sp.genericReduction||1,red=n*per;openModal(`親和 — ${esc(card.name)}`,`<div class="note">条件を満たすパーマネント: <b>${n}</b> ／ 不特定軽減: <b>${red}</b></div>${sp.note?`<div class="note">${esc(sp.note)}</div>`:""}`,`<button class="btn" data-rs="normal">適用しない</button><button class="btn primary" data-rs="use">親和を適用</button>`);setModalHandler(function(e){const b=e.target.closest("[data-rs]");if(!b)return;closeModal();done(b.getAttribute("data-rs")==="use"?{kind:"affinity",ids:[],reduction:red,label}:{});});return;}
+  if(sp.kind==="phyrexian"){openModal(`ファイレクシア・マナ — ${esc(card.name)}`,`<div class="note">${sp.lifePayment||2}点のライフを支払い、不特定${sp.genericReduction||1}を軽減する補助です。</div>`,`<button class="btn" data-rs="normal">マナで支払う</button><button class="btn primary" data-rs="life">ライフで支払う</button>`);setModalHandler(function(e){const b=e.target.closest("[data-rs]");if(!b)return;closeModal();done(b.getAttribute("data-rs")==="life"?{kind:"phyrexian",ids:[],reduction:sp.genericReduction||1,life:sp.lifePayment||2,label}:{});});return;}
+  if(sp.kind==="kicker"){openModal(`追加コスト — ${esc(card.name)}`,`<div class="note">キッカー／追加コスト <b>${esc(sp.extraCost||"（未登録）")}</b> を支払いますか？</div>`,`<button class="btn" data-rs="normal">支払わない</button><button class="btn primary" data-rs="kicker">支払う</button>`);setModalHandler(function(e){const b=e.target.closest("[data-rs]");if(!b)return;closeModal();done(b.getAttribute("data-rs")==="kicker"?{kind:"kicker",ids:[],reduction:0,kicked:true,extraCost:sp.extraCost,label}:{});});return;}
+  if(sp.kind==="hybrid"||sp.kind==="customAlternative"){const choices=(sp.alternativeManaCost||"").split("|").map(x=>x.trim()).filter(Boolean),btns=choices.map((x,i)=>`<button class="btn primary" data-rsalt="${i}">${esc(x)}で唱える</button>`).join("");openModal(`唱え方を選ぶ — ${esc(card.name)}`,`<div class="note">${esc(sp.alternativeCost||label)}。代替マナコストを選択してください。</div><div class="pay-btns">${btns||'<div class="oh-warn">代替マナコストが未登録です</div>'}</div>`,`<button class="btn" data-rs="normal">通常コスト</button><button class="btn" data-app="closem">キャンセル</button>`);setModalHandler(function(e){const n=e.target.closest('[data-rs="normal"]');if(n){closeModal();normal();return;}const b=e.target.closest("[data-rsalt]");if(!b)return;const alt=choices[Number(b.getAttribute("data-rsalt"))];closeModal();done({kind:sp.kind,ids:[],alternativeManaCost:alt,usedAlternative:true,label:sp.alternativeCost||label});});return;}
+  openModal(`特殊コスト — ${esc(card.name)}`,`<div class="note">${esc(label)}: ${esc(sp.alternativeCost||sp.note||"手動で確認してください")}</div>`,`<button class="btn" data-rs="normal">通常コスト</button><button class="btn primary" data-rs="manual">手動支払い済み</button>`);setModalHandler(function(e){const b=e.target.closest("[data-rs]");if(!b)return;closeModal();done(b.getAttribute("data-rs")==="manual"?{kind:sp.kind,ids:[],manual:true,label}:{});});
+}
+ruleSpecialCostPrompt=v24SpecialChoice;
+
+/* 唱える時点の対象選択 */
+let _v24CastFlow=null,_v24CastCancelling=false;
+function v24TargetConfig(card){const d=getCardDisplayInfo(card),p=targetProfileForSource(card),k=Array.isArray(d.targetKinds)?d.targetKinds:[],can=!!(d.canTarget||d.targetRequired||card.canTarget||card.targetRequired||p.enabled),req=!!(d.targetRequired||card.targetRequired||(p.enabled&&p.minTargets>0)),allowPlayers=p.enabled?p.allowPlayers:(k.includes("Player")||k.includes("Any")),allowCards=p.enabled?p.allowCards:!k.length||k.some(x=>["Creature","Permanent","Spell","CardInGraveyard","Any"].includes(x));return {can,required:req,profile:p,kinds:k,min:p.enabled?p.minTargets:(req?1:0),max:p.enabled?p.maxTargets:1,allowPlayers,allowCards};}
+function v24CastCardEligible(card,c,cfg){if(!cfg.allowCards||c.id===card.id)return false;if(cfg.profile.enabled)return autoTargetCardEligible(card,c);const f=findCard(c.id);if(!f)return false;const k=cfg.kinds;if(!k.length)return ["creatures","lands","others"].includes(f.zone);if(k.includes("Any"))return true;if(k.includes("Creature")&&["creatures","lands","others"].includes(f.zone)&&cardHasType(c,"Creature"))return true;if(k.includes("Permanent")&&["creatures","lands","others"].includes(f.zone))return true;if(k.includes("Spell")&&f.zone==="stack")return true;if(k.includes("CardInGraveyard")&&f.zone==="graveyard")return true;return false;}
+function v24CastPlayerEligible(card,pid,cfg){return cfg.allowPlayers&&(cfg.profile.enabled?autoTargetPlayerEligible(card,pid):true);}
+function v24LegalTargetExists(card,cfg){if(!cfg.can||cfg.min===0)return true;for(const p of ["A","B"])if(v24CastPlayerEligible(card,p,cfg))return true;let ok=false;forEachCard(c=>{if(ok)return;const q=ruleTargetLegality(card,c);if(v24CastCardEligible(card,c,cfg)&&q.legal)ok=true;});return ok;}
+function v24RestoreTargetSnapshot(flow){const f=findCard(flow.id);if(!f)return;const c=f.card;c.targetIds=flow.original.targetIds.slice();c.targetPlayerIds=flow.original.targetPlayerIds.slice();c.targetZoneRefs=flow.original.targetZoneRefs.slice();c.targetStatus=flow.original.targetStatus;c.canTarget=flow.original.canTarget;c.targetRequired=flow.original.targetRequired;c.wardPayments=JSON.parse(JSON.stringify(flow.original.wardPayments||{}));}
+function v24ClearCastFlow(flow,restore){if(!flow)return;if(restore)v24RestoreTargetSnapshot(flow);delete _ruleSpecialPending[flow.id];if(_v24CastFlow===flow)_v24CastFlow=null;saveState(true);render();}
+function v24ValidateSpecial(flow){const sp=flow.special||{};for(const id of sp.ids||[]){const f=findCard(id);if(!f)return `特殊コストに使うカードが見つかりません`;if(["convoke","improvise","conspire"].includes(sp.kind)&&f.card.tapped)return `[${f.card.name}] はすでにタップされています`;if(["offering","emerge","bargain","casualty"].includes(sp.kind)&&ruleProfileOf(f.card).keywords.cantSacrifice)return `[${f.card.name}] は生け贄にできません`;}if(sp.life&&state.players[flow.owner].life<sp.life)return "支払うライフが足りません";return "";}
+function v24PaymentWithCancel(flow,card,fi,cost,proceed){
+  let root=null,cancelListener=null;
+  const cleanup=()=>{if(root&&cancelListener)root.removeEventListener("click",cancelListener,true);root=null;cancelListener=null;};
+  const cancel=()=>{cleanup();if(_v24CastFlow===flow){_payState=null;v24ClearCastFlow(flow,true);toast("唱える操作をキャンセルしました");}};
+  const finish=pay=>{cleanup();proceed(pay);};
+  const s=state.settings||{},has=_mcHasText(cost),manaDue=cost?Number(cost.generic||0)+Number(cost.X||0)+["W","U","B","R","G","C"].reduce((n,k)=>n+Number(cost[k]||0),0):0;
+  if(manaDue<=0){const sp=flow.special||{};finish(sp.kind?{status:sp.usedAlternative?"alternative":"manual",costText:sp.label||"特殊コスト",note:"必要な非マナコストを選択済み"}:{status:"free",costText:"0",note:"マナ支払いなし"});return;}
+  if(!castPaymentPromptOn()||(s.castPaymentPromptOnlyWhenCostExists!==false&&!has)){finish(null);return;}
+  if(manaPoolEnabled()&&has)openPaymentModal(card,cost,flow.owner,fi,finish);else _castPaymentChoose(card,fi,cost,finish);
+  setTimeout(()=>{if(_v24CastFlow!==flow)return;root=document.getElementById("modalRoot");if(!root)return;cancelListener=ev=>{const b=ev.target&&ev.target.closest&&ev.target.closest('[data-app="closem"]');if(!b||_v24CastFlow!==flow)return;ev.preventDefault();ev.stopImmediatePropagation();closeModal();cancel();};root.addEventListener("click",cancelListener,true);},0);
+}
+function v24FinishCast(flow,pay){if(_v24CastFlow!==flow)return;const f=findCard(flow.id);if(!f||f.zone!=="hand"){toast("唱えるカードが手札にありません");v24ClearCastFlow(flow,true);return;}const bad=v24ValidateSpecial(flow);if(bad){toast(bad);v24ClearCastFlow(flow,true);return;}const c=f.card,chosen={ids:tgtIds(c).slice(),players:tgtPlayers(c).slice(),zones:(c.targetZoneRefs||[]).slice(),status:c.targetStatus,can:c.canTarget,required:c.targetRequired,ward:JSON.parse(JSON.stringify(c.wardPayments||{}))};v24RestoreTargetSnapshot(flow);_ruleSpecialPending[flow.id]=flow.special||{};act("呪文を唱える",()=>{const hf=findCard(flow.id);if(!hf)return;ensureTgtFields(hf.card);hf.card.targetIds=chosen.ids;hf.card.targetPlayerIds=chosen.players;hf.card.targetZoneRefs=chosen.zones;hf.card.canTarget=chosen.can;hf.card.targetRequired=chosen.required;hf.card.wardPayments=chosen.ward;updTgtStatus(hf.card);moveCard(flow.id,null,"stack",null,true);const sc=findCard(flow.id);if(sc){if(flow.fi!=null)sc.card.activeFaceIndex=flow.fi;if(flow.part)sc.card.castPart=flow.part;_applyPayment(sc.card,flow.cost,pay);sc.card.castEffectContext=normalizeCastEffectContext(flow.ctx);sc.card.castAutoEffects=normalizeAutoEffects(flow.pkg.effects);sc.card.castAutoEffectConfig=normalizeAutoEffectConfig(flow.pkg.config);}if(pay&&pay.status==="paid"&&pay.consumed&&_consumedSum(pay.consumed)>0)addLog(`${pname(flow.owner)} は [${c.name}] のために ${consumedChips(pay.consumed)} を支払いました`);addLog(_stackPlaceLog(flow.owner,c,flow.fi,flow.cost,pay));if(chosen.ids.length||chosen.players.length)addLog(`[${c.name}] の対象を唱える時点で${chosen.ids.length+chosen.players.length}個選択`);});_v24CastFlow=null;delete _ruleSpecialPending[flow.id];saveState(true);render();renderPreview();toast("対象とコストを確定してスタックへ置きました");}
+function v24ProceedPayment(flow){if(_v24CastFlow!==flow)return;flow.stage="payment";v24PaymentWithCancel(flow,flow.card,flow.fi,flow.cost,pay=>v24FinishCast(flow,pay));}
+function v24BeginTargetOrPay(flow){const c=flow.card,cfg=v24TargetConfig(c);flow.targetCfg=cfg;ensureTgtFields(c);flow.original={targetIds:tgtIds(c).slice(),targetPlayerIds:tgtPlayers(c).slice(),targetZoneRefs:(c.targetZoneRefs||[]).slice(),targetStatus:c.targetStatus,canTarget:c.canTarget,targetRequired:c.targetRequired,wardPayments:JSON.parse(JSON.stringify(c.wardPayments||{}))};c.canTarget=cfg.can;c.targetRequired=cfg.required;updTgtStatus(c);if(!cfg.can){v24ProceedPayment(flow);return;}if(!v24LegalTargetExists(c,cfg)){toast("唱えるための適正な対象がありません");v24ClearCastFlow(flow,true);return;}flow.stage="target";startTargetMode(flow.id);setTimeout(()=>{const bar=document.getElementById("tgtBar");if(bar){const lab=bar.querySelector(".tb-label"),hint=bar.querySelector(".tb-hint");if(lab)lab.innerHTML=`唱える時点の対象: <b>${esc(c.name)}</b>`;if(hint)hint.textContent=`対象を${cfg.min}〜${cfg.max}個選択 → 次にコストを支払います`;}} ,0);}
+const _v24PushUndoBase=pushUndo;
+pushUndo=function(label){if(_v24CastFlow&&_v24CastFlow.stage==="target"&&/^対象/.test(String(label||"")))return;return _v24PushUndoBase(label);};
+const _v24TargetCardBase=targetToggleCard;
+targetToggleCard=function(srcId,destId){const flow=_v24CastFlow;if(flow&&flow.stage==="target"&&flow.id===srcId){const src=findCard(srcId),dst=findCard(destId),exists=src&&tgtIds(src.card).includes(destId);if(src&&dst&&!exists){if(tgtCount(src.card)>=flow.targetCfg.max){toast(`対象は最大${flow.targetCfg.max}個です`);return;}if(!v24CastCardEligible(src.card,dst.card,flow.targetCfg)){toast("この呪文の対象条件に合いません");return;}}}return _v24TargetCardBase(srcId,destId);};
+const _v24TargetPlayerBase=targetTogglePlayer;
+targetTogglePlayer=function(srcId,pid){const flow=_v24CastFlow;if(flow&&flow.stage==="target"&&flow.id===srcId){const src=findCard(srcId),exists=src&&tgtPlayers(src.card).includes(pid);if(src&&!exists){if(tgtCount(src.card)>=flow.targetCfg.max){toast(`対象は最大${flow.targetCfg.max}個です`);return;}if(!v24CastPlayerEligible(src.card,pid,flow.targetCfg)){toast("プレイヤーはこの呪文の対象にできません");return;}}}return _v24TargetPlayerBase(srcId,pid);};
+const _v24EndTargetBase=endTargetMode;
+endTargetMode=function(){const flow=_v24CastFlow,active=!!(flow&&flow.stage==="target"&&_tgtMode&&_tgtMode.sourceId===flow.id);if(active&&tgtCount(flow.card)<flow.targetCfg.min){toast(`対象を最低${flow.targetCfg.min}個選んでください`);return;}if(active&&tgtCount(flow.card)>flow.targetCfg.max){toast(`対象は最大${flow.targetCfg.max}個です`);return;}_v24EndTargetBase();if(active&&!_tgtMode&&!_v24CastCancelling&&_v24CastFlow===flow){flow.chosen={ids:tgtIds(flow.card).slice(),players:tgtPlayers(flow.card).slice()};v24ProceedPayment(flow);}};
+const _v24CancelTargetBase=cancelTargetMode;
+cancelTargetMode=function(){const flow=_v24CastFlow,active=!!(flow&&flow.stage==="target"&&_tgtMode&&_tgtMode.sourceId===flow.id);if(active)_v24CastCancelling=true;try{_v24CancelTargetBase();}finally{_v24CastCancelling=false;}if(active)v24ClearCastFlow(flow,true);};
+
+/* 最終の唱えるフロー。ダブルクリック/▶/カードメニューの全経路がここへ入る */
+placeOnStackFlow=function(id,opts){opts=opts||{};if(_v24CastFlow){toast("別の呪文を唱える操作が進行中です");return;}const f=findCard(id);if(!f)return;const c=f.card,owner=f.player||c.owner;if(f.zone!=="hand"){toast("クイック唱える処理は手札のカードに使用してください");return;}const notes=ruleCastRestrictionNotes(owner);if(notes.length&&!opts._ruleRestrictionChecked){openModal("唱える前の常在効果確認",`<div class="oh-warn">唱えることに関する登録済みの注意があります。</div>${notes.map(x=>`<div class="rule-dash-row"><b>${esc(x.source)}</b><span>${esc(x.note)}</span></div>`).join("")}`,`<button class="btn" data-app="closem">キャンセル</button><button class="btn primary" data-v24-cast-continue="1">確認して続ける</button>`,`lg`);setModalHandler(function(e){if(!e.target.closest("[data-v24-cast-continue]"))return;closeModal();placeOnStackFlow(id,Object.assign({},opts,{_ruleRestrictionChecked:true}));});return;}if(isSplitCard(c.name)&&!opts._part){closeModal();_splitPartChoose(c,part=>{if(part)placeOnStackFlow(id,Object.assign({},opts,{_part:part}));});return;}const part=opts._part||null;closeModal();_stackFaceChoose(id,fi=>{const baseCost=_costForPlacement(c,fi),pkg=getCardAutoEffectPackage(c);_prepareAutoEffectCast(c,owner,pkg,(ctx,altPay)=>{const cost=_costWithX(baseCost,ctx.xValue),special=JSON.parse(JSON.stringify(ctx.specialCost||_ruleSpecialPending[id]||{}));delete _ruleSpecialPending[id];let pay=altPay;if(special&&special.usedAlternative)pay=null;const flow={id,card:c,owner,fi,part,pkg,ctx,cost,special,prePay:pay,stage:"prepare"};_v24CastFlow=flow;const go=()=>v24BeginTargetOrPay(flow);if(pay){flow.forcedPay=pay;const old=v24ProceedPayment;flow.stage="forced";v24BeginTargetOrPay(flow);}else go();});});};
+/* 代替コストで既に支払い状態が決まっている場合は通常の支払いモーダルを出さない */
+const _v24ProceedPaymentBase=v24ProceedPayment;
+v24ProceedPayment=function(flow){if(flow.prePay){flow.stage="payment";v24FinishCast(flow,flow.prePay);return;}_v24ProceedPaymentBase(flow);};
 
 window.addEventListener("error",function(ev){ showErr(ev.message||"不明なエラー"); });
 window.addEventListener("DOMContentLoaded",init);
