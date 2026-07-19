@@ -1253,6 +1253,20 @@
 .btn.warn[data-app="sba"]{box-shadow:0 0 0 1px rgba(255,165,70,.7) inset}
 @media(max-width:760px){.auto-lib-row{grid-template-columns:minmax(0,1fr) auto}.auto-lib-row .btn{min-height:34px}.auto-sec .grid2{grid-template-columns:1fr}.auto-hub-tools .btn{flex:1 1 44%}}
 
+/* Safe Automation Suite v2.1.0 */
+.sa-status{white-space:nowrap;border-color:var(--line2)}
+.sa-status[data-status="running"]{border-color:var(--ok);box-shadow:0 0 0 1px rgba(95,207,142,.25) inset}
+.sa-status[data-status="paused"],.sa-status[data-status="target"],.sa-status[data-status="payment"],.sa-status[data-status="trigger"],.sa-status[data-status="sba"],.sa-status[data-status="cleanup"]{border-color:var(--accent);box-shadow:0 0 0 1px rgba(224,168,60,.22) inset}
+.sa-status[data-status="error"]{border-color:var(--danger);background:#3a2222}
+.sa-current{padding:7px 9px;border:1px solid var(--line2);border-radius:8px;background:var(--bg2);margin:7px 0}
+.sa-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px;margin:8px 0}
+.sa-setting{display:flex;align-items:flex-start;gap:7px;border:1px solid var(--line);border-radius:8px;padding:7px;background:var(--bg2);cursor:pointer}
+.sa-setting span{display:flex;flex-direction:column;gap:2px}.sa-setting small{color:var(--muted);font-size:10px}
+.sa-phases{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:5px;margin:6px 0}
+.sa-phase{display:flex;align-items:center;gap:5px;border:1px solid var(--line);border-radius:7px;padding:5px;background:var(--bg2);font-size:11px}
+.sa-trigger-list{display:flex;flex-direction:column;gap:5px}.sa-trigger{display:grid;grid-template-columns:26px minmax(110px,1fr) minmax(130px,1.4fr) auto auto;gap:6px;align-items:center;border:1px solid var(--line);border-radius:7px;padding:6px;background:var(--bg2)}.sa-trigger small{color:var(--muted)}
+@media(max-width:760px){.sa-grid{grid-template-columns:1fr}.sa-phases{grid-template-columns:repeat(2,minmax(0,1fr))}.sa-trigger{grid-template-columns:24px 1fr}.sa-trigger span:nth-of-type(2),.sa-trigger small,.sa-trigger button{grid-column:2}}
+
 </style>
 
 <style id="dict-editor-cleanup-style">
@@ -1941,8 +1955,8 @@ function newPlayer(){
 function defaultState(){
   return {
     version:1,
-    appVersion:"2.0.0",
-    dataVersion:4,
+    appVersion:"2.1.0",
+    dataVersion:5,
     meta:{ lastSaved:null, lastBackup:null, lastDiag:null },
     integrityLog:[],
     playtest:{ items:{}, savedAt:null },
@@ -4851,8 +4865,8 @@ function loadState(silent){
     if(!state.playtest||typeof state.playtest!=="object") state.playtest={items:{},savedAt:null};
     if(!Array.isArray(state.integrityLog)) state.integrityLog=[];
     if(!state.meta||typeof state.meta!=="object") state.meta={lastSaved:null,lastBackup:null};
-    const _ov=obj.dataVersion; state.appVersion=APP_VERSION; state.dataVersion=4;
-    if(_ov!==4){ _cptMigrationNote="旧データ(dataVersion "+(_ov||"なし")+")を v4 に移行しました"; if(!silent) addLog(_cptMigrationNote); }
+    const _ov=obj.dataVersion; state.appVersion=APP_VERSION; state.dataVersion=DATA_VERSION;
+    if(_ov!==DATA_VERSION){ _cptMigrationNote="旧データ(dataVersion "+(_ov||"なし")+")を v"+DATA_VERSION+" に移行しました"; if(!silent) addLog(_cptMigrationNote); }
     else { _cptMigrationNote=""; }
     if(!silent){ addLog("状態を読み込みました"); toast("読み込みました"); }
     render(); renderLog();
@@ -11383,8 +11397,8 @@ function _libSearchBind(){
 /* ============================================================
    総合安定化: 自己診断 / バックアップ / プレイテスト / ヘルプ / バージョン
    ============================================================ */
-const APP_VERSION="2.0.0";
-const DATA_VERSION=4;
+const APP_VERSION="2.1.0";
+const DATA_VERSION=5;
 const LS_BACKUP_KEY="cpt_backups_v1";
 let _cptMigrationNote="";
 
@@ -15356,7 +15370,7 @@ function openAutoManaAdvisor(){const p=state.turn.active;openManaPanel(p);}
 
 
 /* ============================================================
-   ルール補助統合パック v2.0.0
+   ルール補助統合パック v2.1.0
    - 対象適正（呪禁/被覆/護法/プロテクション色）
    - 常在/置換効果（墓地→追放、ライフ獲得不可、ダメージ軽減、タップイン等）
    - 特殊コスト補助（ピッチ/召集/探査/即席/ファイレクシア/キッカー）
@@ -15365,7 +15379,7 @@ function openAutoManaAdvisor(){const p=state.turn.active;openManaPanel(p);}
    - カード登録プリセット
    完全ルールエンジンではなく、登録情報と確認UIによる安全な半自動補助。
    ============================================================ */
-const RULE_SUITE_VERSION="2.0.0";
+const RULE_SUITE_VERSION="2.1.0";
 const RULE_SCOPES=["controller","opponent","both"];
 const RULE_SCOPE_JP={controller:"自分",opponent:"相手",both:"両方"};
 const RULE_SPECIAL_KINDS=["none","pitchExile","convoke","delve","improvise","phyrexian","hybrid","kicker"];
@@ -15541,6 +15555,277 @@ document.addEventListener("click",function(e){const b=e.target.closest&&e.target
 
 /* 自己診断 */
 function ruleSuiteDiagnose(){let invalid=0,profiles=0,special=0;for(const e of Object.values(dictAll())){if(!e)continue;try{normalizeRuleProfile(e.ruleProfile||{});profiles++;}catch(_){invalid++;}try{const s=normalizeSpellCostProfile(e.spellCostProfile||{});if(s.enabled)special++;}catch(_){invalid++;}}return {invalid,profiles,special,active:activeRuleSources().length};}
+
+
+/* ============================================================
+   Safe Automation Suite v2.1.0
+   - 一意に決まる処理だけを自動化
+   - 選択・複雑な置換・隠された情報が絡む場合は必ず停止
+   - v2.0.0 の手動操作を残したまま上書き拡張
+   ============================================================ */
+const SAFE_AUTOMATION_VERSION="2.1.0";
+const SA_STATUS_JP={manual:"手動",running:"自動進行中",paused:"一時停止中",target:"対象確認待ち",payment:"支払い確認待ち",trigger:"誘発確認待ち",sba:"状況起因処理確認待ち",cleanup:"クリンナップ確認待ち",error:"安全停止"};
+const SA_DEFAULT_SETTINGS={
+  enabled:true,
+  paused:false,
+  autoPass:true,
+  autoResolveStack:true,
+  autoAdvancePhase:true,
+  autoStackTriggers:true,
+  autoSba:true,
+  autoCleanup:true,
+  targetRevalidate:true,
+  strictCombat:true,
+  strictTimingWarnings:true,
+  autoPermanentToBattlefield:true,
+  autoSimpleEffects:false,
+  maxIterations:20,
+  stopPhases:[1,2,4,5,6,7,10,11]
+};
+const SA_DEFAULT_RUNTIME={
+  status:"manual",reason:"",passes:[],running:false,iteration:0,eventSeq:0,
+  eventLedger:{},pendingTriggers:[],history:[],lastCleanupKey:"",lastEvent:"",
+  discardResolvedKey:"",cleanupEventKey:""
+};
+function saCfg(){
+  if(!state.settings||typeof state.settings!=="object")state.settings={};
+  let c=state.settings.safeAutomation;
+  if(!c||typeof c!=="object"||Array.isArray(c)){c={};state.settings.safeAutomation=c;}
+  for(const [k,v] of Object.entries(SA_DEFAULT_SETTINGS))if(!Object.prototype.hasOwnProperty.call(c,k))c[k]=Array.isArray(v)?v.slice():v;
+  c.maxIterations=Math.max(5,Math.min(100,parseInt(c.maxIterations,10)||20));
+  c.stopPhases=Array.isArray(c.stopPhases)?[...new Set(c.stopPhases.map(Number).filter(n=>n>=0&&n<PHASES.length))]:SA_DEFAULT_SETTINGS.stopPhases.slice();
+  return c;
+}
+function saRuntime(){
+  let r=state.safeAutomation;
+  if(!r||typeof r!=="object"||Array.isArray(r)){r={};state.safeAutomation=r;}
+  for(const [k,v] of Object.entries(SA_DEFAULT_RUNTIME))if(!Object.prototype.hasOwnProperty.call(r,k))r[k]=Array.isArray(v)?v.slice():(v&&typeof v==="object"?{}:v);
+  if(!Array.isArray(r.passes))r.passes=[];
+  if(!Array.isArray(r.pendingTriggers))r.pendingTriggers=[];
+  if(!Array.isArray(r.history))r.history=[];
+  if(!r.eventLedger||typeof r.eventLedger!=="object"||Array.isArray(r.eventLedger))r.eventLedger={};
+  return r;
+}
+function saEnsure(){
+  saCfg(); saRuntime();
+  state.appVersion=APP_VERSION;
+  state.dataVersion=DATA_VERSION;
+  if(state.turn){
+    if(!state.turn.safePass||typeof state.turn.safePass!=="object")state.turn.safePass={last:null,count:0,key:""};
+  }
+  return state.safeAutomation;
+}
+function saEnabled(){const c=saCfg();return c.enabled!==false;}
+function saPaused(){const c=saCfg(),r=saRuntime();return !!(c.paused||r.status==="paused"||r.status==="error");}
+function saPhaseKey(){const t=state.turn||{};return `${t.number||0}:${t.phase||0}:${state.stack?state.stack.length:0}`;}
+function saPrefix(kind){return kind==="check"?"[CHECK]":kind==="warn"?"[WARN]":kind==="undo"?"[UNDO]":kind==="rule"?"[RULE]":kind==="manual"?"[MANUAL]":"[AUTO]";}
+function saLog(kind,msg){addLog(`${saPrefix(kind)} ${msg}`);const r=saRuntime();r.history.unshift({at:nowISO(),kind,msg});if(r.history.length>100)r.history.length=100;}
+function saSetStatus(status,reason){const r=saRuntime();r.status=status||"manual";r.reason=String(reason||"");setTimeout(saInjectStatus,0);}
+function saPause(status,reason){const c=saCfg();c.paused=true;saSetStatus(status||"paused",reason||"手動確認待ち");saLog("check",reason||"自動進行を停止しました");saveState(true);render();}
+function saResume(){const c=saCfg(),r=saRuntime();c.paused=false;r.status="manual";r.reason="";r.passes=[];if(state.turn&&state.turn.safePass){state.turn.safePass.last=null;state.turn.safePass.count=0;}saveState(true);render();}
+function saResetPasses(reason){const r=saRuntime();r.passes=[];if(state.turn&&state.turn.safePass){state.turn.safePass.last=null;state.turn.safePass.count=0;state.turn.safePass.key=saPhaseKey();}if(reason&&r.status==="running")saSetStatus("manual",reason);}
+function saTopLayerBlocking(){
+  try{if(typeof topLayerOpen==="function"&&topLayerOpen())return "確認画面が開いています";}catch(_){}
+  if(typeof _tgtMode!=="undefined"&&_tgtMode)return "対象選択中です";
+  const root=document.getElementById("modalRoot");if(root&&root.innerHTML)return "確認画面が開いています";
+  return "";
+}
+function saInjectStatus(){
+  const host=document.querySelector(".footer")||document.querySelector("header .toolbar");if(!host)return;
+  let b=document.getElementById("safeAutomationStatus");if(!b){b=document.createElement("button");b.type="button";b.id="safeAutomationStatus";b.className="btn sm sa-status";b.addEventListener("click",openSafeAutomationSettings);host.appendChild(b);}
+  const c=saCfg(),r=saRuntime();const st=c.paused?(r.status==="error"?"error":"paused"):(r.status||"manual");
+  b.dataset.status=st;b.textContent=`自動化: ${c.enabled===false?"OFF":SA_STATUS_JP[st]||st}`;b.title=r.reason||"Safe Automation Suite 設定";
+}
+function saSettingsToggle(id,label,checked,note){return `<label class="sa-setting"><input type="checkbox" id="${id}"${checked?" checked":""}><span><b>${esc(label)}</b>${note?`<small>${esc(note)}</small>`:""}</span></label>`;}
+function openSafeAutomationSettings(){
+  const c=saCfg(),r=saRuntime();
+  const phaseRows=PHASES.map((p,i)=>`<label class="sa-phase"><input type="checkbox" data-sa-stop="${i}"${c.stopPhases.includes(i)?" checked":""}>${esc(p)}</label>`).join("");
+  openModal("Safe Automation Suite v2.1.0",`
+    <div class="note">一意に決まる処理だけ自動化します。対象・支払い・誘発順・伝説ルール・複数置換などの選択が必要な場面では必ず停止します。</div>
+    <div class="sa-current"><b>現在:</b> ${esc(SA_STATUS_JP[r.status]||r.status)}${r.reason?` ／ ${esc(r.reason)}`:""}</div>
+    <div class="sa-grid">
+      ${saSettingsToggle("saEnabled","安全自動化を有効にする",c.enabled!==false,"手動操作は常に残ります")}
+      ${saSettingsToggle("saAutoPass","両者パスを検出",c.autoPass!==false,"連続2回のパスだけを処理")}
+      ${saSettingsToggle("saAutoResolve","スタックを自動解決",c.autoResolveStack!==false,"確認不要な最上段だけ")}
+      ${saSettingsToggle("saAutoPhase","フェイズを自動進行",c.autoAdvancePhase!==false,"スタック空・未処理なしの場合")}
+      ${saSettingsToggle("saAutoTrigger","一意な誘発を自動配置",c.autoStackTriggers!==false,"同一プレイヤーに複数ある場合は停止")}
+      ${saSettingsToggle("saAutoSba","安全な状況起因処理",c.autoSba!==false,"0以下・忠誠度0・カウンター相殺・戦場外トークン")}
+      ${saSettingsToggle("saAutoCleanup","クリンナップ自動処理",c.autoCleanup!==false,"ダメージ・戦闘状態・マナを整理")}
+      ${saSettingsToggle("saTarget","解決時に対象を再判定",c.targetRevalidate!==false,"全対象不適正は不発、一部不適正は除外")}
+      ${saSettingsToggle("saCombat","戦闘指定のルール警告",c.strictCombat!==false,"召喚酔い・飛行・警戒など")}
+      ${saSettingsToggle("saTiming","タイミング警告",c.strictTimingWarnings!==false,"ソーサリー等は警告して手動上書き可")}
+    </div>
+    <details open><summary>自動停止するフェイズ</summary><div class="sa-phases">${phaseRows}</div></details>
+    <label class="field">最大自動反復回数<input id="saMax" type="number" min="5" max="100" value="${c.maxIterations}"></label>
+    <div class="row-inline" style="gap:6px;flex-wrap:wrap"><button class="btn sm" data-sa-action="sba">状況起因処理を確認</button><button class="btn sm" data-sa-action="triggers">保留中の誘発</button><button class="btn sm" data-sa-action="cleanup">クリンナップ実行</button><button class="btn sm" data-sa-action="resume">再開</button></div>`,
+    `<button class="btn" data-app="closem">キャンセル</button><button class="btn primary" data-sa-action="save">保存</button>`,`lg`);
+  setModalHandler(function(e){const b=e.target.closest("[data-sa-action]");if(!b)return;const a=b.getAttribute("data-sa-action");if(a==="save"){
+      c.enabled=document.getElementById("saEnabled").checked;c.autoPass=document.getElementById("saAutoPass").checked;c.autoResolveStack=document.getElementById("saAutoResolve").checked;c.autoAdvancePhase=document.getElementById("saAutoPhase").checked;c.autoStackTriggers=document.getElementById("saAutoTrigger").checked;c.autoSba=document.getElementById("saAutoSba").checked;c.autoCleanup=document.getElementById("saAutoCleanup").checked;c.targetRevalidate=document.getElementById("saTarget").checked;c.strictCombat=document.getElementById("saCombat").checked;c.strictTimingWarnings=document.getElementById("saTiming").checked;c.maxIterations=Math.max(5,Math.min(100,parseInt(document.getElementById("saMax").value,10)||20));c.stopPhases=[...document.querySelectorAll("[data-sa-stop]:checked")].map(x=>Number(x.getAttribute("data-sa-stop")));saveState(true);closeModal();render();toast("安全自動化設定を保存しました");return;}
+    closeModal();if(a==="resume")saResume();else if(a==="sba")openSafeSbaWizard();else if(a==="triggers")openSafePendingTriggers();else if(a==="cleanup")saRunCleanupManual();
+  });
+}
+
+/* 状態・保存互換 */
+const _saDefaultStateBase=defaultState;
+defaultState=function(){const s=_saDefaultStateBase();s.appVersion=APP_VERSION;s.dataVersion=DATA_VERSION;s.safeAutomation=clone(SA_DEFAULT_RUNTIME);s.settings.safeAutomation=clone(SA_DEFAULT_SETTINGS);return s;};
+saEnsure();
+const _saLoadStateBase=loadState;
+loadState=function(silent){const ok=_saLoadStateBase(silent);if(ok){saEnsure();saveState(true);render();}return ok;};
+const _saRestoreBase=_cptDoRestore;
+_cptDoRestore=function(srcObj,label,isOld){const r=_saRestoreBase(srcObj,label,isOld);saEnsure();return r;};
+const _saBoardSnapBase=_boardSnap;
+_boardSnap=function(){return JSON.stringify({players:state.players,stack:state.stack,turn:state.turn,safeAutomation:state.safeAutomation});};
+const _saBoardRestoreBase=_boardRestore;
+_boardRestore=function(snap){const o=JSON.parse(snap);state.players=o.players;state.stack=o.stack||[];state.turn=o.turn;state.safeAutomation=o.safeAutomation||clone(SA_DEFAULT_RUNTIME);saEnsure();};
+
+/* イベント台帳と一意な誘発 */
+function saEvent(type,subject,meta){
+  const r=saRuntime();const id=`ev${Date.now().toString(36)}${(++r.eventSeq).toString(36)}`;const ev={id,type,subjectId:subject&&subject.id||"",subjectName:subject&&subject.name||"",controller:subject&&(subject.controller||subject.owner)||"",turn:state.turn.number,phase:state.turn.phase,at:nowISO(),meta:meta||{}};r.eventLedger[id]=ev;r.lastEvent=`${type}:${ev.subjectName}`;const keys=Object.keys(r.eventLedger);if(keys.length>150)keys.slice(0,keys.length-150).forEach(k=>delete r.eventLedger[k]);return ev;
+}
+function saAbilityInteractive(ab){
+  if(!ab)return true;if(ab.targetRequired||_abilityHasMana(ab)||costProfileActive(ab.costProfile))return true;
+  if((ab.resolveChecklist||[]).some(x=>x.required))return true;
+  const text=[ab.name,ab.memo,ab.resolveNote,ab.costText].join(" ");if(/してもよい|任意|may\b|choose|選ぶ|いずれか/i.test(text))return true;
+  return false;
+}
+function saQueueAbility(card,ab,ev){
+  const r=saRuntime();const key=`${ev.id}:${card.id}:${ab.id}`;if(r.pendingTriggers.some(x=>x.key===key))return;
+  r.pendingTriggers.push({key,eventId:ev.id,eventType:ev.type,cardId:card.id,cardName:card.name,abilityId:ab.id,abilityName:ab.name||"能力",controller:card.controller||card.owner,interactive:saAbilityInteractive(ab),createdAt:nowISO()});
+}
+function saQueueTiming(timing,ev,onlyCard){
+  const cards=[];if(onlyCard)cards.push(onlyCard);else for(const p of ["A","B"])for(const z of ["creatures","lands","others"])for(const c of state.players[p][z]||[])cards.push(c);
+  for(const c of cards)for(const ab of getCardAbilities(c)){if(ab.kind==="triggered"&&ab.timing===timing)saQueueAbility(c,ab,ev);}
+  saProcessPendingTriggers();
+}
+function saPendingOrdered(){const r=saRuntime(),a=state.turn.active;return r.pendingTriggers.slice().sort((x,y)=>((x.controller===a?0:1)-(y.controller===a?0:1))||String(x.createdAt).localeCompare(String(y.createdAt)));}
+function saProcessPendingTriggers(){
+  const c=saCfg(),r=saRuntime();if(!c.enabled||!c.autoStackTriggers||!r.pendingTriggers.length)return 0;
+  const list=saPendingOrdered(),groups={A:0,B:0};list.forEach(x=>groups[x.controller]=(groups[x.controller]||0)+1);
+  const ambiguous=list.some(x=>x.interactive)||groups.A>1||groups.B>1;
+  if(ambiguous){saPause("trigger",`誘発順・対象・支払いの確認が必要です（${list.length}件）`);return 0;}
+  let n=0;for(const x of list){const f=findCard(x.cardId);if(!f)continue;const ab=getCardAbilities(f.card).find(a=>a.id===x.abilityId);if(!ab)continue;putAbilityOnStack(f.card.id,ab.id);n++;}
+  r.pendingTriggers=[];if(n){saLog("auto",`一意な誘発${n}件をAPNAP順でスタックへ配置`);state.turn.priority=state.turn.active;saveState(true);render();}return n;
+}
+function openSafePendingTriggers(){const list=saPendingOrdered();if(!list.length){toast("保留中の誘発はありません");return;}openModal(`保留中の誘発 — ${list.length}件`,`<div class="note">APNAP順で表示します。同じプレイヤーの複数誘発は表示順を確認してください。</div><div class="sa-trigger-list">${list.map((x,i)=>`<div class="sa-trigger"><span>${i+1}</span><b>${esc(x.cardName)}</b><span>${esc(x.abilityName)}</span><small>${esc(pname(x.controller))}${x.interactive?" / 確認必要":""}</small><button class="btn tiny" data-sa-trg="${esc(x.key)}">この誘発を配置</button></div>`).join("")}</div>`,`<button class="btn" data-app="closem">保留</button><button class="btn primary" data-sa-trgall="1">表示順で配置</button>`,`lg`);setModalHandler(function(e){const one=e.target.closest("[data-sa-trg]");if(one){const key=one.getAttribute("data-sa-trg");closeModal();saStackPendingKeys([key]);return;}if(e.target.closest("[data-sa-trgall]")){closeModal();saStackPendingKeys(list.map(x=>x.key));}});}
+function saStackPendingKeys(keys){const r=saRuntime(),set=new Set(keys);let n=0;for(const x of saPendingOrdered()){if(!set.has(x.key))continue;const f=findCard(x.cardId);if(!f)continue;const ab=getCardAbilities(f.card).find(a=>a.id===x.abilityId);if(!ab)continue;putAbilityOnStack(f.card.id,ab.id);r.pendingTriggers=r.pendingTriggers.filter(y=>y.key!==x.key);n++;}saCfg().paused=false;saSetStatus("manual","");saLog("manual",`誘発${n}件を確認してスタックへ配置`);saveState(true);render();}
+function saEmitPhaseEvent(){const ph=state.turn.phase,map={1:"upkeep",2:"drawStep",3:"main",4:"combat",5:"attack",6:"block",8:"combat",9:"main",10:"endStep",11:"cleanup"},timing=map[ph];if(!timing)return;const ev=saEvent("phase:"+timing,null,{phase:ph});saQueueTiming(timing,ev,null);}
+
+/* 対象再判定 */
+function saTargetValidation(src){
+  ensureTgtFields(src);const invalidCards=[],validCards=[],invalidPlayers=[],validPlayers=[];
+  for(const id of tgtIds(src)){const f=findCard(id);if(!f){invalidCards.push({id,name:"消失した対象",reason:"戦場・対象領域を離れた"});continue;}const q=ruleTargetLegality(src,f.card);const profileOk=autoTargetCardEligible(src,f.card);if(!q.legal||!profileOk)invalidCards.push({id,name:f.card.name,reason:!profileOk?"登録対象条件不一致":q.reasons.join(" / ")});else validCards.push(id);}
+  for(const p of tgtPlayers(src)){if((p!=="A"&&p!=="B")||!autoTargetPlayerEligible(src,p))invalidPlayers.push({id:p,name:pname(p),reason:"プレイヤー対象条件不一致"});else validPlayers.push(p);}
+  const original=tgtIds(src).length+tgtPlayers(src).length,valid=validCards.length+validPlayers.length;
+  return {original,valid,invalidCards,invalidPlayers,validCards,validPlayers,allIllegal:original>0&&valid===0};
+}
+function saFizzleTop(src,why){act("対象不適正による不発",()=>{state.stack.pop();if(!isAbilityObj(src)){const owner=src.owner||src.controller||"A";let zone="graveyard";if(typeof ruleReplacementSources==="function"&&ruleReplacementSources("graveToExile",owner).length)zone="exile";src.zone=zone;src.controller=src.owner;state.players[owner][zone].push(src);}src.targetStatus="invalid";saLog("rule",`[${src.name}] は全対象不適正のため不発${why?`（${why}）`:""}`);});saveState(true);render();saRunSbaLoop("スタック不発後");}
+let _saResolveBypass=false;
+const _saResolveTopBase=resolveTop;
+resolveTop=function(forceDest,autoChoice){
+  const c=state.stack[state.stack.length-1];if(!c)return _saResolveTopBase(forceDest,autoChoice);
+  const cfg=saCfg();if(_saResolveBypass||!cfg.enabled||!cfg.targetRevalidate)return _saResolveTopBase(forceDest,autoChoice);
+  const interactiveBefore=(!forceDest&&typeof _rcGateOK!=="undefined"&&!_rcGateOK&&rcEnabled()&&rcPromptBefore()&&getResolveChecklist(c).length)||(autoChoice==null&&_sourceAutoEffects(c).length)||(cardTypes(c,true).some(t=>["Creature","Artifact","Enchantment","Planeswalker","Battle","Token"].includes(t))&&!forceDest);
+  if(interactiveBefore)return _saResolveTopBase(forceDest,autoChoice);
+  const v=saTargetValidation(c);if(!v.invalidCards.length&&!v.invalidPlayers.length){const out=_saResolveTopBase(forceDest,autoChoice);setTimeout(()=>saRunSbaLoop("スタック解決後"),0);return out;}
+  const why=[...v.invalidCards,...v.invalidPlayers].map(x=>`${x.name}: ${x.reason}`).join(" / ");
+  if(v.allIllegal){saFizzleTop(c,why);return;}
+  act("スタック解決（対象再判定）",()=>{c.targetIds=v.validCards;c.targetPlayerIds=v.validPlayers;saLog("rule",`[${c.name}] の不適正対象を除外: ${why}`);_saResolveBypass=true;try{_saResolveTopBase(forceDest,autoChoice);}finally{_saResolveBypass=false;}});setTimeout(()=>saRunSbaLoop("スタック解決後"),0);
+};
+function saCanAutoResolveTop(top){
+  if(!top)return {ok:false,reason:"スタックが空です"};
+  if(top.paymentStatus==="pending"||_hasShortage(top.paymentShortage))return {ok:false,reason:"コスト支払い確認が必要です",status:"payment"};
+  const v=saTargetValidation(top);if(top.targetRequired&&v.original===0)return {ok:false,reason:"対象選択が必要です",status:"target"};
+  if(v.invalidCards.length||v.invalidPlayers.length){if(v.allIllegal)return {ok:true,fizzle:true};}
+  if(_sourceAutoEffects(top).length&&!saCfg().autoSimpleEffects)return {ok:false,reason:"登録効果の適用確認が必要です",status:"target"};
+  if(getResolveChecklist(top).some(x=>x.required))return {ok:false,reason:"解決チェックリストの確認が必要です",status:"paused"};
+  for(const id of tgtIds(top)){const f=findCard(id);if(f){const q=ruleTargetLegality(top,f.card);if(q.wardCost&&!(top.wardPayments&&top.wardPayments[id]))return {ok:false,reason:`護法 ${q.wardCost} の支払い確認が必要です`,status:"payment"};}}
+  return {ok:true};
+}
+
+
+const _saAutoIsLegendaryBase=autoIsLegendary;
+autoIsLegendary=function(c){return _saAutoIsLegendaryBase(c)||/伝説|legendary/i.test([c&&c.memo,c&&c.subtype].join(" "));};
+
+/* 状況起因処理 */
+function saSbaClass(x){
+  if(x.kind==="cancelCounters"||x.kind==="removeToken")return "safe";
+  if(x.kind==="grave"&&/:zero$/.test(x.id))return "safe";
+  if(x.kind==="grave"&&/:loyalty$/.test(x.id))return "safe";
+  if(x.kind==="grave"&&/:lethal$/.test(x.id))return "confirm";
+  if(x.kind==="loss"||/^legend:/.test(x.id))return "choice";
+  return "confirm";
+}
+function saApplySbaRaw(cands){for(const x of cands){if(x.kind==="grave"){const f=findCard(x.cardId);if(f)moveCard(x.cardId,f.card.owner,"graveyard",null,true);}else if(x.kind==="removeToken"){const f=findCard(x.cardId);if(f)f.arr.splice(f.index,1);}else if(x.kind==="cancelCounters"){const f=findCard(x.cardId);if(f){const c=f.card,n=Math.min(Number(c.counters["+1/+1"]||0),Number(c.counters["-1/-1"]||0));c.counters["+1/+1"]-=n;c.counters["-1/-1"]-=n;if(!c.counters["+1/+1"])delete c.counters["+1/+1"];if(!c.counters["-1/-1"])delete c.counters["-1/-1"];}}}}
+function saRunSbaLoop(context){
+  const cfg=saCfg(),r=saRuntime();if(!cfg.enabled||!cfg.autoSba||r.running)return 0;let total=0;r.running=true;r.iteration=0;try{
+    while(r.iteration++<cfg.maxIterations){const all=collectSbaCandidates(),safe=all.filter(x=>saSbaClass(x)==="safe");if(!safe.length)break;act("状況起因処理（安全自動）",()=>saApplySbaRaw(safe));total+=safe.length;}
+    if(r.iteration>=cfg.maxIterations){saPause("error",`状況起因処理が${cfg.maxIterations}回を超えたため安全停止`);return total;}
+    const remain=collectSbaCandidates();if(remain.length){if(!cfg.paused){cfg.paused=true;saSetStatus("sba",`確認が必要な状況起因処理 ${remain.length}件`);saLog("check",`${context||"処理後"}: 確認が必要な状況起因処理${remain.length}件`);}}else if(total){cfg.paused=false;saSetStatus("manual","");}
+    if(total){saLog("auto",`安全な状況起因処理を${total}件適用`);saveState(true);render();}
+  }finally{r.running=false;}return total;
+}
+function openSafeSbaWizard(){const c=collectSbaCandidates();if(!c.length){toast("状況起因処理の候補はありません");return;}openModal(`状況起因処理 — ${c.length}件`,`<div class="note">緑の「自動可」だけ既定選択します。致死ダメージ・敗北・伝説ルールは必ず確認してください。</div><div class="sba-list">${c.map(x=>{const k=saSbaClass(x);return `<label class="sba-row"><input type="checkbox" data-sa-sba="${esc(x.id)}"${k==="safe"?" checked":""}><span class="badge ${k==="safe"?"plus":k==="choice"?"dmg":"cnt"}">${k==="safe"?"自動可":k==="choice"?"選択必須":"要確認"}</span><span>${esc(x.label)}</span></label>`;}).join("")}</div>`,`<button class="btn" data-app="closem">保留</button><button class="btn primary" data-sa-sba-apply="1">選択を適用</button>`,`lg`);setModalHandler(function(e){if(!e.target.closest("[data-sa-sba-apply]"))return;const ids=new Set([...document.querySelectorAll("[data-sa-sba]:checked")].map(x=>x.getAttribute("data-sa-sba"))),sel=c.filter(x=>ids.has(x.id));closeModal();act("状況起因処理（確認済み）",()=>{saApplySbaRaw(sel.filter(x=>x.kind!=="loss"));sel.filter(x=>x.kind==="loss").forEach(x=>saLog("rule",`敗北候補を確認: ${x.label}`));});saCfg().paused=false;saSetStatus("manual","");saveState(true);render();});}
+const _saOpenSbaBase=openSbaWizard;
+openSbaWizard=openSafeSbaWizard;
+
+/* クリンナップ */
+function saCleanupKey(){return `${state.turn.number}:${state.turn.active}`;}
+function saExpiredTemporary(c){return !!(c&&c.isToken&&c.temporary&&/eot|end.?of.?turn|ターン終了|cleanup|クリンナップ/i.test(String(c.expiresHint||c.tokenNote||"")));}
+function saRunCleanupDeterministic(){let dmg=0,combat=0,mana=0,tokens=0;forEachCard(c=>{if((c.damage||0)>0){c.damage=0;dmg++;}if(c.attacking||c.blocking||c.blockingTargetId||(c.blockingTargetIds&&c.blockingTargetIds.length)||c.combatMemo){c.attacking=false;c.blocking=false;c.blockingTargetId=null;c.blockingTargetIds=[];c.combatMemo="";combat++;}});state.turn.combatDamagePlan={};for(const p of ["A","B"]){const pool=_ensurePool(p);for(const k of MANA_COLORS){mana+=Number(pool[k]||0);pool[k]=0;}}for(const p of ["A","B"])for(const z of ZONES){const arr=state.players[p][z];for(let i=arr.length-1;i>=0;i--)if(saExpiredTemporary(arr[i])){arr.splice(i,1);tokens++;}}return {dmg,combat,mana,tokens};}
+function saOpenHandDiscard(p,limit,proceed){const hand=state.players[p].hand,need=hand.length-limit;openModal(`手札上限 — ${pname(p)}`,`<div class="note">手札${hand.length}枚、上限${limit}枚です。捨てるカードを${need}枚選んでください。</div><div class="ae-choice-list">${hand.map(c=>`<label class="ae-choice-row"><input type="checkbox" data-sa-discard="${c.id}"><span>${esc(getCardDisplayInfo(c).name)}</span><span class="note">${esc(typeText(c,true))}</span></label>`).join("")}</div>`,`<button class="btn" data-app="closem">保留</button><button class="btn primary" data-sa-discard-go="1">選択カードを捨てる</button>`,`lg`);setModalHandler(function(e){if(!e.target.closest("[data-sa-discard-go]"))return;const ids=[...document.querySelectorAll("[data-sa-discard]:checked")].map(x=>x.getAttribute("data-sa-discard"));if(ids.length!==need){toast(`${need}枚選択してください`);return;}closeModal();act("手札上限のディスカード",()=>ids.forEach(id=>moveCard(id,p,"graveyard",null,true)));saRuntime().discardResolvedKey=saCleanupKey();saLog("manual",`${pname(p)} が手札上限のため${ids.length}枚捨てた`);saveState(true);render();proceed();});}
+let _saEndTurnBypass=false;
+const _saEndTurnBase=_endTurn;
+_endTurn=function(){
+  const cfg=saCfg();if(_saEndTurnBypass||!cfg.enabled||!cfg.autoCleanup)return _saEndTurnBase();
+  const p=state.turn.active,lim=ruleHandLimitFor(p),r=saRuntime();if(state.players[p].hand.length>lim.value&&r.discardResolvedKey!==saCleanupKey()){saPause("cleanup",`手札上限${lim.value}枚への調整が必要です`);saOpenHandDiscard(p,lim.value,()=>{saCfg().paused=false;_endTurn();});return;}
+  const ck=saCleanupKey();if(r.cleanupEventKey!==ck){r.cleanupEventKey=ck;const ev=saEvent("phase:cleanup",null,{phase:11});saQueueTiming("cleanup",ev,null);}if(state.stack.length||saRuntime().pendingTriggers.length){saPause("trigger","クリンナップ中の誘発を処理してください。処理後にもう一度ターンを終了してください");return;}
+  act("クリンナップとターン開始",()=>{const q=saRunCleanupDeterministic();saLog("auto",`クリンナップ: ダメージ${q.dmg}枚 / 戦闘状態${q.combat}枚 / マナ${q.mana} / 一時トークン${q.tokens}枚`);r.lastCleanupKey=saCleanupKey();r.discardResolvedKey="";r.cleanupEventKey="";_saEndTurnBypass=true;try{_saEndTurnBase();}finally{_saEndTurnBypass=false;}});saSetStatus("manual","");saveState(true);render();setTimeout(()=>{saEmitPhaseEvent();saRunSbaLoop("ターン開始後");},0);
+};
+function saRunCleanupManual(){closeModal();act("クリンナップ（手動実行）",()=>{const q=saRunCleanupDeterministic();saLog("manual",`クリンナップを実行: ダメージ${q.dmg} / 戦闘${q.combat} / マナ${q.mana} / 一時トークン${q.tokens}`);});saveState(true);render();saRunSbaLoop("クリンナップ後");}
+
+/* 戦闘キーワードと安全な指定 */
+[["vigilance","警戒","警戒"],["flying","飛行","飛行"],["reach","到達","到達"],["menace","威迫","威迫"],["defender","防衛","防衛"],["haste","速攻","速攻"]].forEach(([k,j,s])=>{if(!COMBAT_KEYWORDS.includes(k))COMBAT_KEYWORDS.push(k);COMBAT_KEYWORD_JP[k]=j;COMBAT_KEYWORD_SHORT[k]=s;});
+function saCanAttack(c){const f=findCard(c.id);if(!f||!AUTO_BATTLEFIELD_ZONES.includes(f.zone))return {ok:false,reason:"戦場のパーマネントではありません"};if(!cardHasType(c,"Creature"))return {ok:false,reason:"クリーチャーではありません"};if((c.controller||c.owner)!==state.turn.active)return {ok:false,reason:"手番プレイヤーのクリーチャーではありません"};if(c.tapped)return {ok:false,reason:"タップ状態です"};if(hasCombatKeyword(c,"defender"))return {ok:false,reason:"防衛を持っています"};if(c.enteredTurn!=null&&Number(c.enteredTurn)===Number(state.turn.number)&&!hasCombatKeyword(c,"haste"))return {ok:false,reason:"召喚酔いです"};return {ok:true};}
+function saCanBlockTarget(blocker,attacker){if(!blocker||!attacker)return {ok:false,reason:"カードがありません"};if(!cardHasType(blocker,"Creature")||blocker.tapped)return {ok:false,reason:"アンタップ状態のクリーチャーではありません"};if((blocker.controller||blocker.owner)===(attacker.controller||attacker.owner))return {ok:false,reason:"同じ側のクリーチャーです"};if(hasCombatKeyword(attacker,"flying")&&!hasCombatKeyword(blocker,"flying")&&!hasCombatKeyword(blocker,"reach"))return {ok:false,reason:"飛行をブロックできません"};return {ok:true};}
+const _saToggleAttackBase=toggleAttack;
+toggleAttack=function(id){const f=findCard(id);if(!f)return;if(!f.card.attacking&&saCfg().enabled&&saCfg().strictCombat){const q=saCanAttack(f.card);if(!q.ok){toast(`攻撃できません: ${q.reason}`);saLog("warn",`[${f.card.name}] の攻撃指定を拒否: ${q.reason}`);return;}}act("攻撃指定",()=>{_saToggleAttackBase(id);const n=findCard(id);if(n&&n.card.attacking&&!hasCombatKeyword(n.card,"vigilance"))n.card.tapped=true;});const n=findCard(id);if(n&&n.card.attacking){const ev=saEvent("attack",n.card);saQueueTiming("attack",ev,n.card);}saveState(true);render();};
+const _saToggleBlockBase=toggleBlock;
+toggleBlock=function(id){const f=findCard(id);if(!f)return;if(!f.card.blocking&&saCfg().enabled&&saCfg().strictCombat){if(!cardHasType(f.card,"Creature")||f.card.tapped){toast("ブロックできません: アンタップ状態のクリーチャーではありません");return;}}_saToggleBlockBase(id);const n=findCard(id);if(n&&n.card.blocking){const ev=saEvent("block",n.card);saQueueTiming("block",ev,n.card);}saveState(true);};
+const _saSetBlockTargetsBase=setBlockTargets;
+setBlockTargets=function(c,arr,silent){if(saCfg().enabled&&saCfg().strictCombat){const bad=[];arr=(arr||[]).filter(id=>{const f=findCard(id),q=saCanBlockTarget(c,f&&f.card);if(!q.ok){bad.push(`${f?f.card.name:"?"}: ${q.reason}`);return false;}return true;});if(bad.length)toast("不適正なブロックを除外: "+bad.join(" / "));}_saSetBlockTargetsBase(c,arr,silent);};
+
+/* 戦場入り時刻・イベント */
+const _saMoveCardBase=moveCard;
+moveCard=function(id,destPlayer,destZone,pos,skipUndo){const before=findCard(id),old=before&&before.zone,card=_saMoveCardBase(id,destPlayer,destZone,pos,skipUndo);if(card){const entered=!AUTO_BATTLEFIELD_ZONES.includes(old)&&AUTO_BATTLEFIELD_ZONES.includes(destZone);if(entered){card.enteredTurn=state.turn.number;card.enteredController=card.controller||card.owner;const ev=saEvent("enterBattlefield",card,{from:old,to:destZone});saQueueTiming("enterBattlefield",ev,card);}else if(AUTO_BATTLEFIELD_ZONES.includes(old)&&!AUTO_BATTLEFIELD_ZONES.includes(destZone)){saEvent(destZone==="graveyard"?"dies":"leaveBattlefield",card,{from:old,to:destZone});}}return card;};
+
+/* 両者パス・安全な自動進行 */
+let _saPassCall=false;
+const _saPushUndoBase=pushUndo;
+pushUndo=function(label){if(!_saPassCall&&!/^優先権変更$/.test(String(label||"")))saResetPasses("操作が行われました");return _saPushUndoBase(label);};
+function saAfterDoublePass(){
+  const cfg=saCfg(),r=saRuntime();if(!cfg.enabled||cfg.paused||r.running)return;const block=saTopLayerBlocking();if(block){saPause("paused",block);return;}r.running=true;saSetStatus("running","両者パスを処理中");try{
+    if(state.stack.length){if(!cfg.autoResolveStack){saPause("paused","スタック自動解決がOFFです");return;}const top=state.stack[state.stack.length-1],q=saCanAutoResolveTop(top);if(!q.ok){saPause(q.status||"paused",q.reason);return;}if(q.fizzle){saFizzleTop(top,"解決時の対象再判定");return;}if(cardTypes(top,true).some(t=>["Creature","Artifact","Enchantment","Planeswalker","Battle","Token"].includes(t))&&cfg.autoPermanentToBattlefield)resolveTop("field");else resolveTop();state.turn.priority=state.turn.active;saLog("auto",`両者パスにより [${top.name}] を解決`);saRunSbaLoop("自動スタック解決後");}
+    else {if(!cfg.autoAdvancePhase){saPause("paused","フェイズ自動進行がOFFです");return;}const pending=saProcessPendingTriggers();if(cfg.paused||pending||state.stack.length)return;const current=state.turn.phase;if(cfg.stopPhases.includes(current)){saPause("paused",`${PHASES[current]} は自動停止設定です。次へ進む操作を確認してください`);return;}_phaseAdvanceFlow();state.turn.priority=state.turn.active;saLog("auto",`両者パスによりフェイズ進行`);setTimeout(()=>{saEmitPhaseEvent();saRunSbaLoop("フェイズ進行後");},0);}
+  }catch(e){console.error(e);saPause("error",`自動処理エラー: ${e.message||e}`);}finally{r.running=false;saResetPasses();saveState(true);render();}}
+const _saPassPriorityBase=passPriority;
+passPriority=function(){const cfg=saCfg();if(!cfg.enabled||!cfg.autoPass||cfg.paused)return _saPassPriorityBase();const passer=state.turn.priority,key=saPhaseKey();_saPassCall=true;try{_saPassPriorityBase();}finally{_saPassCall=false;}const r=saRuntime(),sp=state.turn.safePass||(state.turn.safePass={last:null,count:0,key});if(sp.key!==key){sp.key=key;sp.last=null;sp.count=0;r.passes=[];}if(sp.last===passer){sp.count=1;r.passes=[passer];}else{sp.last=passer;sp.count++;r.passes.push(passer);}if(sp.count>=2&&new Set(r.passes.slice(-2)).size===2)setTimeout(saAfterDoublePass,0);};
+
+/* フェイズ変更時の誘発 */
+const _saSetPhaseBase=setPhase;
+setPhase=function(i){const old=state.turn.phase,r=_saSetPhaseBase(i);if(i!==old){saResetPasses();setTimeout(saEmitPhaseEvent,0);}return r;};
+
+/* 戦闘解決後の状況起因処理 */
+const _saCrwExecuteBase=crwExecute;
+crwExecute=function(){const r=_saCrwExecuteBase.apply(this,arguments);setTimeout(()=>saRunSbaLoop("戦闘解決後"),0);return r;};
+
+/* ルール補助・描画への導線 */
+const _saOpenRuleSuiteBase=openRuleSuite;
+openRuleSuite=function(){_saOpenRuleSuiteBase();setTimeout(()=>{const grid=document.querySelector("#modalRoot .menu-grid");if(!grid||grid.querySelector("[data-safe-suite]"))return;const b=document.createElement("button");b.type="button";b.className="btn primary";b.dataset.safeSuite="1";b.textContent="安全自動化設定";b.addEventListener("click",e=>{e.preventDefault();e.stopPropagation();openSafeAutomationSettings();});grid.appendChild(b);},0);};
+const _saRenderBase=render;
+render=function(){saEnsure();const r=_saRenderBase.apply(this,arguments);setTimeout(saInjectStatus,0);return r;};
+
+/* 自己診断 */
+function safeAutomationDiagnose(){const c=saCfg(),r=saRuntime(),issues=[];if(c.maxIterations<5||c.maxIterations>100)issues.push("最大反復回数が範囲外");if(!Array.isArray(c.stopPhases))issues.push("停止フェイズ設定が不正");if(!Array.isArray(r.pendingTriggers))issues.push("誘発待ち状態が不正");if(r.running)issues.push("自動処理実行フラグが残っています");return {version:SAFE_AUTOMATION_VERSION,issues,status:r.status,pendingTriggers:r.pendingTriggers.length,events:Object.keys(r.eventLedger||{}).length};}
 
 
 window.addEventListener("error",function(ev){ showErr(ev.message||"不明なエラー"); });
