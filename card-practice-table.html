@@ -192,6 +192,10 @@
   .card:hover{border-color:var(--accent);transform:translateY(-2px)}
   .card.selected{outline:2px solid var(--accent);outline-offset:1px}
   .card.tapped{transform:rotate(20deg)}
+  .card.no-name-art{display:flex;flex-direction:column;justify-content:flex-start;min-height:calc(var(--cw) * 88 / 63);height:calc(var(--cw) * 88 / 63);padding:4px}
+  .card.no-name-art .img{width:100%;height:100%;flex:1 1 auto;min-height:0;object-fit:contain;object-position:center;border-radius:5px;margin-bottom:0;background:#000}
+  .card.no-name-art .cn{display:none}
+  .card.no-name-art .menu-dot{top:2px;right:3px}
   .card .cn{font-weight:600;word-break:break-word;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
   .card .ct{position:absolute;top:2px;right:3px;font-size:8px;opacity:.9;display:flex;gap:1px;max-width:78%;overflow:hidden;z-index:2}
   .card .ct .tmini{display:inline-flex;align-items:center;justify-content:center;min-width:15px;height:14px;padding:0 3px;border-radius:4px;background:rgba(0,0,0,.58);border:1px solid rgba(255,255,255,.18);white-space:nowrap}
@@ -206,6 +210,12 @@
   .badge.dmg{background:#5a2f2f;color:#f0c0c0}
   .badge.ctr{background:#3a3f5a;color:#cfd6f0}
   .card .img{display:block;width:100%;height:var(--cimg);object-fit:contain;object-position:center;border-radius:5px;margin-bottom:3px;background:#000}
+  .field.ohand .fieldcards{display:flex;flex-wrap:nowrap;gap:8px;overflow-x:auto;overflow-y:hidden;align-items:flex-start;padding:2px 1px 4px;min-height:calc(var(--opponent-hand-hch, calc(var(--cw) * 88 / 63)) + 2px)}
+  .field.ohand .fieldcards .card{width:var(--opponent-hand-hcw,var(--cw));height:var(--opponent-hand-hch,auto);min-height:0;display:flex;flex-direction:column}
+  .field.ohand .fieldcards .card.no-name-art{height:var(--opponent-hand-hch,calc(var(--opponent-hand-hcw,var(--cw)) * 88 / 63));min-height:var(--opponent-hand-hch,calc(var(--opponent-hand-hcw,var(--cw)) * 88 / 63))}
+  .field.ohand .fieldcards .card .img{flex:1 1 auto;min-height:0;height:auto;width:100%;object-fit:contain}
+  .hiddenrow{display:flex;flex-wrap:nowrap;gap:6px;overflow-x:auto;overflow-y:hidden;align-items:flex-start;padding:2px 1px 4px;min-height:calc(var(--opponent-hand-hch, 110px) * 0.72)}
+  .hiddenrow .cardback{width:calc(var(--opponent-hand-hcw, var(--cw)) * 0.44);height:calc(var(--opponent-hand-hch, 110px) * 0.72);border-radius:6px}
   .card .tapmark{position:absolute;top:2px;left:3px;font-size:8px;color:var(--accent);font-weight:800}
   .card .menu-dot{position:absolute;top:1px;right:2px;font-size:13px;color:var(--muted);
     background:rgba(0,0,0,.35);border-radius:4px;line-height:1;padding:1px 3px}
@@ -1077,6 +1087,7 @@
   .hzresize{position:absolute;left:6px;right:6px;top:0;height:8px;border-radius:4px;background:rgba(255,255,255,.06);cursor:ns-resize;touch-action:none;z-index:5}
   .hzresize:hover,.hzresize.on{background:rgba(224,168,60,.4)}
   .handstrip .card{width:var(--hcw,var(--cw));height:var(--hch,auto);min-height:0;display:flex;flex-direction:column}
+  .handstrip .card.no-name-art{height:var(--hch,calc(var(--hcw,var(--cw)) * 88 / 63));min-height:var(--hch,calc(var(--hcw,var(--cw)) * 88 / 63))}
   .handstrip .card .img{flex:1 1 auto;min-height:0;height:auto;width:100%;object-fit:contain}
   .handstrip .card .ctext{flex:1 1 auto;min-height:0;overflow:hidden}
   .handstrip{overflow-x:auto;overflow-y:hidden;flex-wrap:nowrap;align-items:flex-start}
@@ -2001,7 +2012,7 @@ function newPlayer(){
 function defaultState(){
   return {
     version:1,
-    appVersion:"2.3.0",
+    appVersion:"2.3.3",
     dataVersion:7,
     meta:{ lastSaved:null, lastBackup:null, lastDiag:null },
     integrityLog:[],
@@ -2840,15 +2851,15 @@ function cardHTML(c){
   const tgtB=(typeof tgtBadgesFor==="function")?tgtBadgesFor(c):[];
   const _cc=cardColorClass(c); const _cck=cardColorKeyAttr(c);
   const _pt=_ptInfo(c);
-  return `<div class="card${c.tapped?" tapped":""}${selectedCardId===c.id?" selected":""}${combatCls}${tgtCls}${_cc?(" "+_cc):""}" data-card-id="${c.id}" data-type="${primaryTypeOf(c)}" data-types="${esc(cardTypes(c,true).join(","))}"${_cck}>
+  return `<div class="card${img?" no-name-art":""}${c.tapped?" tapped":""}${selectedCardId===c.id?" selected":""}${combatCls}${tgtCls}${_cc?(" "+_cc):""}" data-card-id="${c.id}" data-type="${primaryTypeOf(c)}" data-types="${esc(cardTypes(c,true).join(","))}"${_cck} title="${esc(_d.name)}">
     ${flag}
-    ${img?`<img class="img" src="${esc(img)}" alt=""${_ifb?` data-fb="${esc(_ifb)}"`:""} onerror="if(this.dataset.fb){var f=this.dataset.fb;this.removeAttribute('data-fb');this.src=f;}else{this.remove();}">`:""}
+    ${img?`<img class="img" src="${esc(img)}" alt="${esc(_d.name)}"${_ifb?` data-fb="${esc(_ifb)}"`:""} onerror="if(this.dataset.fb){var f=this.dataset.fb;this.removeAttribute('data-fb');this.src=f;}else{this.remove();}">`:""}
     <span class="ct">${typeMiniHTML(c)}</span>
     ${c.tapped?'<span class="tapmark">TAP</span>':''}
     <span class="menu-dot">\u22ee</span>
     ${(state.settings.cardZoomButton!==false && state.settings.cardZoomEnabled!==false)?'<span class="zoom-dot" title="押している間 拡大">\ud83d\udd0d</span>':""}
     ${smartActionBtnHTML(c)}
-    <div class="cn">${esc(_d.name)}${_d.faceActive?`<span class="cn-orig">（元:${esc(faceShort(_d.repName))}）</span>`:""}</div>
+    ${img?"":`<div class="cn">${esc(_d.name)}${_d.faceActive?`<span class="cn-orig">（元:${esc(faceShort(_d.repName))}）</span>`:""}</div>`}
     ${showPT?`<span class="pt${_pt.changed?" buffed":""}"${_pt.changed?` title="${_pt.dynamic?`参照式 ${esc(String(_pt.printedP))}/${esc(String(_pt.printedT))} / N=${_pt.ref.n}`:`基本 ${esc(String(_pt.bp))}/${esc(String(_pt.bt))}`}"`:""}>${esc(String(_pt.ep))}/${esc(String(_pt.et))}</span>`:""}
     ${(badges.length||tgtB.length)?`<div class="badges">${badges.concat(tgtB).join("")}</div>`:""}
   </div>`;
@@ -2994,7 +3005,7 @@ function opponentHandHTML(p){
   const arr=state.players[p].hand;
   if(state.settings.revealOpponentHand || soloBothHands()){
     const cards=arr.map(c=>cardHTML(c)).join("")||'<span class="empty">(手札なし)</span>';
-    return `<div class="field ohand"><div class="field-h"><span class="lab">相手の手札(公開${soloBothHands()?"・1人テスト":""})</span><span class="c">${arr.length}</span></div><div class="fieldcards">${cards}</div></div>`;
+    return `<div class="field ohand"><div class="field-h"><span class="lab">相手の手札(公開${soloBothHands()?"・1人テスト":""})</span><span class="c">${arr.length}</span></div><div class="note" style="margin:-1px 0 5px;font-size:10px">相手の手札は専用サイズで表示します。「盤面サイズ」から相手手札だけ拡大・縮小できます。自分の手札サイズには連動しません。カード名はプレビューや詳細で確認できます。</div><div class="fieldcards">${cards}</div></div>`;
   }
   const backs=arr.map(()=>'<span class="cardback"></span>').join("")||'<span class="empty">(なし)</span>';
   return `<div class="field ohand"><div class="field-h"><span class="lab">相手の手札(非公開)</span><span class="c">${arr.length}</span></div><div class="hiddenrow">${backs}</div></div>`;
@@ -3098,12 +3109,12 @@ document.addEventListener("fullscreenchange",_mobileApply);
 // ===== 盤面レイアウト（端末ローカルのみ・オンライン同期/Undo/保存stateに含めない） =====
 let boardLayout=(function(){ try{ const j=JSON.parse(localStorage.getItem("cpt_layout_v1")||"{}"); // 旧設定(float/cardTap無し)も安全に読み込む
   return {scale:(typeof j.scale==="number"&&j.scale>=0.7&&j.scale<=1.5)?j.scale:1, cardSize:j.cardSize||null, preset:j.preset||"standard", zoneH:(j.zoneH&&typeof j.zoneH==="object")?{A:j.zoneH.A||{},B:j.zoneH.B||{}}:{A:{},B:{}},
-    float:(j.float&&typeof j.float==="object")?j.float:{}, hand:(j.hand&&typeof j.hand==="object")?j.hand:{},
+    float:(j.float&&typeof j.float==="object")?j.float:{}, hand:(j.hand&&typeof j.hand==="object")?j.hand:{}, opponentHand:(j.opponentHand&&typeof j.opponentHand==="object")?j.opponentHand:{},
     cardTap:(j.cardTap&&typeof j.cardTap==="object")?{detailAuto:j.cardTap.detailAuto!==false,previewAuto:j.cardTap.previewAuto===true}:{detailAuto:true,previewAuto:false}};
-}catch(_){ return {scale:1,cardSize:null,preset:"standard",zoneH:{A:{},B:{}},float:{},hand:{},cardTap:{detailAuto:true,previewAuto:false}}; } })();
+}catch(_){ return {scale:1,cardSize:null,preset:"standard",zoneH:{A:{},B:{}},float:{},hand:{},opponentHand:{},cardTap:{detailAuto:true,previewAuto:false}}; } })();
 function _blSave(){ try{ localStorage.setItem("cpt_layout_v1",JSON.stringify(boardLayout)); }catch(_){} }
 function _blSet(p,z,h){ boardLayout.zoneH[p]=boardLayout.zoneH[p]||{}; boardLayout.zoneH[p][z]=h; boardLayout.preset="custom"; }
-function _blReset(){ boardLayout={scale:1,cardSize:null,preset:"standard",zoneH:{A:{},B:{}},float:{},hand:{},cardTap:{detailAuto:true,previewAuto:false}}; _blSave(); }
+function _blReset(){ boardLayout={scale:1,cardSize:null,preset:"standard",zoneH:{A:{},B:{}},float:{},hand:{},opponentHand:{},cardTap:{detailAuto:true,previewAuto:false}}; _blSave(); }
 function _cardTapGet(){ boardLayout.cardTap=boardLayout.cardTap&&typeof boardLayout.cardTap==="object"?boardLayout.cardTap:{};
   if(typeof boardLayout.cardTap.detailAuto!=="boolean") boardLayout.cardTap.detailAuto=true;
   if(typeof boardLayout.cardTap.previewAuto!=="boolean") boardLayout.cardTap.previewAuto=false;
@@ -3288,9 +3299,21 @@ function _handFit(){ try{
   const strip=hz.querySelector(".handstrip"); if(!strip) return;
   const innerH=(h.h!=null?h.h:hz.clientHeight||110)-18;
   const ch=Math.max(56,Math.min(Math.round(innerH*h.scale),Math.round((window.innerHeight||800)*0.45)));
+  const cw=Math.round(ch*_CARD_AR), cf=Math.max(9,Math.min(15,Math.round(ch*0.125)))+"px";
   hz.style.setProperty("--hch",ch+"px");
-  hz.style.setProperty("--hcw",Math.round(ch*_CARD_AR)+"px");
-  hz.style.setProperty("--cfont",Math.max(9,Math.min(15,Math.round(ch*0.125)))+"px");
+  hz.style.setProperty("--hcw",cw+"px");
+  hz.style.setProperty("--cfont",cf);
+}catch(_){} }
+function _opponentHandGet(){ boardLayout.opponentHand=boardLayout.opponentHand&&typeof boardLayout.opponentHand==="object"?boardLayout.opponentHand:{}; const h=boardLayout.opponentHand;
+  if(typeof h.scale!=="number"||!isFinite(h.scale)) h.scale=1;
+  h.scale=Math.max(0.6,Math.min(h.scale,1.8)); return h; }
+function _opponentHandFit(){ try{
+  const o=_opponentHandGet();
+  const base=Math.max(72,Math.min(140,Math.round((window.innerHeight||800)*0.14)));
+  const ch=Math.max(56,Math.min(Math.round(base*o.scale),Math.round((window.innerHeight||800)*0.45)));
+  const cw=Math.round(ch*_CARD_AR);
+  document.body.style.setProperty("--opponent-hand-hch",ch+"px");
+  document.body.style.setProperty("--opponent-hand-hcw",cw+"px");
 }catch(_){} }
 document.addEventListener("pointerdown",(e)=>{ const hd=e.target.closest&&e.target.closest(".hzresize"); if(!hd) return;
   e.preventDefault(); hd.classList.add("on");
@@ -3311,7 +3334,7 @@ function _ohFit(){ try{ // 初手練習: 枚数基準で均一サイズを再計
   h.style.setProperty("--ohw",w+"px");
   h.style.setProperty("--ohh",(Math.round(w*1.4)+26)+"px");
 }catch(_){} }
-window.addEventListener("resize",function(){ try{ _flSyncAll(); _zoneAutoFit(); _handFit(); _ohFit(); }catch(_){} });
+window.addEventListener("resize",function(){ try{ _flSyncAll(); _zoneAutoFit(); _handFit(); _opponentHandFit(); _ohFit(); }catch(_){} });
 function applyBoardLayout(){ try{
   const sz=boardLayout.cardSize||state.settings.cardSize||"m";
   document.body.dataset.size=sz;
@@ -3382,14 +3405,23 @@ function openBoardLayout(){
       <div class="row-inline" style="gap:6px;flex-wrap:wrap">
         <button class="btn sm" data-bl="zreset">重なり順を初期化</button>
         <button class="btn sm" data-bl="flrecover">すべて画面内へ戻す</button></div></div>
-    <div class="field"><span>手札サイズ（端末ローカル・上端バーのドラッグと連動）</span>
+    <div class="field"><span><b>自分の手札サイズ</b>（端末ローカル・下側手札の上端バーと連動）</span>
       <div class="row-inline" style="gap:6px;flex-wrap:wrap;align-items:center">
         <input type="range" id="blHandScale" min="60" max="180" step="5" value="${Math.round(_handGet().scale*100)}" style="width:140px">
         <b id="blHandScaleV">${Math.round(_handGet().scale*100)}%</b>
         <button class="btn sm" data-bl="handpre" data-v="s">小</button>
         <button class="btn sm" data-bl="handpre" data-v="m">標準</button>
         <button class="btn sm" data-bl="handpre" data-v="l">大</button>
-        <button class="btn sm" data-bl="rhand">手札レイアウト初期化</button></div></div>
+        <button class="btn sm" data-bl="rhand">自分の手札を初期化</button></div></div>
+    <div class="field"><span><b>相手の手札サイズ</b>（端末ローカル・自分の手札とは別設定）</span>
+      <div class="row-inline" style="gap:6px;flex-wrap:wrap;align-items:center">
+        <input type="range" id="blOpponentHandScale" min="60" max="180" step="5" value="${Math.round(_opponentHandGet().scale*100)}" style="width:140px">
+        <b id="blOpponentHandScaleV">${Math.round(_opponentHandGet().scale*100)}%</b>
+        <button class="btn sm" data-bl="ophandpre" data-v="s">小</button>
+        <button class="btn sm" data-bl="ophandpre" data-v="m">標準</button>
+        <button class="btn sm" data-bl="ophandpre" data-v="l">大</button>
+        <button class="btn sm" data-bl="ropphand">相手の手札を初期化</button></div>
+      <div class="note">公開手札と非公開カード背面の両方に反映されます。1人テスト・オンライン表示のどちらでも共通です。</div></div>
     <div class="field"><span>個別初期化</span>
       <div class="row-inline" style="gap:6px;flex-wrap:wrap">
         <button class="btn sm" data-bl="rzones">盤面ゾーンのみ初期化</button></div></div>
@@ -3421,13 +3453,18 @@ function openBoardLayout(){
     else if(k==="flrecover"){ ["cmd","prev","detail"].forEach(kk=>{ _flClamp(_flGet(kk),160,90); }); }
     else if(k==="rzones"){ boardLayout.zoneH={A:{},B:{}}; }
     else if(k==="rhand"){ boardLayout.hand={}; }
+    else if(k==="ropphand"){ boardLayout.opponentHand={}; }
     else if(k==="handpre"){ const h=_handGet(); const v=b.dataset.v; if(v==="s"){h.h=88;h.scale=0.8;} else if(v==="l"){h.h=190;h.scale=1.3;} else {h.h=null;h.scale=1;} }
+    else if(k==="ophandpre"){ const h=_opponentHandGet(); const v=b.dataset.v; h.scale=v==="s"?0.8:(v==="l"?1.3:1); }
     else if(k==="reset"){ _blReset(); }
-    _blSave(); applyBoardLayout(); try{ _flSyncAll(); render(); }catch(_){} openBoardLayout();
+    _blSave(); applyBoardLayout(); try{ _flSyncAll(); _opponentHandFit(); render(); }catch(_){} openBoardLayout();
   },{once:true});
   const sl=document.getElementById("blHandScale");
   if(sl){ sl.oninput=()=>{ const h=_handGet(); h.scale=parseInt(sl.value,10)/100; const v=document.getElementById("blHandScaleV"); if(v) v.textContent=sl.value+"%"; _handFit(); };
     sl.onchange=()=>{ _blSave(); }; }
+  const osl=document.getElementById("blOpponentHandScale");
+  if(osl){ osl.oninput=()=>{ const h=_opponentHandGet(); h.scale=parseInt(osl.value,10)/100; const v=document.getElementById("blOpponentHandScaleV"); if(v) v.textContent=osl.value+"%"; _opponentHandFit(); };
+    osl.onchange=()=>{ _blSave(); }; }
 }
 function halfHTML(p,side){
   const lands=fieldHTML(p,"lands",ZONE_JP.lands);
@@ -3668,7 +3705,7 @@ function render(){
       $("#footer").innerHTML=footerHTML();
       try{ _olHudSync(); }catch(_){} // フローティングHUDの表示値更新（表示のみ）
       try{ _cmdPanelSync(); }catch(_){} // 浮動メニュー操作パネルの内容更新（表示のみ）
-      try{ _flSyncAll(); _zoneAutoFit(); _handFit(); }catch(_){} // フローティング操作/プレビュー・ゾーン/手札フィット（端末ローカル）
+      try{ _flSyncAll(); _zoneAutoFit(); _handFit(); _opponentHandFit(); }catch(_){} // フローティング操作/プレビュー・ゾーン/手札フィット（端末ローカル）
       const _cpw=$("#combatPanelWrap"); if(_cpw) _cpw.innerHTML=combatPanelHTML();
       renderPreview();
       drawCombatLines();
