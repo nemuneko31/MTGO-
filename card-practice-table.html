@@ -2018,7 +2018,7 @@ function newPlayer(){
 function defaultState(){
   return {
     version:1,
-    appVersion:"2.4.0",
+    appVersion:"2.5.1",
     dataVersion:7,
     meta:{ lastSaved:null, lastBackup:null, lastDiag:null },
     integrityLog:[],
@@ -5772,6 +5772,30 @@ function addSampleDecks(){
 /* ============================================================
    イベント委譲
    ============================================================ */
+/*
+ * カード選択は1クリックごとに盤面を再描画するため、ブラウザ標準の dblclick だけでは
+ * 1回目と2回目でDOM要素が入れ替わり、ダブルクリックが発火しない場合がある。
+ * カードIDとクリック時刻で2回目を判定し、PCのダブルクリックを確実に標準操作へ接続する。
+ * タッチ由来クリックは誤プレイ防止のため対象外（スマホはカード上の▶を使用）。
+ */
+let _cardDblLastId="", _cardDblLastAt=0, _cardDblSuppressId="", _cardDblSuppressUntil=0, _cardDblLastTouchAt=0;
+function _cardClickIsTouch(e){
+  try{ if(e&&e.sourceCapabilities&&e.sourceCapabilities.firesTouchEvents) return true; }catch(_){}
+  return Date.now()-_cardDblLastTouchAt<900;
+}
+function _consumeCardDoubleClick(id,e){
+  if(!id||_cardClickIsTouch(e)){ _cardDblLastId=""; _cardDblLastAt=0; return false; }
+  const now=(typeof performance!=="undefined"&&performance.now)?performance.now():Date.now();
+  const dt=now-_cardDblLastAt;
+  if(_cardDblLastId===id&&dt>=35&&dt<=520){
+    _cardDblLastId=""; _cardDblLastAt=0;
+    _cardDblSuppressId=id; _cardDblSuppressUntil=now+800;
+    doubleClickCard(id);
+    return true;
+  }
+  _cardDblLastId=id; _cardDblLastAt=now;
+  return false;
+}
 document.addEventListener("click",function(e){
   safe(()=>{
     const _zs=e.target.closest&&e.target.closest("[data-zstep]"); if(_zs){ e.preventDefault(); e.stopPropagation(); _zoneStepHeight(_zs.dataset.p,_zs.dataset.z,parseInt(_zs.dataset.zstep,10)||0); return; }
@@ -5920,8 +5944,10 @@ document.addEventListener("click",function(e){
     if(card){
       const inModal=!!e.target.closest("#modalRoot");
       const dot=e.target.closest(".menu-dot");
-      if(inModal||dot){ openCardMenu(card.getAttribute("data-card-id")); return; }
-      selectCard(card.getAttribute("data-card-id")); return;
+      const cid=card.getAttribute("data-card-id");
+      if(inModal||dot){ openCardMenu(cid); return; }
+      if(_consumeCardDoubleClick(cid,e)){ e.preventDefault(); return; }
+      selectCard(cid); return;
     }
 
     // ライブラリーボックスの操作メニュー（zboxより先に判定）
@@ -7343,8 +7369,12 @@ function openCombatNotice(){
 /* グローバル: ダブルクリック / 右クリック / 長押し / キー */
 document.addEventListener("dblclick",function(e){
   const card=e.target.closest("[data-card-id]"); if(!card) return;
-  if(e.target.closest("#modalRoot")) return;
-  e.preventDefault(); safe(()=>doubleClickCard(card.getAttribute("data-card-id")));
+  if(e.target.closest("#modalRoot")||_cardClickIsTouch(e)) return;
+  const id=card.getAttribute("data-card-id");
+  const now=(typeof performance!=="undefined"&&performance.now)?performance.now():Date.now();
+  /* 上の独自2クリック判定ですでに処理済みなら、標準dblclickによる二重実行を防ぐ */
+  if(_cardDblSuppressId===id&&now<_cardDblSuppressUntil){ e.preventDefault(); return; }
+  e.preventDefault(); safe(()=>doubleClickCard(id));
 });
 document.addEventListener("contextmenu",function(e){
   const card=e.target.closest("[data-card-id]"); if(!card) return;
@@ -7352,6 +7382,7 @@ document.addEventListener("contextmenu",function(e){
 });
 let _lpT=null,_lpId=null;
 document.addEventListener("touchstart",function(e){
+  _cardDblLastTouchAt=Date.now();
   const card=e.target.closest("[data-card-id]"); if(!card) return;
   if(e.target.closest("#modalRoot")) return;
   if(e.target.closest(".zoom-dot")){ showCardZoom(card.getAttribute("data-card-id")); return; }
@@ -11585,7 +11616,7 @@ function _libSearchBind(){
 /* ============================================================
    総合安定化: 自己診断 / バックアップ / プレイテスト / ヘルプ / バージョン
    ============================================================ */
-const APP_VERSION="2.4.0";
+const APP_VERSION="2.5.1";
 const DATA_VERSION=7;
 const LS_BACKUP_KEY="cpt_backups_v1";
 let _cptMigrationNote="";
@@ -16125,6 +16156,241 @@ placeOnStackFlow=function(id,opts){opts=opts||{};if(_v24CastFlow){toast("別の�
 /* 代替コストで既に支払い状態が決まっている場合は通常の支払いモーダルを出さない */
 const _v24ProceedPaymentBase=v24ProceedPayment;
 v24ProceedPayment=function(flow){if(flow.prePay){flow.stage="payment";v24FinishCast(flow,flow.prePay);return;}_v24ProceedPaymentBase(flow);};
+
+
+/* ============================================================
+   Automation Flow Suite v2.5.1
+   - 登録済みの一意な効果を確認なしで解決
+   - 戦場カードのダブルクリックで起動型能力をクイック起動
+   - ETB/死亡/唱えた/ドロー/攻撃/戦闘ダメージのイベント誘発
+   - 登録サーチをスタック解決フローへ接続
+   - 一意な戦闘ダメージを自動割り振り・適用
+   曖昧・任意・複数順序・隠された情報は従来どおり手動確認へ戻す。
+   ============================================================ */
+const V25_FLOW_DEFAULTS={
+  deterministicResolve:true,
+  quickAbilityDoubleClick:true,
+  automaticTriggerEvents:true,
+  searchOnResolve:true,
+  deterministicCombatDamage:true
+};
+function v25FlowCfg(){
+  if(!state.settings||typeof state.settings!=="object")state.settings={};
+  let c=state.settings.flowAutomation;
+  if(!c||typeof c!=="object"||Array.isArray(c)){c={};state.settings.flowAutomation=c;}
+  for(const [k,v] of Object.entries(V25_FLOW_DEFAULTS))if(!Object.prototype.hasOwnProperty.call(c,k))c[k]=v;
+  return c;
+}
+v25FlowCfg();
+
+/* 能力データの後方互換拡張 */
+for(const t of ["death","cast","draw","landfall","combatDamage","lifeGain","counterPlaced"]){if(!ABILITY_TIMINGS.includes(t))ABILITY_TIMINGS.push(t);}
+Object.assign(ABILITY_TIMING_JP,{death:"死亡した時",cast:"呪文を唱えた時",draw:"カードを引いた時",landfall:"土地が戦場に出た時",combatDamage:"戦闘ダメージを与えた時",lifeGain:"ライフを得た時",counterPlaced:"カウンターが置かれた時"});
+const _v25NormalizeAbilityBase=normalizeAbility;
+normalizeAbility=function(a){
+  a=a||{};const r=_v25NormalizeAbilityBase(a);
+  r.createsStackObject=a.createsStackObject!==false;
+  r.quickActivate=a.quickActivate!==false;
+  r.triggerScope=["self","you","opponent","any"].includes(a.triggerScope)?a.triggerScope:"";
+  r.triggerFilter=String(a.triggerFilter||"");
+  return r;
+};
+const _v25MakeAbilityObjectBase=makeAbilityObject;
+makeAbilityObject=function(c,ab,owner){const r=_v25MakeAbilityObjectBase(c,ab,owner);r.createsStackObject=ab&&ab.createsStackObject!==false;r.triggerScope=ab&&ab.triggerScope||"";r.triggerFilter=ab&&ab.triggerFilter||"";return r;};
+
+/* ---------- 一意な登録効果の自動解決 ---------- */
+function v25AutoEffectTargetsReady(src,e){
+  if(["source","controller","opponent"].includes(e.targetMode))return true;
+  if(e.targetMode==="targets")return tgtCount(src)>0;
+  if(e.targetMode==="targetCards")return tgtIds(src).length>0;
+  if(e.targetMode==="targetPlayers")return tgtPlayers(src).length>0;
+  return false;
+}
+function v25AutoEffectsChoice(src){
+  const fx=_sourceAutoEffects(src);if(!fx.length)return null;
+  const ctx=normalizeCastEffectContext(src.castEffectContext)||{xValue:0},x=Math.max(0,_aeNum(ctx.xValue));
+  for(const e of fx){
+    if(!e.enabled||e.optional||e.kind==="discard"||e.kind==="note")return null;
+    if(!v25AutoEffectTargetsReady(src,e))return null;
+    if(e.kind==="draw")for(const pl of _aePlayerTargets(src,e)){const plan=_drawPlan(pl,Math.max(0,_aeAmount(e,x)),{context:"effect"});if(plan.manualRequired)return null;}
+    if(e.kind==="move"&&!AUTO_EFFECT_DESTINATIONS.includes(e.destination))return null;
+  }
+  return {apply:true,xValue:x,stepIds:fx.map(e=>e.id),discard:{},automatic:true};
+}
+function v25LibraryActionsDeterministic(src){const a=autoLibraryActionsForSource(src);return a.length&&a.every(x=>x.kind==="mill");}
+let _v25ResolveBypass=false;
+const _v25ResolveTopBase=resolveTop;
+resolveTop=function(forceDest,autoChoice){
+  const top=state.stack[state.stack.length-1],cfg=v25FlowCfg();
+  if(!top||_v25ResolveBypass)return _v25ResolveTopBase(forceDest,autoChoice);
+  if(autoChoice==null&&cfg.deterministicResolve){
+    const choice=v25AutoEffectsChoice(top),libDet=v25LibraryActionsDeterministic(top)&&!top._autoLibraryHandled;
+    /* ライブラリー操作だけが登録されている呪文も自動実行する。効果登録の有無には依存させない。 */
+    if(libDet){top._autoLibraryHandled=true;runLibraryActionSequence(top,autoLibraryActionsForSource(top),ok=>{if(ok){_v25ResolveBypass=true;try{resolveTop(forceDest,choice||null);}finally{_v25ResolveBypass=false;}}else top._autoLibraryHandled=false;});return;}
+    if(choice)autoChoice=choice;
+  }
+  const r=_v25ResolveTopBase(forceDest,autoChoice);
+  return r;
+};
+
+/* ---------- 解決時の登録サーチ連携 ---------- */
+function v25SearchProfilesForObject(obj){
+  if(!obj)return[];const cardName=isAbilityObj(obj)?obj.sourceCardName:obj.name,e=cardName&&dictGet(cardName);if(!e)return[];
+  return normalizeSearchProfiles(e.searchProfiles||[]).filter(p=>p.enabled&&(_searchProfileExpectedZone(e,p)==="stack"||p.useFrom==="any"));
+}
+let _v25SearchResume=null,_v25SearchResolveGuard=false;
+const _v25ZswExecuteBase=_zswExecute;
+_zswExecute=function(){const resume=_v25SearchResume,can=!!(_zsw&&_zswCanRun());_v25SearchResume=null;const r=_v25ZswExecuteBase();if(can&&resume&&_zsw===null)setTimeout(resume,0);return r;};
+const _v25ResolveSearchBase=resolveTop;
+resolveTop=function(forceDest,autoChoice){
+  const top=state.stack[state.stack.length-1],cfg=v25FlowCfg();
+  if(top&&!_v25SearchResolveGuard&&cfg.searchOnResolve&&!top._v25SearchHandled){
+    const ps=v25SearchProfilesForObject(top);
+    if(ps.length){
+      const rows=ps.map(p=>`<button class="btn primary" data-v25-search="${esc(p.id)}">${esc(p.label)}<br><small>${esc(searchProfileConditionText(p))}</small></button>`).join("");
+      openModal(`登録サーチを実行 — ${esc(top.name)}`,`<div class="note">登録されたサーチ処理を解決の途中で実行します。選択・公開・移動・タップイン・シャッフルを一続きで処理します。</div><div class="menu-grid">${rows}</div>`,`<button class="btn" data-v25-searchskip="1">サーチを適用せず解決</button><button class="btn" data-app="closem">キャンセル</button>`,`lg`);
+      setModalHandler(function(e){const sk=e.target.closest("[data-v25-searchskip]");if(sk){closeModal();top._v25SearchHandled=true;_v25SearchResolveGuard=true;try{resolveTop(forceDest,autoChoice);}finally{_v25SearchResolveGuard=false;}return;}const b=e.target.closest("[data-v25-search]");if(!b)return;const p=ps.find(x=>x.id===b.getAttribute("data-v25-search"));if(!p)return;closeModal();const source=isAbilityObj(top)?(findCard(top.sourceCardId)||{card:{controller:top.controller,owner:top.owner}}).card:top,player=source.controller||source.owner||top.controller||top.owner;_v25SearchResume=()=>{top._v25SearchHandled=true;_v25SearchResolveGuard=true;try{resolveTop(forceDest,autoChoice);}finally{_v25SearchResolveGuard=false;}};openZoneSearchWizard(player,"library",{profile:p,sourceCardId:source.id||"",destPlayer:player});});return;
+    }
+  }
+  return _v25ResolveSearchBase(forceDest,autoChoice);
+};
+
+/* ---------- ダブルクリック・クイック起動 ---------- */
+function v25AbilityZoneOK(ab,zone){const z=ab.zoneHint||"battlefield";return z==="any"||(z==="battlefield"&&["creatures","lands","others"].includes(zone))||z===zone;}
+function v25QuickAbilities(card,zone){return getCardAbilities(card).filter(ab=>ab.quickActivate!==false&&["activated","mana"].includes(ab.kind)&&v25AbilityZoneOK(ab,zone));}
+function v25RunQuickAbility(card,ab){
+  if(ab.kind==="mana"&&typeof _cardProducesList==="function"&&_cardProducesList(card).length){if(card.tapped){toast("すでにタップされています");return;}if(typeof _manaTapFlow==="function")_manaTapFlow(card.id);else tapToggle(card.id);return;}
+  putAbilityOnStack(card.id,ab.id);
+}
+function v25OpenAbilityPicker(card,list){openModal(`クイック起動 — ${esc(card.name)}`,`<div class="note">ダブルクリックで使う能力を選択してください。対象・コストが必要な能力は既存の確認フローへ進みます。</div><div class="abil-list">${list.map(a=>`<div class="abil-row"><span class="abil-badge k-${a.kind}">${ABILITY_KIND_JP[a.kind]}</span><b>${esc(a.name||"能力")}</b><span class="note">${esc(a.costText||"")}${a.targetRequired?" / 対象必須":""}</span><button class="btn tiny primary" data-v25-ability="${esc(a.id)}">起動</button></div>`).join("")}</div>`,`<button class="btn" data-app="closem">キャンセル</button>`,`lg`);setModalHandler(function(e){const b=e.target.closest("[data-v25-ability]");if(!b)return;const ab=list.find(x=>x.id===b.getAttribute("data-v25-ability"));closeModal();if(ab)v25RunQuickAbility(card,ab);});}
+const _v25DoubleClickBase=doubleClickCard;
+doubleClickCard=function(id){const f=findCard(id),cfg=v25FlowCfg();if(f&&cfg.quickAbilityDoubleClick&&["creatures","lands","others"].includes(f.zone)){const list=v25QuickAbilities(f.card,f.zone);if(list.length===1){selectedCardId=id;v25RunQuickAbility(f.card,list[0]);return;}if(list.length>1){selectedCardId=id;v25OpenAbilityPicker(f.card,list);return;}}return _v25DoubleClickBase(id);};
+
+/* ---------- イベント誘発の辞書連携 ---------- */
+function v25TriggerDefaultScope(ab,eventType){
+  if(ab.triggerScope)return ab.triggerScope;const text=[ab.name,ab.memo,ab.resolveNote,ab.triggerFilter].join(" ");
+  if(/対戦相手|opponent/i.test(text))return "opponent";
+  if(/他の|別の|another|any\b|いずれか/i.test(text))return "any";
+  if(/あなた|you\b/i.test(text))return "you";
+  if(["enterBattlefield","death","attack","block","combatDamage"].includes(eventType))return "self";
+  /* 旧データはフェイズ誘発の範囲情報を持たないため、従来互換で両者の候補を出す。必要なら辞書で「自分/相手」を明示する。 */
+  if(["upkeep","drawStep","main","combat","endStep","cleanup"].includes(eventType))return "any";
+  return "you";
+}
+function v25TriggerTimingMatch(ab,eventType,subject){
+  if(ab.timing===eventType)return true;
+  const text=[ab.timing,ab.name,ab.memo,ab.resolveNote,ab.triggerFilter].join(" ").toLowerCase();
+  if(eventType==="death")return /死亡|dies|death/.test(text);
+  if(eventType==="cast")return /唱え|cast/.test(text);
+  if(eventType==="draw")return /カードを引|draw/.test(text)&&ab.timing!=="drawStep";
+  if(eventType==="combatDamage")return /戦闘ダメージ|combat damage/.test(text);
+  if(eventType==="landfall")return /上陸|landfall|土地.+戦場/.test(text);
+  return false;
+}
+function v25TriggerScopeMatch(scope,source,subject,meta){
+  if(scope==="any")return true;const sc=source.controller||source.owner,tc=(subject&&(subject.controller||subject.owner))||(meta&&meta.player)||"";
+  if(scope==="self")return !!subject&&source.id===subject.id;
+  if(scope==="you")return !!tc&&sc===tc;
+  if(scope==="opponent")return !!tc&&sc!==tc;
+  return false;
+}
+function v25TriggerFilterMatch(ab,subject,meta){
+  const f=String(ab&&ab.triggerFilter||"").trim();if(!f)return true;const low=f.toLowerCase();
+  if(!subject)return !/(creature|クリーチャー|land|土地|artifact|アーティファクト|enchantment|エンチャント|planeswalker|プレインズウォーカー|token|トークン)/i.test(f);
+  const checks=[[/(^|[^a-z])creature([^a-z]|$)|クリーチャー/i,"Creature"],[/(^|[^a-z])land([^a-z]|$)|土地/i,"Land"],[/(^|[^a-z])artifact([^a-z]|$)|アーティファクト/i,"Artifact"],[/(^|[^a-z])enchantment([^a-z]|$)|エンチャント/i,"Enchantment"],[/(^|[^a-z])planeswalker([^a-z]|$)|プレインズウォーカー/i,"Planeswalker"],[/(^|[^a-z])token([^a-z]|$)|トークン/i,"Token"]];
+  for(const [re,t] of checks)if(re.test(f)&&!cardHasType(subject,t)&&!(t==="Token"&&subject.isToken))return false;
+  if(/noncreature|非クリーチャー/i.test(low)&&cardHasType(subject,"Creature"))return false;
+  return true;
+}
+function v25QueueTriggerEvent(eventType,subject,meta,ev){
+  const cfg=v25FlowCfg();if(!cfg.automaticTriggerEvents||!saCfg().enabled)return 0;ev=ev||saEvent(eventType,subject,meta||{});meta=Object.assign({player:(subject&&(subject.controller||subject.owner))||state.turn.active},ev.meta||{},meta||{});const cards=[],seen=new Set();
+  for(const p of ["A","B"])for(const z of ["creatures","lands","others"])for(const c of state.players[p][z]||[]){cards.push(c);seen.add(c.id);}
+  if(subject&&!seen.has(subject.id))cards.push(subject);
+  let n=0;for(const c of cards)for(const ab of getCardAbilities(c)){if(ab.kind!=="triggered"||!v25TriggerTimingMatch(ab,eventType,subject)||!v25TriggerFilterMatch(ab,subject,meta))continue;const scope=v25TriggerDefaultScope(ab,eventType);if(!v25TriggerScopeMatch(scope,c,subject,meta))continue;saQueueAbility(c,ab,ev);n++;}
+  if(n){saLog("auto",`${eventType} イベントから誘発候補${n}件を検出`);saProcessPendingTriggers();}return n;
+}
+function v25EmitTriggerEvent(eventType,subject,meta){const n=v25QueueTriggerEvent(eventType,subject,meta,null);if(n){saveState(true);render();}return n;}
+/* 既存のETB・攻撃・ブロック・フェイズイベントを、同じイベントIDのまま全戦場へ拡張する。これにより自己誘発を二重登録しない。 */
+const _v25SaQueueTimingBase=saQueueTiming;
+saQueueTiming=function(timing,ev,onlyCard){
+  if(!v25FlowCfg().automaticTriggerEvents||!saCfg().enabled)return _v25SaQueueTimingBase(timing,ev,onlyCard);
+  let subject=onlyCard||null;if(!subject&&ev&&ev.subjectId){const f=findCard(ev.subjectId);subject=f&&f.card||null;}
+  const meta=Object.assign({player:(ev&&ev.controller)||state.turn.active},ev&&ev.meta||{});v25QueueTriggerEvent(timing,subject,meta,ev);saProcessPendingTriggers();
+};
+const _v25MoveCardBase=moveCard;
+moveCard=function(id,destPlayer,destZone,pos,skipUndo){const bf=findCard(id),oldZone=bf&&bf.zone,oldField=!!(bf&&AUTO_BATTLEFIELD_ZONES.includes(oldZone));const r=_v25MoveCardBase(id,destPlayer,destZone,pos,skipUndo),af=findCard(id),newField=!!(af&&AUTO_BATTLEFIELD_ZONES.includes(af.zone));if(r){/* ETBは既存moveCard→強化saQueueTimingで一度だけ処理 */if(!oldField&&newField&&cardHasType(r,"Land"))v25EmitTriggerEvent("landfall",r,{from:oldZone,to:af.zone,player:r.controller||r.owner});if(oldField&&destZone==="graveyard")v25EmitTriggerEvent("death",r,{from:oldZone,to:"graveyard",player:r.controller||r.owner});}return r;};
+const _v25CommitDrawPlanBase=_commitDrawPlan;
+_commitDrawPlan=function(plan,count,opts){const n=_v25CommitDrawPlanBase(plan,count,opts);if(n>0)v25EmitTriggerEvent("draw",null,{player:plan.player,count:n,context:(opts&&opts.context)||""});return n;};
+const _v25FinishCastBase=v24FinishCast;
+v24FinishCast=function(flow,pay){const id=flow&&flow.id,r=_v25FinishCastBase(flow,pay),f=id&&findCard(id);if(f&&f.zone==="stack")v25EmitTriggerEvent("cast",f.card,{player:f.card.controller||f.card.owner});return r;};
+
+/* ---------- 一意な戦闘ダメージ ---------- */
+function v25PrepareCombatPlan(){
+  const atks=combatAttackers();if(!atks.length)return {ok:false,reason:"攻撃クリーチャーがいません",plans:{}};const plans={};
+  for(const a of atks){if(hasCombatKeyword(a,"firstStrike")||hasCombatKeyword(a,"doubleStrike"))return {ok:false,reason:"先制攻撃・二段攻撃は段階確認が必要です",plans:{}};const bs=combatBlockersOf(a.id);if(bs.length>1)return {ok:false,reason:"複数ブロックの順番・割り振り確認が必要です",plans:{}};for(const b of bs)if(blockTargets(b).length>1)return {ok:false,reason:"1体が複数をブロックする特殊戦闘は手動確認が必要です",plans:{}};const pow=Math.max(0,effPow(a)),pl={assign:{},playerDamage:0,note:"自動割り振り"};if(!bs.length)pl.playerDamage=pow;else{const b=bs[0];if(hasCombatKeyword(a,"trample")){const need=hasCombatKeyword(a,"deathtouch")?1:Math.max(0,effTou(b)-(b.damage||0));const give=Math.min(pow,need);pl.assign[b.id]=give;pl.playerDamage=Math.max(0,pow-give);}else pl.assign[b.id]=pow;}plans[a.id]=pl;}
+  return {ok:true,plans};
+}
+function v25ApplyCombatCore(autoLabel,prepared){
+  const attackers=combatAttackers().slice(),logs=[];let d=null;
+  act(autoLabel||"戦闘ダメージ適用",()=>{if(prepared&&prepared.plans)state.turn.combatDamagePlan=clone(prepared.plans);d=_combatPredictDetailed("all");for(const [id,v] of Object.entries(d.cardDamage)){const f=findCard(id);if(f&&v>0){f.card.damage=(f.card.damage||0)+v;logs.push(`${f.card.name}に${v}${d.deathtouch.has(id)?"(接死)":""}`);}}for(const p of ["A","B"]){if(d.playerDamage[p]>0){state.players[p].life-=d.playerDamage[p];logs.push(`${pname(p)}本体${d.playerDamage[p]}`);}if(d.lifeGain[p]>0){state.players[p].life+=d.lifeGain[p];logs.push(`${pname(p)}絆魂+${d.lifeGain[p]}`);}}state.turn.combatDamagePlan={};addLog(`${autoLabel||"戦闘ダメージ適用"}: ${logs.join(" / ")||"(対象なし)"}`);});
+  for(const a of attackers){const bs=combatBlockersOf(a.id),dealt=bs.reduce((n,b)=>n+(d.cardDamage[b.id]||0),0)+d.playerDamage[(a.controller||a.owner)==="A"?"B":"A"];if(dealt>0)v25EmitTriggerEvent("combatDamage",a,{amount:dealt,player:a.controller||a.owner});}
+  saveState(true);render();if(typeof saRunSbaLoop==="function")setTimeout(()=>saRunSbaLoop("戦闘ダメージ後"),0);toast("一意な戦闘ダメージを自動適用しました");
+}
+const _v25ApplyCombatDamageBase=applyCombatDamage;
+applyCombatDamage=function(){const cfg=v25FlowCfg();if(cfg.deterministicCombatDamage){const p=v25PrepareCombatPlan();if(p.ok){v25ApplyCombatCore("戦闘ダメージ自動適用",p);return;}toast(p.reason+"。戦闘解決ウィザードへ移ります");startCombatResolveWizard();return;}return _v25ApplyCombatDamageBase();};
+let _v25CombatHandledKey="";
+function v25MaybeAutoCombatDamage(){const cfg=v25FlowCfg(),key=`${state.turn.number}:${state.turn.active}:${state.turn.phase}`;if(!cfg.deterministicCombatDamage||state.turn.phase!==7||_v25CombatHandledKey===key||!combatAttackers().length)return;const p=v25PrepareCombatPlan();if(!p.ok){saPause("paused",p.reason);return;}_v25CombatHandledKey=key;v25ApplyCombatCore("戦闘ダメージ自動適用",p);}
+const _v25SetPhaseBase=setPhase;
+setPhase=function(i){const r=_v25SetPhaseBase(i);if(i===7)setTimeout(v25MaybeAutoCombatDamage,0);return r;};
+const _v25PhaseAdvanceRawBase=_phaseAdvanceRaw;
+_phaseAdvanceRaw=function(){const r=_v25PhaseAdvanceRawBase();if(state.turn.phase===7)setTimeout(v25MaybeAutoCombatDamage,0);return r;};
+
+
+/* 能力辞書にイベント範囲とダブルクリック可否を表示 */
+const _v25AbilityBlockHTMLBase=_abilityBlockHTML;
+_abilityBlockHTML=function(ab,i){let h=_v25AbilityBlockHTMLBase(ab,i);const extra=`<div class="grid2 v25-ability-event"><label class="field">誘発イベント範囲<select class="abScope-${i}"><option value=""${!ab.triggerScope?" selected":""}>自動推定</option><option value="self"${ab.triggerScope==="self"?" selected":""}>このカード自身</option><option value="you"${ab.triggerScope==="you"?" selected":""}>自分のイベント</option><option value="opponent"${ab.triggerScope==="opponent"?" selected":""}>相手のイベント</option><option value="any"${ab.triggerScope==="any"?" selected":""}>いずれかのイベント</option></select></label><label class="field">イベント絞り込み<input type="text" class="abFilter-${i}" value="${esc(ab.triggerFilter||"")}" placeholder="任意メモ（例: Creature / combat damage）"></label></div><label class="row-inline" style="gap:3px"><input type="checkbox" class="abQuick-${i}"${ab.quickActivate!==false?" checked":""}> ダブルクリックのクイック起動候補にする</label>`;return h.replace('<label class="field">効果メモ',extra+'<label class="field">効果メモ');};
+const _v25DictSyncAbilitiesBase=_dictSyncAbilities;
+_dictSyncAbilities=function(){const host=document.getElementById("deAbilList"),meta=_deAbilities.map((ab,i)=>{const q=host&&host.querySelector(".abQuick-"+i),sc=host&&host.querySelector(".abScope-"+i),fl=host&&host.querySelector(".abFilter-"+i);return {quick:q?q.checked:ab.quickActivate!==false,scope:sc?sc.value:(ab.triggerScope||""),filter:fl?fl.value:(ab.triggerFilter||"")};});_v25DictSyncAbilitiesBase();_deAbilities=_deAbilities.map((ab,i)=>normalizeAbility(Object.assign({},ab,{quickActivate:meta[i]?meta[i].quick:true,triggerScope:meta[i]?meta[i].scope:"",triggerFilter:meta[i]?meta[i].filter:""})));};
+
+/* スタックに乗らないマナ能力・手動能力を安全に即時処理 */
+const _v25CommitAbilityBase=_commitAbility;
+_commitAbility=function(c,ab,owner,doTap,pay){if(ab.createsStackObject!==false)return _v25CommitAbilityBase(c,ab,owner,doTap,pay);const obj=makeAbilityObject(c,ab,owner),choice=v25AutoEffectsChoice(obj);act("スタックに乗らない能力を起動",()=>{if(doTap)c.tapped=true;if(pay&&pay.status==="paid"&&pay.consumed&&_consumedSum(pay.consumed)>0)_spendMana(owner,pay.consumed);if(choice&&choice.apply)_applySourceAutoEffects(obj,choice.xValue,choice);addLog(`${pname(owner)} は [${c.name}] の ${ab.name||"能力"} を起動（スタックを使用しない）${choice?" / 登録効果を適用":""}`);});saveState(true);render();renderPreview();if(!choice&&_sourceAutoEffects(obj).length)toast("任意・選択を含む効果は手動で処理してください");};
+
+/* ---------- クイック起動の対象を、コスト支払い・スタック配置より先に選ぶ ---------- */
+let _v25QuickAbilityTargetFlow=null,_v25QuickAbilityPayload=null;
+function v25QuickAbilityTargetConfig(ab){const p=normalizeTargetProfile(ab&&ab.targetProfile||{}),k=(ab&&ab.targetKinds||[]).slice();return {profile:p,min:p.enabled?p.minTargets:(ab&&ab.targetRequired?1:0),max:p.enabled?p.maxTargets:1,kinds:k};}
+function v25QuickAbilityRestore(flow){if(!flow)return;const f=findCard(flow.cardId);if(f){const c=f.card,o=flow.original;c.targetIds=o.targetIds;c.targetPlayerIds=o.targetPlayerIds;c.targetZoneRefs=o.targetZoneRefs;c.targetStatus=o.targetStatus;c.canTarget=o.canTarget;c.targetRequired=o.targetRequired;c.targetKinds=o.targetKinds;c.targetProfile=o.targetProfile;c.wardPayments=o.wardPayments;}if(_v25QuickAbilityTargetFlow===flow)_v25QuickAbilityTargetFlow=null;}
+function v25ClearQuickAbilityPayload(){if(_v25QuickAbilityTargetFlow&&_v25QuickAbilityTargetFlow.cancelListener){const root=document.getElementById("modalRoot");if(root)root.removeEventListener("click",_v25QuickAbilityTargetFlow.cancelListener,true);} _v25QuickAbilityTargetFlow=null;_v25QuickAbilityPayload=null;}
+function v25BeginQuickAbilityTarget(card,ab){
+  if(_v25QuickAbilityTargetFlow||_v24CastFlow){toast("別の対象選択が進行中です");return;}const cfg=v25QuickAbilityTargetConfig(ab),f=findCard(card.id);if(!f)return;ensureTgtFields(card);const flow={cardId:card.id,abilityId:ab.id,ab,cfg,stage:"target",original:{targetIds:tgtIds(card).slice(),targetPlayerIds:tgtPlayers(card).slice(),targetZoneRefs:(card.targetZoneRefs||[]).slice(),targetStatus:card.targetStatus,canTarget:card.canTarget,targetRequired:card.targetRequired,targetKinds:(card.targetKinds||[]).slice(),targetProfile:card.targetProfile?clone(card.targetProfile):null,wardPayments:clone(card.wardPayments||{})}};_v25QuickAbilityTargetFlow=flow;card.targetIds=[];card.targetPlayerIds=[];card.targetZoneRefs=[];card.wardPayments={};card.canTarget=true;card.targetRequired=true;card.targetKinds=cfg.kinds.slice();card.targetProfile=cfg.profile;updTgtStatus(card);startTargetMode(card.id);setTimeout(()=>{const bar=document.getElementById("tgtBar");if(bar){const lab=bar.querySelector(".tb-label"),hint=bar.querySelector(".tb-hint");if(lab)lab.innerHTML=`起動時の対象 — <b>${esc(ab.name||"能力")}</b>`;if(hint)hint.textContent=`対象を${cfg.min}〜${cfg.max}個選択 → 確定後にコストを支払います`; }},0);
+}
+function v25CommitQuickAbilityAfterTargets(flow){const f=findCard(flow.cardId);if(!f){v25ClearQuickAbilityPayload();return;}const c=f.card,chosen={ids:tgtIds(c).slice(),players:tgtPlayers(c).slice(),zones:(c.targetZoneRefs||[]).slice(),memo:c.targetMemo||"",ward:clone(c.wardPayments||{}),profile:clone(flow.cfg.profile)};v25QuickAbilityRestore(flow);flow.stage="cost";flow.chosen=chosen;_v25QuickAbilityTargetFlow=flow;_v25QuickAbilityPayload={cardId:flow.cardId,abilityId:flow.abilityId,chosen};putAbilityOnStack(flow.cardId,flow.abilityId);setTimeout(()=>{if(_v25QuickAbilityTargetFlow!==flow||flow.stage!=="cost")return;const root=document.getElementById("modalRoot");if(!root)return;flow.cancelListener=ev=>{if(!ev.target.closest('[data-app="closem"]'))return;setTimeout(()=>{if(_v25QuickAbilityTargetFlow===flow){v25ClearQuickAbilityPayload();toast("能力の起動をキャンセルしました");}},0);};root.addEventListener("click",flow.cancelListener,true);},0);}
+const _v25QuickRunAbilityBase=v25RunQuickAbility;
+v25RunQuickAbility=function(card,ab){if(ab&&ab.targetRequired){v25BeginQuickAbilityTarget(card,ab);return;}return _v25QuickRunAbilityBase(card,ab);};
+const _v25QuickEndTargetBase=endTargetMode;
+endTargetMode=function(){const flow=_v25QuickAbilityTargetFlow,active=!!(flow&&flow.stage==="target"&&_tgtMode&&_tgtMode.sourceId===flow.cardId);if(active){const f=findCard(flow.cardId),n=f?tgtCount(f.card):0;if(n<flow.cfg.min){toast(`対象を最低${flow.cfg.min}個選んでください`);return;}if(n>flow.cfg.max){toast(`対象は最大${flow.cfg.max}個です`);return;}}_v25QuickEndTargetBase();if(active&&!_tgtMode&&_v25QuickAbilityTargetFlow===flow)v25CommitQuickAbilityAfterTargets(flow);};
+const _v25QuickCancelTargetBase=cancelTargetMode;
+cancelTargetMode=function(){const flow=_v25QuickAbilityTargetFlow,active=!!(flow&&flow.stage==="target"&&_tgtMode&&_tgtMode.sourceId===flow.cardId);_v25QuickCancelTargetBase();if(active){v25QuickAbilityRestore(flow);saveState(true);render();toast("能力の対象選択をキャンセルしました");}};
+const _v25QuickMakeAbilityBase=makeAbilityObject;
+makeAbilityObject=function(c,ab,owner){const obj=_v25QuickMakeAbilityBase(c,ab,owner),p=_v25QuickAbilityPayload;if(p&&p.cardId===c.id&&p.abilityId===ab.id){obj.targetIds=p.chosen.ids.slice();obj.targetPlayerIds=p.chosen.players.slice();obj.targetZoneRefs=p.chosen.zones.slice();obj.targetMemo=p.chosen.memo;obj.wardPayments=clone(p.chosen.ward||{});obj.targetProfile=clone(p.chosen.profile||{});updTgtStatus(obj);}return obj;};
+const _v25QuickAbilityPromptBase=abilityPromptTargetAfterStack;
+abilityPromptTargetAfterStack=function(){return _v25QuickAbilityPayload?false:_v25QuickAbilityPromptBase();};
+const _v25QuickCommitAbilityBase=_commitAbility;
+_commitAbility=function(c,ab,owner,doTap,pay){const matched=!!(_v25QuickAbilityPayload&&_v25QuickAbilityPayload.cardId===c.id&&_v25QuickAbilityPayload.abilityId===ab.id);try{return _v25QuickCommitAbilityBase(c,ab,owner,doTap,pay);}finally{if(matched)v25ClearQuickAbilityPayload();}};
+const _v25QuickStructuredCommitBase=autoCommitStructuredAbility;
+autoCommitStructuredAbility=function(c,ab,owner,cp,sel,pay){const matched=!!(_v25QuickAbilityPayload&&_v25QuickAbilityPayload.cardId===c.id&&_v25QuickAbilityPayload.abilityId===ab.id);try{return _v25QuickStructuredCommitBase(c,ab,owner,cp,sel,pay);}finally{if(matched)v25ClearQuickAbilityPayload();}};
+
+/* 登録サーチのキャンセル時に保留再開情報を残さない */
+const _v25CloseModalBase=closeModal;
+closeModal=function(){if(_v25SearchResume&&_zsw){_v25SearchResume=null;_zsw=null;}return _v25CloseModalBase.apply(this,arguments);};
+
+/* ---------- 設定UI ---------- */
+const _v25OpenSettingsBase=openSettings;
+openSettings=function(){const r=_v25OpenSettingsBase();setTimeout(()=>{const body=document.querySelector("#modalRoot .mbody");if(!body||body.querySelector("[data-v25-flow-settings]"))return;const c=v25FlowCfg(),box=document.createElement("div");box.dataset.v25FlowSettings="1";box.className="field";box.innerHTML=`<span><b>自動プレイ統合（v2.5.1）</b></span><label class="row-inline"><input type="checkbox" data-v25-cfg="deterministicResolve" ${c.deterministicResolve?"checked":""}> 一意な登録効果を自動で解決</label><label class="row-inline"><input type="checkbox" data-v25-cfg="quickAbilityDoubleClick" ${c.quickAbilityDoubleClick?"checked":""}> 戦場カードのダブルクリックで登録能力を起動</label><label class="row-inline"><input type="checkbox" data-v25-cfg="automaticTriggerEvents" ${c.automaticTriggerEvents?"checked":""}> 登録誘発をイベントから自動検出</label><label class="row-inline"><input type="checkbox" data-v25-cfg="searchOnResolve" ${c.searchOnResolve?"checked":""}> 解決時に登録サーチを自動案内</label><label class="row-inline"><input type="checkbox" data-v25-cfg="deterministicCombatDamage" ${c.deterministicCombatDamage?"checked":""}> 一意な戦闘ダメージを自動適用</label><div class="note">対象・モード・任意効果・複数誘発順・複数ブロック・先制/二段攻撃など、結果が一意でない場面は自動確定しません。</div>`;body.appendChild(box);box.querySelectorAll("[data-v25-cfg]").forEach(el=>el.onchange=()=>{v25FlowCfg()[el.getAttribute("data-v25-cfg")]=el.checked;saveState(true);});},0);return r;};
+
+/* 保存・復元時の初期値補完 */
+const _v25LoadStateBase=loadState;
+loadState=function(silent){const r=_v25LoadStateBase(silent);v25FlowCfg();return r;};
 
 window.addEventListener("error",function(ev){ showErr(ev.message||"不明なエラー"); });
 window.addEventListener("DOMContentLoaded",init);
