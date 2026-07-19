@@ -12,7 +12,7 @@
     --land:#b08a45; --creature:#5aa86a; --instant:#5b8fd8; --sorcery:#cf6a4f;
     --artifact:#9aa4b0; --enchant:#54b0a8; --pw:#a472cf; --battle:#c2705a;
     --token:#c9b27a; --other:#7d8aa0; --unknown:#5a6478;
-    --radius:10px;
+    --radius:10px; --card-ar:63 / 88;
   }
   *{box-sizing:border-box}
   html,body{margin:0;padding:0;background:var(--bg);color:var(--text);
@@ -165,9 +165,9 @@
     border:1px solid var(--line2);border-radius:12px;box-shadow:0 14px 34px rgba(0,0,0,.6);
     z-index:40;display:none;overflow:hidden}
   .preview.show{display:block}
-  .preview .pvimg{width:100%;height:118px;background:#000;display:flex;align-items:center;
-    justify-content:center;color:var(--muted);font-size:12px}
-  .preview .pvimg img{max-width:100%;max-height:100%;object-fit:contain}
+  .preview .pvimg{width:100%;height:auto;aspect-ratio:var(--card-ar);max-height:50vh;background:#000;display:flex;align-items:center;
+    justify-content:center;color:var(--muted);font-size:12px;overflow:hidden}
+  .preview .pvimg img{width:100%;height:100%;max-width:none;max-height:none;object-fit:contain;object-position:center;display:block}
   .preview .pvbody{padding:8px;font-size:12px;display:flex;flex-direction:column;gap:4px}
   .preview .pvname{font-weight:700;font-size:14px}
   .preview .pvrow{color:var(--muted)}.preview .pvrow b{color:var(--text)}
@@ -205,7 +205,7 @@
   .badge.plus{background:#2f5a36;color:#bfe9c8}
   .badge.dmg{background:#5a2f2f;color:#f0c0c0}
   .badge.ctr{background:#3a3f5a;color:#cfd6f0}
-  .card .img{width:100%;height:var(--cimg);object-fit:contain;border-radius:5px;margin-bottom:3px;background:#000}
+  .card .img{display:block;width:100%;height:var(--cimg);object-fit:contain;object-position:center;border-radius:5px;margin-bottom:3px;background:#000}
   .card .tapmark{position:absolute;top:2px;left:3px;font-size:8px;color:var(--accent);font-weight:800}
   .card .menu-dot{position:absolute;top:1px;right:2px;font-size:13px;color:var(--muted);
     background:rgba(0,0,0,.35);border-radius:4px;line-height:1;padding:1px 3px}
@@ -346,14 +346,64 @@
   .sb-h{font-weight:700;color:var(--accent);font-size:12px;margin-bottom:3px}
   .sb-list{max-height:34vh;overflow:auto;display:flex;flex-direction:column;gap:2px}
   .sb-row{display:flex;align-items:center;gap:4px;font-size:11px;padding:2px 0;border-bottom:1px solid var(--line)}
-  .db-wrap{display:flex;gap:8px;flex-wrap:wrap;margin:6px 0}
-  .db-col{flex:1 1 300px;min-width:250px}
-  .db-list{max-height:250px;overflow:auto;border:1px solid var(--line);border-radius:4px;padding:2px;background:rgba(0,0,0,.15)}
-  .db-row{display:flex;align-items:center;gap:4px;padding:2px 4px;border-bottom:1px solid rgba(255,255,255,.06);font-size:11px}
-  .db-row img{width:20px;height:auto;border-radius:2px;flex:none}
-  .db-n{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-  .db-sub{font-weight:bold;margin-top:6px;font-size:12px}
-  .db-head{font-size:12px;margin-bottom:4px}
+  /* 全画面デッキビルダー */
+  #modalRoot .overlay:has(.deck-editor){padding:8px;overflow:hidden}
+  .modal.deck-editor{max-width:none;width:calc(100vw - 16px);height:calc(100dvh - 16px);margin:0 auto;display:flex;flex-direction:column;overflow:hidden;border-radius:10px}
+  .modal.deck-editor .mhead{padding:12px 18px;flex:0 0 auto}
+  .modal.deck-editor .mbody{flex:1 1 auto;min-height:0;max-height:none;overflow:hidden;padding:10px 12px;gap:8px}
+  .modal.deck-editor .mfoot{flex:0 0 auto;padding:10px 16px}
+  .deck-editor-meta{display:grid;grid-template-columns:minmax(240px,1.3fr) minmax(180px,.7fr) minmax(260px,1fr);gap:8px;flex:0 0 auto}
+  .deck-editor-meta .field{padding:5px 7px}
+  .deck-editor-meta textarea{min-height:38px;max-height:64px;resize:vertical}
+  .db-workspace{--db-left:56%;display:grid;grid-template-columns:minmax(460px,var(--db-left)) 10px minmax(410px,1fr);gap:0;min-height:0;flex:1 1 auto}
+  .db-pane{min-height:0;border:1px solid var(--line);border-radius:9px;background:rgba(0,0,0,.12);overflow:hidden}
+  .db-library-pane{display:flex;flex-direction:column;padding:10px}
+  .db-deck-pane{display:grid;grid-template-rows:auto minmax(220px,1.25fr) minmax(170px,.75fr);gap:8px;padding:10px}
+  .db-split{margin:0 2px;border-radius:6px;background:rgba(255,255,255,.07);cursor:col-resize;touch-action:none}
+  .db-split:hover,.db-split.dragging{background:rgba(224,168,60,.45)}
+  .db-toolbar{display:flex;gap:6px;flex-wrap:wrap;align-items:center;flex:0 0 auto;margin-bottom:7px}
+  .db-toolbar input{font-size:14px;min-height:38px}
+  .db-toolbar select{font-size:13px;min-height:36px}
+  .db-head{font-size:16px;margin-bottom:7px;display:flex;align-items:center;justify-content:space-between;gap:8px}
+  .db-list{min-height:0;overflow:auto;border:1px solid var(--line);border-radius:7px;padding:3px;background:rgba(0,0,0,.18);scrollbar-gutter:stable}
+  .db-library-pane>.db-list{flex:1 1 auto;max-height:none}
+  .db-deck-section{display:flex;flex-direction:column;min-height:0;border:1px solid var(--line);border-radius:8px;padding:6px;background:rgba(12,18,30,.55)}
+  .db-deck-section .db-list{flex:1 1 auto;max-height:none}
+  .db-row{display:flex;align-items:center;gap:9px;padding:7px 8px;border-bottom:1px solid rgba(255,255,255,.07);font-size:14px;min-height:68px}
+  .db-row:last-child{border-bottom:0}
+  .db-row:hover{background:rgba(120,150,210,.08)}
+  .db-row img{width:44px;height:62px;object-fit:contain;object-position:center;border-radius:5px;flex:none;background:#000;border:1px solid rgba(255,255,255,.12)}
+  .db-card-main{flex:1 1 auto;min-width:0;display:flex;flex-direction:column;gap:1px}
+  .db-n{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:14px;line-height:1.35}
+  .db-card-meta{color:var(--muted);font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .db-actions{display:flex;align-items:center;justify-content:flex-end;gap:4px;flex:0 0 auto;flex-wrap:wrap}
+  .db-actions .btn{min-height:35px;font-size:12px;padding:5px 9px}
+  .db-sub{font-weight:800;font-size:16px;display:flex;align-items:center;justify-content:space-between;gap:8px;margin:0 0 5px}
+  .db-summary{border:1px solid var(--line2);border-radius:9px;padding:9px 11px;background:rgba(60,90,135,.13);font-size:13px}
+  .db-summary-top{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:5px}
+  .db-total{font-size:21px;font-weight:900;color:var(--accent)}
+  .db-warning{color:#ffd166;font-weight:800}
+  .db-danger{color:#ff8a80;font-weight:800}
+  .db-stat-groups{display:flex;gap:5px;flex-wrap:wrap}
+  .db-stat{display:inline-flex;align-items:center;gap:5px;padding:4px 9px;border:1px solid var(--line);border-radius:999px;background:var(--bg2);white-space:nowrap}
+  .db-stat b{font-size:15px}
+  .db-stat.primary{border-color:var(--accent2);background:rgba(224,168,60,.1)}
+  .db-detail-line{color:var(--muted);font-size:12px;margin-top:5px;line-height:1.55}
+  .db-text-edit{flex:0 0 auto;max-height:28vh;overflow:auto;border-top:1px solid var(--line);padding-top:4px}
+  .db-text-edit summary{cursor:pointer;color:var(--muted);font-size:11px}
+  .db-text-edit[open]{background:var(--panel);padding:6px;border:1px solid var(--line);border-radius:7px}
+  @media(max-width:980px){
+    #modalRoot .overlay:has(.deck-editor){padding:4px}
+    .modal.deck-editor{width:calc(100vw - 8px);height:calc(100dvh - 8px)}
+    .modal.deck-editor .mbody{overflow-y:auto}
+    .deck-editor-meta{grid-template-columns:1fr 1fr}.deck-editor-meta .deck-notes{grid-column:1/-1}
+    .db-workspace{display:flex;flex-direction:column;overflow:visible;gap:8px;flex:0 0 auto}.db-split{display:none}
+    .db-pane{flex:0 0 auto;min-height:55dvh}.db-deck-pane{min-height:90dvh}
+  }
+  @media(max-width:640px){
+    .deck-editor-meta{grid-template-columns:1fr}.deck-editor-meta .deck-notes{grid-column:auto}
+    .modal.deck-editor .mbody{padding:7px}.db-row{font-size:12px}.db-actions .btn{min-height:34px;padding:5px 7px}
+  }
   .sb-n{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
   .sb-t{color:var(--muted);font-size:10px}
   .sb-mv{display:flex;gap:3px}
@@ -519,7 +569,7 @@
   .srw-ord.info{background:rgba(60,90,120,.08);border-left-color:#5a8ab0}
   .srw-card{border:1px solid var(--line,#444);border-radius:8px;padding:8px;margin:6px 0}
   .srw-cardtop{display:flex;gap:10px;align-items:flex-start}
-  .srw-img{max-height:22vh;max-width:130px;border-radius:6px;object-fit:contain}
+  .srw-img{width:130px;height:auto;aspect-ratio:var(--card-ar);max-height:22vh;border-radius:6px;object-fit:contain;object-position:center;background:#000}
   .srw-textcard{border:1px solid var(--line,#444);border-radius:6px;padding:8px 10px;min-width:120px}
   .srw-tc-name{font-weight:800;font-size:15px}
   .srw-tc-type{font-size:11px;color:var(--muted,#aaa)}
@@ -615,7 +665,7 @@
   .lib-rank .badge.top{background:#3b3470;color:#d8d0ff}
   .lib-rank .badge.bot{background:#5a4a1d;color:#ffe6a8}
   .lib-main{flex:1;display:flex;gap:8px;align-items:flex-start;min-width:0}
-  .lib-img{max-height:64px;max-width:46px;border-radius:5px;object-fit:contain;flex:0 0 auto}
+  .lib-img{height:64px;width:46px;border-radius:5px;object-fit:contain;object-position:center;background:#000;flex:0 0 auto}
   .lib-textcard{flex:0 0 auto;width:46px;min-height:60px;border:1px solid var(--line,#444);border-radius:5px;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:3px;background:var(--bg,#15151a)}
   .lib-tc-name{font-size:9px;font-weight:700}
   .lib-tc-type{font-size:8px;color:var(--muted,#aaa)}
@@ -934,7 +984,7 @@
   #cardZoom{position:fixed;inset:0;z-index:190;display:none;align-items:center;justify-content:center;pointer-events:none;background:rgba(0,0,0,.55)}
   .zoom-inner{display:flex;gap:14px;align-items:center;justify-content:center;max-width:96vw;max-height:92vh;background:var(--bg2,#1c1c22);border:1px solid var(--line,#444);border-radius:12px;padding:14px 16px;box-shadow:0 12px 40px rgba(0,0,0,.6)}
   .zoom-inner.text-only{flex-direction:column}
-  .zoom-img{border-radius:8px;object-fit:contain;display:block}
+  .zoom-img{width:min(42vw,380px);height:auto;aspect-ratio:var(--card-ar);border-radius:8px;object-fit:contain;object-position:center;display:block;background:#000}
   .zoom-loading{padding:40px 20px;text-align:center;color:var(--muted,#aaa);font-size:14px}
   .zoom-textcard{background:var(--bg,#15151a);border:1px solid var(--line,#444);border-radius:10px;padding:16px 18px}
   .zoom-tc-body{font-size:15px;line-height:1.7}
@@ -963,14 +1013,14 @@
   .mfoot .btn{min-height:36px}
   body[data-modal="1"]{overflow:hidden}
   #topLayer .overlay{z-index:320}
-  .imgprev img{max-width:100%;max-height:56vh;width:auto;height:auto;object-fit:contain;border-radius:8px}
+  .imgprev{display:flex;flex-direction:column;align-items:center}.imgprev img{width:min(360px,100%);height:auto;aspect-ratio:var(--card-ar);max-height:62vh;object-fit:contain;object-position:center;border-radius:8px;background:#000;display:block}
   .db-row img,.db-n{cursor:zoom-in}
   /* 初手練習: 上部/カード領域/操作領域を分離。操作ボタンはカードの背後に置かない */
   /* 初手練習: 均一サイズ・横一列・縦スクロールなし（枚数に応じて自動縮小・狭い画面は横スクロール） */
   .oh-hand{flex-wrap:nowrap !important;justify-content:flex-start !important;overflow-x:auto;overflow-y:hidden;max-height:none;flex:0 0 auto;position:relative;z-index:1;scroll-snap-type:x proximity}
   .oh-hand .oh-card{flex:0 0 auto;width:var(--ohw,88px);height:var(--ohh,152px);max-width:none;scroll-snap-align:start;display:flex;flex-direction:column;overflow:hidden}
   .oh-hand .oh-card .cimg{height:calc(var(--ohh,152px) - 26px);min-height:0;display:flex;align-items:center;justify-content:center;overflow:hidden}
-  .oh-hand .oh-card .cimg img{max-width:100%;max-height:100%;width:auto;height:auto;object-fit:contain}
+  .oh-hand .oh-card .cimg img{width:100%;height:100%;max-width:none;max-height:none;object-fit:contain;object-position:center;display:block}
   .oh-hand .oh-card .ctext{height:calc(var(--ohh,152px) - 8px);overflow:hidden}
   .oh-results{position:sticky;bottom:0;background:var(--panel);border-top:1px solid var(--line);padding:6px 2px;z-index:7;flex-shrink:0;display:flex;gap:6px;flex-wrap:wrap}
   .oh-card{cursor:zoom-in;max-width:100%}
@@ -992,8 +1042,8 @@
   #footerDock{display:contents}
   #cmdFloat .footer{border-top:none;background:transparent}
   #prevFloat .ufb{display:flex;flex-direction:column;padding:4px}
-  #prevFloat .pvimg{flex:1 1 auto;min-height:0;display:flex;align-items:center;justify-content:center;overflow:hidden}
-  #prevFloat .pvimg img{max-width:100%;max-height:100%;width:auto;height:auto;object-fit:contain}
+  #prevFloat .pvimg{flex:1 1 auto;min-height:0;width:100%;display:flex;align-items:center;justify-content:center;overflow:hidden;background:#000;border-radius:6px}
+  #prevFloat .pvimg img{width:100%;height:100%;max-width:none;max-height:none;object-fit:contain;object-position:center;display:block}
   #prevFloat .pvname{flex:0 0 auto;font-size:11px;text-align:center;padding:3px 2px}
   /* ゾーン高さ指定時: 縦スクロール廃止・カード自動フィット（折返し→最終手段で横スクロール） */
   .field.zcustom{overflow:hidden;position:relative}
@@ -1048,10 +1098,10 @@
   .menu-grid{display:grid;grid-template-columns:1fr 1fr;gap:6px}
   .menu-grid .btn{justify-content:flex-start;text-align:left}
   .cardprev{display:flex;gap:12px;align-items:flex-start}
-  .cardprev .pv{width:120px;height:160px;border:1px solid var(--line2);border-radius:8px;
+  .cardprev .pv{width:132px;height:auto;aspect-ratio:var(--card-ar);border:1px solid var(--line2);border-radius:8px;
     background:#000;display:flex;align-items:center;justify-content:center;color:var(--muted);
     font-size:11px;overflow:hidden;flex-shrink:0}
-  .cardprev .pv img{max-width:100%;max-height:100%;object-fit:contain}
+  .cardprev .pv img{width:100%;height:100%;max-width:none;max-height:none;object-fit:contain;object-position:center;display:block}
 
   #errbar{position:fixed;bottom:0;left:0;right:0;background:#3a1414;color:#ffd9d9;
     border-top:1px solid var(--danger);padding:8px 12px;font-size:12px;z-index:999;display:none}
@@ -1741,7 +1791,7 @@ function newPlayer(){
 function defaultState(){
   return {
     version:1,
-    appVersion:"1.6.1",
+    appVersion:"1.7.2",
     dataVersion:4,
     meta:{ lastSaved:null, lastBackup:null, lastDiag:null },
     integrityLog:[],
@@ -4482,12 +4532,13 @@ function topLayerOpen(){ const h=document.getElementById("topLayer"); return !!(
 function openTopLayer(title,body,foot,onClick){
   const h=_tlHost();
   h.innerHTML=`<div class="overlay"><div class="modal sm" tabindex="-1" role="dialog" aria-modal="true">
-    <div class="mhead"><h2>${title}</h2><button class="x" data-tl="close" aria-label="閉じる">×</button></div>
+    <div class="mhead"><h2>${title}</h2><button type="button" class="x" data-tl="close" aria-label="閉じる">×</button></div>
     <div class="mbody">${body}</div>
-    <div class="mfoot">${foot||'<button class="btn" data-tl="close">閉じる</button>'}</div>
+    <div class="mfoot">${foot||'<button type="button" class="btn" data-tl="close">閉じる</button>'}</div>
   </div></div>`;
+  cptNormalizeButtonTypes(h);
   if(h._onClick) h.removeEventListener("click",h._onClick);
-  h._onClick=(e)=>{ const b=e.target.closest("[data-tl]"); if(!b) return; const a=b.getAttribute("data-tl");
+  h._onClick=(e)=>{ const b=e.target.closest("[data-tl]"); if(!b) return; e.preventDefault(); const a=b.getAttribute("data-tl");
     if(a==="close"){ closeTopLayer(); return; } if(onClick) onClick(a,b); };
   h.addEventListener("click",h._onClick);
   const md=h.querySelector(".modal"); if(md){ try{ md.focus({preventScroll:true}); }catch(_){} }
@@ -4510,26 +4561,71 @@ function requestCloseModal(){ // ×/閉じる/Esc/戻る からの閉じる要�
   if(dirty){ discardConfirm(()=>{ try{ dd.onDiscard&&dd.onDiscard(); }catch(_){} _modalDirty=null; closeModal(); }); return; }
   _modalDirty=null; closeModal();
 }
-/* ===== スマホ戻る操作（履歴は同時に1件のみ） ===== */
-let _modalHistOn=false, _histIgnore=false;
-function _pushHist(){ if(_modalHistOn) return; try{ history.pushState({cptModal:1},""); _modalHistOn=true; }catch(_){} }
-function _popHist(){ if(!_modalHistOn) return; _modalHistOn=false; _histIgnore=true; try{ history.back(); }catch(_){ _histIgnore=false; } }
-window.addEventListener("popstate",()=>{
-  if(_histIgnore){ _histIgnore=false; return; }
+/* ===== スマホ戻る操作 / 閉じる時のページ遷移防止 =====
+   旧実装はモーダルを閉じるたび history.back() を呼んでいたため、履歴状態が競合した環境では
+   前ページへ移動・再読み込みのように見えることがあった。現在は同一URL上の「履歴スロット」を
+   pushState/replaceState で再利用し、UIの閉じる操作からは絶対に history.back() しない。 */
+let _modalHistOn=false;
+function _samePageUrl(){ try{return location.href;}catch(_){return undefined;} }
+function _isModalHistorySlot(){ try{return !!(history.state&&history.state.cptModalSlot===1);}catch(_){return false;} }
+function _pushHist(){
+  if(_modalHistOn) return;
+  try{
+    const prev=(history.state&&typeof history.state==="object")?history.state:{};
+    const next=Object.assign({},prev,{cptModalSlot:1,cptModal:1});
+    if(_isModalHistorySlot()) history.replaceState(next,"",_samePageUrl());
+    else history.pushState(next,"",_samePageUrl());
+    _modalHistOn=true;
+  }catch(_){}
+}
+function _popHist(){
+  if(!_modalHistOn) return;
   _modalHistOn=false;
-  if(topLayerOpen()){ closeTopLayer(); if($("#modalRoot").innerHTML) _pushHist(); return; } // 最前面の画像プレビュー等を先に閉じる
+  /* 閉じるボタン/Esc/内部処理では履歴を戻さず、現在スロットを休止状態にする。 */
+  try{
+    if(_isModalHistorySlot()){
+      const next=Object.assign({},history.state||{},{cptModal:0});
+      history.replaceState(next,"",_samePageUrl());
+    }
+  }catch(_){}
+}
+window.addEventListener("popstate",()=>{
+  /* ブラウザ/端末の「戻る」で履歴スロットから戻った場合だけUIを閉じる。 */
+  _modalHistOn=false;
+  if(topLayerOpen()){ closeTopLayer(); if($("#modalRoot").innerHTML) _pushHist(); return; }
   if($("#modalRoot").innerHTML){ requestCloseModal(); if($("#modalRoot").innerHTML||topLayerOpen()) _pushHist(); return; }
   // 何も開いていなければ通常の戻る動作を妨げない
 });
+/* 全UIボタンの既定submit化を防止。祖先form・埋め込み環境・将来追加UIでもページ更新させない。 */
+function cptNormalizeButtonTypes(root){
+  if(!root) return;
+  try{
+    if(root.nodeType===1 && root.matches && root.matches("button:not([type])")) root.setAttribute("type","button");
+    if(root.querySelectorAll) root.querySelectorAll("button:not([type])").forEach(b=>b.setAttribute("type","button"));
+  }catch(_){}
+}
+cptNormalizeButtonTypes(document);
+try{
+  new MutationObserver(ms=>{ for(const m of ms) for(const n of m.addedNodes||[]) cptNormalizeButtonTypes(n); })
+    .observe(document.documentElement,{childList:true,subtree:true});
+}catch(_){}
+/* 閉じる系UIは必ず既定動作を止める。実際の閉じる処理は既存ハンドラへ委譲。 */
+document.addEventListener("click",e=>{
+  const b=e.target&&e.target.closest?e.target.closest("button"):null;
+  if(!b) return;
+  if(!b.hasAttribute("type")) b.setAttribute("type","button");
+  if(b.matches('[data-app="closem"],[data-tl="close"],[data-fl="close"],#scClose,#fhClose,.x,[aria-label="閉じる"]')) e.preventDefault();
+},true);
+
 function openModal(title,body,foot,size){
   clearModalHandler();
   const root=$("#modalRoot");
   if(!root.innerHTML) _lastFocusEl=document.activeElement;
   root.innerHTML=`<div class="overlay" data-overlay>
-    <div class="modal${size==="sm"?" sm":""}" tabindex="-1" role="dialog" aria-modal="true">
-      <div class="mhead"><h2>${title}</h2><button class="x" data-app="closem" aria-label="閉じる">×</button></div>
+    <div class="modal${size==="sm"?" sm":size==="deck"?" deck-editor":""}" tabindex="-1" role="dialog" aria-modal="true">
+      <div class="mhead"><h2>${title}</h2><button type="button" class="x" data-app="closem" aria-label="閉じる">×</button></div>
       <div class="mbody">${body}</div>
-      <div class="mfoot">${(foot==null||foot==="")?'<button class="btn" data-app="closem">閉じる</button>':foot}</div>
+      <div class="mfoot">${(foot==null||foot==="")?'<button type="button" class="btn" data-app="closem">閉じる</button>':foot}</div>
     </div></div>`;
   document.body.dataset.modal="1";
   /* 動的モーダル内のボタンは常に通常ボタン。埋め込み環境や祖先formがあってもページ遷移させない。 */
@@ -4594,7 +4690,7 @@ function loadState(silent){
     if(!state.playtest||typeof state.playtest!=="object") state.playtest={items:{},savedAt:null};
     if(!Array.isArray(state.integrityLog)) state.integrityLog=[];
     if(!state.meta||typeof state.meta!=="object") state.meta={lastSaved:null,lastBackup:null};
-    const _ov=obj.dataVersion; state.appVersion="1.6.1"; state.dataVersion=4;
+    const _ov=obj.dataVersion; state.appVersion="1.7.2"; state.dataVersion=4;
     if(_ov!==4){ _cptMigrationNote="旧データ(dataVersion "+(_ov||"なし")+")を v4 に移行しました"; if(!silent) addLog(_cptMigrationNote); }
     else { _cptMigrationNote=""; }
     if(!silent){ addLog("状態を読み込みました"); toast("読み込みました"); }
@@ -5056,18 +5152,17 @@ function openDeckEditor(id){
   const isNew=!id;
   const toText=(list)=> (list||[]).map(e=>`${e.qty} ${e.name}${e.type&&e.type!=="Unknown"?" @"+e.type:""}`).join("\n");
   openModal(isNew?"新規デッキ作成":"デッキ編集",`
-    <div class="grid2">
+    <div class="deck-editor-meta">
       <label class="field">デッキ名<input type="text" id="dName" value="${esc(d.deckName)}"></label>
       <label class="field">フォーマット<input type="text" id="dFormat" value="${esc(d.format)}"></label>
+      <label class="field deck-notes">メモ<textarea id="dNotes" rows="1">${esc(d.notes||"")}</textarea></label>
     </div>
-    <label class="field">メモ<textarea id="dNotes" rows="2">${esc(d.notes||"")}</textarea></label>
-    <div class="db-wrap">
-      <div class="db-col">
-        <div class="db-head"><b>登録カードから追加</b>（カード辞書）</div>
-        <div class="row-inline" style="gap:4px;flex-wrap:wrap">
-          <input type="text" id="dbQ" placeholder="検索: 名前/表示名/別名/タイプ/テキスト" style="flex:1;min-width:110px">
-          <button class="btn tiny" id="dbQClear" title="検索解除">✕</button></div>
-        <div class="row-inline" style="gap:4px;flex-wrap:wrap;margin-top:4px">
+    <div class="db-workspace" id="dbWorkspace">
+      <section class="db-pane db-library-pane">
+        <div class="db-head"><b>登録カードから追加</b><span class="note">カード辞書</span></div>
+        <div class="db-toolbar">
+          <input type="text" id="dbQ" placeholder="検索: 名前／表示名／別名／タイプ／テキスト" style="flex:1 1 260px;min-width:180px">
+          <button class="btn" id="dbQClear" title="検索解除">検索解除</button>
           <select id="dbSort" style="width:auto">
             <option value="reg">登録順</option><option value="nameAsc">カード名 昇順</option><option value="nameDesc">カード名 降順</option>
             <option value="dispAsc">表示名 昇順</option><option value="color">色</option>
@@ -5078,20 +5173,31 @@ function openDeckEditor(id){
             <option value="R">赤</option><option value="G">緑</option><option value="C">無色</option><option value="M">多色</option>
             <option value="Land">土地</option><option value="Creature">クリーチャー</option><option value="Instant">インスタント</option>
             <option value="Sorcery">ソーサリー</option><option value="Enchantment">エンチャント</option><option value="Artifact">アーティファクト</option>
-            <option value="Planeswalker">プレインズウォーカー</option>${SEARCH_CLASS_TAGS.map(t=>`<option value="search:${t}">${SEARCH_CLASS_JP[t]}</option>`).join("")}</select></div>
-        <div id="dbList" class="db-list" style="margin-top:4px"></div>
-      </div>
-      <div class="db-col">
-        <div class="db-head" id="dbTotals"></div>
-        <div class="db-sub">メインデッキ</div><div id="dbMain" class="db-list"></div>
-        <div class="db-sub">サイドボード</div><div id="dbSide" class="db-list"></div>
-      </div>
+            <option value="Planeswalker">プレインズウォーカー</option>${SEARCH_CLASS_TAGS.map(t=>`<option value="search:${t}">${SEARCH_CLASS_JP[t]}</option>`).join("")}</select>
+        </div>
+        <div id="dbList" class="db-list"></div>
+      </section>
+      <div class="db-split" id="dbSplit" title="左右にドラッグして幅を変更"></div>
+      <section class="db-pane db-deck-pane">
+        <div id="dbTotals" class="db-summary"></div>
+        <section class="db-deck-section">
+          <div class="db-sub"><span>メインデッキ</span><span id="dbMainCount" class="note"></span></div>
+          <div id="dbMainStats" class="db-detail-line"></div>
+          <div id="dbMain" class="db-list"></div>
+        </section>
+        <section class="db-deck-section">
+          <div class="db-sub"><span>サイドボード</span><span id="dbSideCount" class="note"></span></div>
+          <div id="dbSideStats" class="db-detail-line"></div>
+          <div id="dbSide" class="db-list"></div>
+        </section>
+      </section>
     </div>
-    <details><summary>テキストで編集（1行 = 「枚数 カード名」・タイプは末尾に @Land 等。省略時は未分類）</summary>
-    <label class="field">メインボード<textarea id="dMain" rows="8" placeholder="24 静かな草原 @Land
+    <details class="db-text-edit"><summary>テキストで直接編集（1行＝「枚数 カード名」）</summary>
+      <label class="field">メインボード<textarea id="dMain" rows="8" placeholder="24 静かな草原 @Land
 4 炎の兵士 @Creature">${esc(toText(d.mainboard))}</textarea></label>
-    <label class="field">サイドボード<textarea id="dSide" rows="4">${esc(toText(d.sideboard))}</textarea></label></details>`,
-    `<button class="btn" data-app="closem">キャンセル</button><button class="btn primary" id="dSave">保存</button>`);
+      <label class="field">サイドボード<textarea id="dSide" rows="4">${esc(toText(d.sideboard))}</textarea></label>
+    </details>`,
+    `<button class="btn" data-app="closem">キャンセル</button><button class="btn primary" id="dSave">保存</button>`,"deck");
   const parseEditor=(txt)=>txt.split("\n").map(l=>l.trim()).filter(Boolean).map(l=>{
     let type="Unknown"; const tm=l.match(/@(\w+)\s*$/); if(tm){ type=normType(tm[1]); l=l.replace(/@\w+\s*$/,"").trim(); }
     const pc=parseCardLine(l); if(!pc) return null; return {name:pc.name,qty:pc.qty,type,types:[type]};
@@ -5104,15 +5210,30 @@ function openDeckEditor(id){
       return [...map.values()]; };
     const writeRows=(sel,rows)=>{ $(sel).value=rows.filter(r=>r.qty>0).map(e=>`${e.qty} ${e.name}${e.type&&e.type!=="Unknown"?" @"+e.type:""}`).join("\n"); };
     const prefs=(function(){ try{ return JSON.parse(localStorage.getItem("cpt_dbprefs")||"{}"); }catch(_){ return {}; } })();
-    const savePrefs=()=>{ try{ localStorage.setItem("cpt_dbprefs",JSON.stringify({q:$("#dbQ").value,sort:$("#dbSort").value,filt:$("#dbFilt").value})); }catch(_){} };
+    let dbLeftPct=Math.max(42,Math.min(72,Number(prefs.leftPct)||56));
+    const savePrefs=()=>{ try{ localStorage.setItem("cpt_dbprefs",JSON.stringify({q:$("#dbQ").value,sort:$("#dbSort").value,filt:$("#dbFilt").value,leftPct:dbLeftPct})); }catch(_){} };
     $("#dbQ").value=prefs.q||""; $("#dbSort").value=prefs.sort||"reg"; $("#dbFilt").value=prefs.filt||"all";
+    const dbWorkspace=$("#dbWorkspace"),dbSplit=$("#dbSplit");
+    if(dbWorkspace)dbWorkspace.style.setProperty("--db-left",dbLeftPct+"%");
+    if(dbSplit&&dbWorkspace){ dbSplit.addEventListener("pointerdown",ev=>{ if(window.matchMedia&&window.matchMedia("(max-width:980px)").matches)return; ev.preventDefault();dbSplit.classList.add("dragging");dbSplit.setPointerCapture&&dbSplit.setPointerCapture(ev.pointerId);const move=e=>{const r=dbWorkspace.getBoundingClientRect();dbLeftPct=Math.max(42,Math.min(72,((e.clientX-r.left)/r.width)*100));dbWorkspace.style.setProperty("--db-left",dbLeftPct+"%");};const up=e=>{move(e);dbSplit.classList.remove("dragging");dbSplit.releasePointerCapture&&dbSplit.releasePointerCapture(e.pointerId);dbSplit.removeEventListener("pointermove",move);dbSplit.removeEventListener("pointerup",up);dbSplit.removeEventListener("pointercancel",up);savePrefs();};dbSplit.addEventListener("pointermove",move);dbSplit.addEventListener("pointerup",up);dbSplit.addEventListener("pointercancel",up);}); }
     const norm=s=>normalizeCardName(String(s||""));
     const colorCat=e=>{ const c=e.colors||[]; if(c.length>1) return "M"; if(c.length===1) return c[0]; return "C"; };
     const COLOR_ORD={W:0,U:1,B:2,R:3,G:4,M:5,C:6};
     const mv=e=>{ const v=(e.manaValue===""||e.manaValue==null)?null:Number(e.manaValue); return (v==null||isNaN(v))?null:v; };
     const deckQty=(name)=>{ let q=0; for(const r of rowsOf("#dMain")) if(r.name===name) q+=r.qty; for(const r of rowsOf("#dSide")) if(r.name===name) q+=r.qty; return q; };
     const imgOf=(e)=>_cardImgSrc({imageId:e.imageId,imageUrl:"",name:e.name},true);
+    const manaLabel=e=>{ try{const c=normalizeManaCost(e&&e.manaCost);return c?manaCostToText(c):"";}catch(_){return typeof(e&&e.manaCost)==="string"?e.manaCost:"";} };
     const abilityText=e=>{ try{ return ((e.abilities||[]).map(a=>a&&(a.label||a.text)||"").join(" "))+" "+(e.memo||""); }catch(_){ return e.memo||""; } };
+    const statTypeOrder=["Land","Creature","Instant","Sorcery","Artifact","Enchantment","Planeswalker","Battle","Unknown"];
+    function deckStats(rows){
+      const st={total:0,types:{},landTypes:{},search:{},curve:{"0":0,"1":0,"2":0,"3":0,"4":0,"5":0,"6+":0},mvTotal:0,mvQty:0};
+      for(const t of statTypeOrder)st.types[t]=0;for(const t of BASIC_LAND_TYPES)st.landTypes[t]=0;for(const t of SEARCH_CLASS_TAGS)st.search[t]=0;
+      for(const r of rows){const q=Math.max(0,Number(r.qty)||0),de=dictGet(r.name),types=de?baseTypesOf(de):normalizeTypeList(r.types,r.type);st.total+=q;for(const t of types)st.types[t]=(st.types[t]||0)+q;if(de){for(const t of basicLandTypesOf(de))st.landTypes[t]+=q;for(const t of searchClassTags(de))st.search[t]+=q;const val=mv(de);if(val!=null&&!types.includes("Land")){st.mvTotal+=val*q;st.mvQty+=q;const k=val>=6?"6+":String(Math.max(0,Math.floor(val)));if(st.curve[k]!==undefined)st.curve[k]+=q;}}}
+      st.avgMv=st.mvQty?st.mvTotal/st.mvQty:null;return st;
+    }
+    function typeStatsHTML(st){const always=["Land","Creature","Instant","Sorcery","Artifact","Enchantment","Planeswalker"];return statTypeOrder.filter(t=>always.includes(t)||(st.types[t]||0)>0).map(t=>`<span class="db-stat ${["Land","Creature"].includes(t)?"primary":""}">${esc(TYPE_JP[t]||t)} <b>${st.types[t]||0}</b></span>`).join("");}
+    function detailStatsText(st){const lt=BASIC_LAND_TYPES.filter(t=>st.landTypes[t]).map(t=>`${BASIC_LAND_TYPE_JP[t]}${st.landTypes[t]}`).join(" / ");const sc=SEARCH_CLASS_TAGS.filter(t=>st.search[t]).map(t=>`${SEARCH_CLASS_JP[t]}${st.search[t]}`).join(" / ");const cv=Object.entries(st.curve).filter(([,n])=>n).map(([k,n])=>`MV${k}:${n}`).join(" ");return [st.avgMv!=null?`土地以外の平均MV ${st.avgMv.toFixed(2)}`:"",cv?`マナ域 ${cv}`:"",lt?`基本土地タイプ ${lt}`:"",sc].filter(Boolean).join("　｜　");}
+    function deckWarnings(mainN,sideN){const fmt=normalizeCardName(($("#dFormat")||{}).value||"");const commander=/commander|edh|統率者/.test(fmt),target=commander?100:60;const a=[];if(mainN<target)a.push(`<span class="db-warning">${commander?"統率者戦の目安100枚":"一般的な構築戦の目安60枚"}まであと${target-mainN}枚</span>`);if(sideN>15)a.push(`<span class="db-danger">サイド15枚を${sideN-15}枚超過</span>`);return a.join(" ／ ");}
     function libRender(){
       const q=norm($("#dbQ").value), sort=$("#dbSort").value, filt=$("#dbFilt").value; savePrefs();
       let list=Object.values(dictAll());
@@ -5139,27 +5260,22 @@ function openDeckEditor(id){
         inDeck:(a,b)=>(dq[b.e.name]-dq[a.e.name])||cmpName(a,b),
       };
       list.sort(sorters[sort]||sorters.reg);
-      $("#dbList").innerHTML=list.map(({e})=>{ const dn=dispName(e.name), isrc=imgOf(e), cc=colorCat(e), q0=dq[e.name];
+      const listEl=$("#dbList"),libScroll=listEl?listEl.scrollTop:0;
+      if(listEl){listEl.innerHTML=list.map(({e})=>{ const dn=dispName(e.name), isrc=imgOf(e), cc=colorCat(e), q0=dq[e.name],mc=manaLabel(e);
+        const meta=[typeText(e,false),cc==="M"?"多色":cc==="C"?"無色":cc,mv(e)!=null?"MV "+mv(e):"",mc?"コスト "+mc:"",q0?`デッキ内 ×${q0}`:""].filter(Boolean).join(" ／ ");
         return `<div class="db-row">${isrc?`<img src="${esc(isrc)}" alt="" data-db="prev" data-name="${esc(e.name)}" onerror="this.remove()">`:""}
-        <span class="db-n" data-db="prev" data-name="${esc(e.name)}" title="${esc(e.name)}（クリックで拡大プレビュー）">${esc(dn)}${dn!==e.name?` <small style="color:var(--muted)">${esc(e.name)}</small>`:""}${cardFormatOf(e)==="doubleFaced"?' <small class="db-badge" style="color:#7ec9ff">両面</small>':""}${cardFormatOf(e)==="split"?` <small class="db-badge" style="color:#e0a83c">分割: ${esc(splitPartName(e.name,"left"))} // ${esc(splitPartName(e.name,"right"))}</small>`:""}${searchClassBadgesHTML(e,true)}</span>
-        <small style="color:var(--muted);flex:none">${esc(typeText(e,false))}/${cc==="M"?"多色":cc==="C"?"無色":cc}${mv(e)!=null?"/MV"+mv(e):""}${e.manaCost?"/"+esc(e.manaCost):""}${q0?` <b>×${q0}</b>`:""}</small>
-        <button class="btn tiny" data-db="add" data-b="#dMain" data-n="1" data-name="${esc(e.name)}">＋1メイン</button>
-        <button class="btn tiny" data-db="add" data-b="#dMain" data-n="4" data-name="${esc(e.name)}">＋4</button>
-        <button class="btn tiny" data-db="add" data-b="#dSide" data-n="1" data-name="${esc(e.name)}">＋1サイド</button></div>`; }).join("")
-        ||`<div class="note">該当する登録カードがありません（辞書にカードを登録すると表示されます）。</div>`;
+        <div class="db-card-main"><span class="db-n" data-db="prev" data-name="${esc(e.name)}" title="${esc(e.name)}（クリックで拡大プレビュー）">${esc(dn)}${dn!==e.name?` <small style="color:var(--muted)">${esc(e.name)}</small>`:""}${cardFormatOf(e)==="doubleFaced"?' <small class="db-badge" style="color:#7ec9ff">両面</small>':""}${cardFormatOf(e)==="split"?` <small class="db-badge" style="color:#e0a83c">分割</small>`:""}${searchClassBadgesHTML(e,true)}</span><small class="db-card-meta">${esc(meta)}</small></div>
+        <div class="db-actions"><button class="btn tiny" data-db="add" data-b="#dMain" data-n="1" data-name="${esc(e.name)}">＋1メイン</button><button class="btn tiny" data-db="add" data-b="#dMain" data-n="4" data-name="${esc(e.name)}">＋4</button><button class="btn tiny" data-db="add" data-b="#dSide" data-n="1" data-name="${esc(e.name)}">＋1サイド</button></div></div>`; }).join("")
+        ||`<div class="note">該当する登録カードがありません（辞書にカードを登録すると表示されます）。</div>`;listEl.scrollTop=libScroll;}
     }
     function deckRender(){
-      const mk=(sel,other)=>rowsOf(sel).map(e=>{ const dn=dispName(e.name); const reg=!!dictGet(e.name);
-        const isrc=_cardImgSrc({imageId:e.imageId,imageUrl:"",name:e.name},true);
-        return `<div class="db-row">${isrc?`<img src="${esc(isrc)}" alt="" onerror="this.remove()">`:""}
-        <span class="db-n" title="${esc(e.name)}">${esc(dn)}${dn!==e.name?` <small style="color:var(--muted)">${esc(e.name)}</small>`:""}${reg?"":' <small style="color:#e0a83c">未登録</small>'} <b>×${e.qty}</b></span>
-        <button class="btn tiny" data-db="add" data-b="${sel}" data-n="1" data-name="${esc(e.name)}">＋</button>
-        <button class="btn tiny" data-db="sub" data-b="${sel}" data-n="1" data-name="${esc(e.name)}">−1</button>
-        <button class="btn tiny" data-db="mv" data-b="${sel}" data-to="${other}" data-name="${esc(e.name)}">${other==="#dSide"?"→サイド":"→メイン"}</button>
-        <button class="btn tiny" data-db="sub" data-b="${sel}" data-all="1" data-name="${esc(e.name)}">全削除</button></div>`; }).join("")||`<div class="note">（空）</div>`;
-      $("#dbMain").innerHTML=mk("#dMain","#dSide");
-      $("#dbSide").innerHTML=mk("#dSide","#dMain");
-      $("#dbTotals").innerHTML=`<b>メイン ${rowsOf("#dMain").reduce((a,b)=>a+b.qty,0)}枚</b> ／ <b>サイド ${rowsOf("#dSide").reduce((a,b)=>a+b.qty,0)}枚</b>`;
+      const mainRows=rowsOf("#dMain"),sideRows=rowsOf("#dSide"),mainStats=deckStats(mainRows),sideStats=deckStats(sideRows);
+      const mk=(rows,sel,other)=>rows.map(e=>{ const dn=dispName(e.name), de=dictGet(e.name),reg=!!de,isrc=_cardImgSrc({imageId:de&&de.imageId,imageUrl:"",name:e.name},true),types=de?typeText(de,false):(TYPE_JP[e.type]||e.type||"未分類"),mc=de?manaLabel(de):"";
+        return `<div class="db-row">${isrc?`<img src="${esc(isrc)}" alt="" data-db="prev" data-name="${esc(e.name)}" onerror="this.remove()">`:""}<div class="db-card-main"><span class="db-n" data-db="prev" data-name="${esc(e.name)}" title="${esc(e.name)}">${esc(dn)}${dn!==e.name?` <small style="color:var(--muted)">${esc(e.name)}</small>`:""}${reg?"":' <small style="color:#e0a83c">未登録</small>'} <b>×${e.qty}</b></span><small class="db-card-meta">${esc(types)}${mc?` ／ ${esc(mc)}`:""}</small></div><div class="db-actions"><button class="btn tiny" data-db="add" data-b="${sel}" data-n="1" data-name="${esc(e.name)}">＋</button><button class="btn tiny" data-db="sub" data-b="${sel}" data-n="1" data-name="${esc(e.name)}">−1</button><button class="btn tiny" data-db="mv" data-b="${sel}" data-to="${other}" data-name="${esc(e.name)}">${other==="#dSide"?"→サイド":"→メイン"}</button><button class="btn tiny" data-db="sub" data-b="${sel}" data-all="1" data-name="${esc(e.name)}">全削除</button></div></div>`; }).join("")||`<div class="note">（空）</div>`;
+      const mainEl=$("#dbMain"),sideEl=$("#dbSide"),ms=mainEl?mainEl.scrollTop:0,ss=sideEl?sideEl.scrollTop:0;if(mainEl){mainEl.innerHTML=mk(mainRows,"#dMain","#dSide");mainEl.scrollTop=ms;}if(sideEl){sideEl.innerHTML=mk(sideRows,"#dSide","#dMain");sideEl.scrollTop=ss;}
+      $("#dbMainCount").textContent=`${mainStats.total}枚`;$("#dbSideCount").textContent=`${sideStats.total}枚`;
+      $("#dbMainStats").textContent=detailStatsText(mainStats)||"タイプ・マナ情報はカード辞書登録後に表示されます";$("#dbSideStats").innerHTML=sideStats.total?`<div class="db-stat-groups">${typeStatsHTML(sideStats)}</div>${detailStatsText(sideStats)?`<div style="margin-top:3px">${esc(detailStatsText(sideStats))}</div>`:""}`:"";
+      $("#dbTotals").innerHTML=`<div class="db-summary-top"><span class="db-total">メイン ${mainStats.total}枚</span><span><b>サイド ${sideStats.total}枚</b></span>${deckWarnings(mainStats.total,sideStats.total)}</div><div class="db-stat-groups">${typeStatsHTML(mainStats)}</div><div class="db-detail-line">複数タイプのカードは各タイプへ重複して数えます。${detailStatsText(mainStats)?"　"+esc(detailStatsText(mainStats)):""}</div>`;
     }
     function addTo(sel,name,n){ const rows=rowsOf(sel); const r=rows.find(x=>x.name===name);
       if(r) r.qty+=(n||1); else { const de=dictGet(name); rows.push({name,qty:(n||1),type:(de&&de.type)||"Unknown",types:(de?baseTypesOf(de):["Unknown"])}); } // 辞書はコピーせず識別名と枚数のみ保持
@@ -5171,6 +5287,7 @@ function openDeckEditor(id){
     $("#dbQClear").onclick=()=>{ $("#dbQ").value=""; libRender(); };
     $("#dbSort").onchange=()=>libRender();
     $("#dbFilt").onchange=()=>libRender();
+    $("#dFormat").addEventListener("input",()=>deckRender());
     $("#dMain").addEventListener("input",()=>deckRender());
     $("#dSide").addEventListener("input",()=>deckRender());
     const mb=$(".modal .mbody")||document;
@@ -5310,7 +5427,7 @@ document.addEventListener("click",function(e){
     const _vbtn=e.target.closest("[data-vmode]"); if(_vbtn){ safe(()=>setViewMode(_vbtn.getAttribute("data-vmode"))); return; }
     // app系トップバー
     const app=e.target.closest("[data-app]");
-    if(app){ const a=app.getAttribute("data-app");
+    if(app){ e.preventDefault(); const a=app.getAttribute("data-app");
       switch(a){
         case "save": saveState(); return;
         case "load": loadState(); return;
@@ -11025,7 +11142,7 @@ function _libSearchBind(){
 /* ============================================================
    総合安定化: 自己診断 / バックアップ / プレイテスト / ヘルプ / バージョン
    ============================================================ */
-const APP_VERSION="1.6.1";
+const APP_VERSION="1.7.2";
 const DATA_VERSION=4;
 const LS_BACKUP_KEY="cpt_backups_v1";
 let _cptMigrationNote="";
