@@ -473,6 +473,8 @@
   .ptmod-list{display:flex;flex-direction:column;gap:4px;margin:5px 0}
   .ptmod-row{display:flex;align-items:center;gap:6px;flex-wrap:wrap;background:var(--bg2);border:1px solid var(--line);border-radius:7px;padding:4px 6px;font-size:11px}
   .badge.ptmod{background:#4b3d74;color:#eee1ff}.badge.autox{background:#6b4720;color:#ffe3b0}.badge.autoef{background:#28556a;color:#d5f2ff}
+  .badge.ptref{background:#245344;color:#d9fff0}.pt-ref-box{border:1px solid var(--line);border-radius:8px;padding:7px;background:var(--bg2);margin:5px 0}.pt-ref-preview{font-size:11px;color:var(--muted);margin-top:4px}.pt-ref-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px}.pt-zone-grid{display:flex;flex-wrap:wrap;gap:5px}.pt-zone-grid label{display:inline-flex;align-items:center;gap:4px;border:1px solid var(--line);border-radius:7px;padding:4px 7px;background:var(--bg2);font-size:11px}.pt-formula-row{display:grid;grid-template-columns:1fr 90px 90px;gap:6px;align-items:end}
+  @media(max-width:760px){.pt-ref-grid,.pt-formula-row{grid-template-columns:1fr}.pt-zone-grid label{min-height:32px}}
   .castctx{padding:4px 6px;border-left:3px solid var(--accent);background:rgba(224,168,60,.08);border-radius:4px;font-size:11px}
   @media(max-width:760px){.autoef-grid,.autoef-advanced{grid-template-columns:1fr 1fr}.autoef-block .btn{min-height:38px}.ptmod-row .btn{min-height:34px}}
   .c-W{background:#f4f1e0;color:#3a3320}.c-U{background:#1c5a86;color:#dff}.c-B{background:#2b2b33;color:#cfc8e0}
@@ -1252,6 +1254,30 @@
 @media(max-width:760px){.auto-lib-row{grid-template-columns:minmax(0,1fr) auto}.auto-lib-row .btn{min-height:34px}.auto-sec .grid2{grid-template-columns:1fr}.auto-hub-tools .btn{flex:1 1 44%}}
 
 </style>
+
+<style id="dict-editor-cleanup-style">
+.modal.dict-editor{width:min(1180px,96vw);height:min(920px,94vh);max-width:none;display:flex;flex-direction:column}
+.modal.dict-editor .mhead,.modal.dict-editor .mfoot{flex:0 0 auto}
+.modal.dict-editor .mbody{padding:0;overflow:hidden;flex:1;min-height:0}
+.dict-editor-shell{height:100%;display:flex;flex-direction:column;background:var(--bg)}
+.dict-editor-toolbar{display:flex;justify-content:space-between;gap:12px;align-items:center;padding:10px 14px;border-bottom:1px solid var(--line);background:var(--panel2);flex:0 0 auto}
+.dict-mode-switch{display:inline-flex;gap:5px;margin-left:8px}.dict-editor-help{display:flex;gap:8px;align-items:center;color:var(--muted);font-size:12px}.dict-editor-help b{color:var(--text)}
+.dict-editor-tabs{display:flex;gap:4px;padding:7px 12px;border-bottom:1px solid var(--line);background:var(--panel);overflow-x:auto;flex:0 0 auto;scrollbar-width:thin}
+.dict-editor-tabs button{border:1px solid var(--line);background:var(--panel2);color:var(--muted);border-radius:7px;padding:8px 15px;white-space:nowrap;font-weight:700;cursor:pointer}
+.dict-editor-tabs button.active{background:var(--accent);color:#fff;border-color:var(--accent)}
+.dict-editor-panel{display:none;overflow:auto;padding:12px 14px 22px;min-height:0;flex:1}.dict-editor-panel.active{display:block}
+.dict-section-card{border:1px solid var(--line);border-radius:9px;background:var(--panel);padding:11px 12px;margin:0 0 10px}.dict-section-title{font-size:15px;font-weight:800;margin:0 0 8px;color:var(--text)}
+.dict-context-block{border:1px dashed var(--line);border-radius:7px;padding:8px;margin-top:8px}.dict-format-box{border:1px solid var(--line);border-radius:8px;padding:10px;margin-top:8px;background:var(--panel2)}
+.dict-img-preview{min-height:24px;margin-top:5px}.dict-img-preview img{width:90px!important;height:auto!important;aspect-ratio:63/88;object-fit:contain;background:#06080d;border-radius:6px}
+.dict-editor-shell[data-de-mode="simple"] .de-advanced-only,.dict-editor-shell[data-de-mode="simple"] .dict-advanced-meta{display:none!important}
+.dict-editor-shell details{margin:6px 0;border:1px solid var(--line);border-radius:7px;padding:7px;background:color-mix(in srgb,var(--panel2) 82%,transparent)}
+.dict-editor-shell details>summary{padding:3px 1px}.dict-editor-shell .dict-abils,.dict-editor-shell .dict-auto-effects,.dict-editor-shell .dict-search-profiles{border:0;background:transparent;padding:0}
+.dict-editor-shell .dict-abils>summary,.dict-editor-shell .dict-auto-effects>summary,.dict-editor-shell .dict-search-profiles>summary{font-size:13px;padding:7px;background:var(--panel2);border:1px solid var(--line);border-radius:6px}
+.dict-editor-shell .type-grid{grid-template-columns:repeat(auto-fit,minmax(125px,1fr));gap:5px}.dict-editor-shell .type-grid label{padding:7px 8px;border:1px solid var(--line);border-radius:6px;background:var(--panel2)}
+.dict-editor-shell input,.dict-editor-shell select,.dict-editor-shell textarea{font-size:13px}.dict-editor-shell .field{gap:5px}
+#dePtFormulaWrap .dict-pt-formula{margin-top:8px}.dict-editor-shell[data-de-mode="simple"] #dePtFormulaWrap .pt-ref-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+@media(max-width:720px){.modal.dict-editor{width:100vw;height:100dvh;max-height:none;border-radius:0}.dict-editor-toolbar{align-items:flex-start;padding:7px 9px}.dict-editor-help{display:none}.dict-editor-tabs{padding:5px 7px}.dict-editor-tabs button{padding:7px 11px}.dict-editor-panel{padding:8px}.dict-editor-shell .grid2,.dict-editor-shell .pt-ref-grid{grid-template-columns:1fr}.dict-section-card{padding:9px}.dict-mode-switch{margin-left:3px}}
+</style>
 </head>
 <body>
 <div class="client" id="client">
@@ -1380,11 +1406,11 @@
 
 /* ---------- 定数 ---------- */
 const TYPES = ["Land","Creature","Instant","Sorcery","Artifact","Enchantment",
-  "Planeswalker","Battle","Token","Other","Unknown"];
+  "Planeswalker","Battle","Kindred","Token","Other","Unknown"];
 const TYPE_JP = {
   Land:"土地", Creature:"クリーチャー", Instant:"インスタント", Sorcery:"ソーサリー",
   Artifact:"アーティファクト", Enchantment:"エンチャント", Planeswalker:"プレインズウォーカー",
-  Battle:"バトル", Token:"トークン", Other:"その他", Unknown:"未分類",
+  Battle:"バトル", Kindred:"同族（旧・部族）", Token:"トークン", Other:"その他", Unknown:"未分類",
   UnknownSpell:"未分類(呪文)"
 };
 /* 複数カードタイプ + 効果による追加タイプ（旧typeフィールド互換） */
@@ -1717,6 +1743,112 @@ let _id = 0;
 function uid(){ return "c"+Date.now().toString(36)+(_id++).toString(36)+Math.floor(Math.random()*1e4).toString(36); }
 function nowISO(){ return new Date().toISOString(); }
 function esc(s){ return String(s==null?"":s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c])); }
+
+/* カード辞書用 P/T 選択肢。数値の上限は登録UIの見やすさ用で、ゲーム中の修整値上限ではありません。 */
+const PT_POWER_SELECT_MAX=16;
+const PT_TOUGHNESS_SELECT_MAX=17;
+const PT_VARIABLE_VALUES=[
+  ["*","*（アスタリスク：能力で値が決まる）"],
+  ["1+*","1+*（例：*/1+*）"],
+  ["2+*","2+*"],
+  ["X","X（Xの値）"],
+  ["X+1","X+1"],
+  ["X+2","X+2"],
+  ["∞","∞（特殊カード用）"]
+];
+function ptSelectHTML(id,value,kind,cls,style){
+  const v=String(value==null?"":value).trim(), max=kind==="toughness"?PT_TOUGHNESS_SELECT_MAX:PT_POWER_SELECT_MAX;
+  const known=new Set(["",...Array.from({length:max+1},(_,i)=>String(i)),...PT_VARIABLE_VALUES.map(x=>x[0])]);
+  let opts=`<option value=""${v===""?" selected":""}>未設定</option>`;
+  for(let i=0;i<=max;i++) opts+=`<option value="${i}"${v===String(i)?" selected":""}>${i}</option>`;
+  opts+=`<optgroup label="効果・能力で変動">${PT_VARIABLE_VALUES.map(([x,l])=>`<option value="${esc(x)}"${v===x?" selected":""}>${esc(l)}</option>`).join("")}</optgroup>`;
+  if(v&&!known.has(v)) opts+=`<optgroup label="既存データ"><option value="${esc(v)}" selected>${esc(v)}（既存値を保持）</option></optgroup>`;
+  return `<select${id?` id="${esc(id)}"`:""}${cls?` class="${esc(cls)}"`:""}${style?` style="${esc(style)}"`:""}>${opts}</select>`;
+}
+
+/* ============================================================
+   参照式P/T（墓地・追放などの状態からNを再計算）
+   - 辞書 ptFormula に保存し、基本値→継続修整→カウンターの順で表示。
+   - 完全なレイヤー処理ではなく、登録条件に基づく実用的な自動計算。
+   ============================================================ */
+const PT_REF_SCOPES=["controller","owner","opponent","both"];
+const PT_REF_SCOPE_JP={controller:"現在のコントローラーの領域",owner:"このカードのオーナーが所有するカード",opponent:"対戦相手の領域",both:"両プレイヤーの領域"};
+const PT_REF_ZONES=["graveyard","exile","battlefield","hand","library","sideboard"];
+const PT_REF_ZONE_JP={graveyard:"墓地",exile:"追放",battlefield:"戦場",hand:"手札",library:"ライブラリー",sideboard:"サイド"};
+const PT_REF_COUNT_MODES=["cards","distinctTypes","distinctNames","manaValueSum","sourceCounter","manual"];
+const PT_REF_COUNT_JP={cards:"条件に合うカード枚数",distinctTypes:"異なるカードタイプ数",distinctNames:"異なるカード名数",manaValueSum:"マナ総量の合計",sourceCounter:"このカード上の指定カウンター数",manual:"手動のN"};
+const PT_COUNTABLE_TYPES=["Artifact","Battle","Creature","Enchantment","Instant","Kindred","Land","Planeswalker","Sorcery"];
+function normalizePtFormula(f){
+  f=f&&typeof f==="object"?f:{};
+  const zones=Array.isArray(f.zones)?f.zones.filter(z=>PT_REF_ZONES.includes(z)):[];
+  return {enabled:f.enabled===true,label:String(f.label||"参照式P/T"),scope:PT_REF_SCOPES.includes(f.scope)?f.scope:"controller",
+    zones:zones.length?zones:["graveyard"],countMode:PT_REF_COUNT_MODES.includes(f.countMode)?f.countMode:"cards",
+    typeFilters:normalizeExtraTypeList(f.typeFilters||[]),subtypeTerms:_searchStrList(f.subtypeTerms||[]),colorFilters:dedupColors(f.colorFilters||[]),
+    counterName:String(f.counterName||"+1/+1"),manualN:_aeNum(f.manualN),pMultiplier:Number.isFinite(Number(f.pMultiplier))?Number(f.pMultiplier):1,
+    pOffset:Number.isFinite(Number(f.pOffset))?Number(f.pOffset):0,tMultiplier:Number.isFinite(Number(f.tMultiplier))?Number(f.tMultiplier):1,
+    tOffset:Number.isFinite(Number(f.tOffset))?Number(f.tOffset):1,note:String(f.note||"")};
+}
+function ptFormulaOf(c){ const d=c&&dictGet(c.name); return normalizePtFormula(d&&d.ptFormula||{}); }
+function ptFormulaEnabledFor(c){ return !!(c&&ptFormulaOf(c).enabled); }
+function _ptRefZoneCards(player,zone){
+  const pl=state.players[player]; if(!pl)return[];
+  if(zone==="battlefield")return [...(pl.creatures||[]),...(pl.lands||[]),...(pl.others||[])];
+  return Array.isArray(pl[zone])?pl[zone]:[];
+}
+function _ptRefCandidates(c,f){
+  if(f.countMode==="sourceCounter"||f.countMode==="manual")return[];
+  const ctrl=(c.controller==="B"?"B":"A"), opp=ctrl==="A"?"B":"A"; let out=[];
+  const players=f.scope==="both"?["A","B"]:f.scope==="opponent"?[opp]:f.scope==="controller"?[ctrl]:["A","B"];
+  for(const p of players)for(const z of f.zones)out.push(..._ptRefZoneCards(p,z));
+  if(f.scope==="owner")out=out.filter(x=>x&&x.owner===c.owner);
+  const seen=new Set(); out=out.filter(x=>x&&x.id&&!seen.has(x.id)&&(seen.add(x.id),true));
+  return out.filter(x=>{
+    if(f.typeFilters.length&&!f.typeFilters.some(t=>cardHasType(x,t)))return false;
+    if(f.subtypeTerms.length){const d=dictGet(x.name)||{},sub=normalizeCardName([x.subtype||"",d.subtype||""].join(" "));if(!f.subtypeTerms.some(t=>sub.includes(normalizeCardName(t))))return false;}
+    if(f.colorFilters.length){const d=dictGet(x.name)||{},cols=dedupColors(d.colors||[]);if(!f.colorFilters.some(t=>cols.includes(t)))return false;}
+    return true;
+  });
+}
+function computePtReference(c){
+  const f=ptFormulaOf(c); if(!f.enabled)return null; let n=0,cards=[],types=[];
+  if(f.countMode==="manual")n=f.manualN;
+  else if(f.countMode==="sourceCounter")n=Math.max(0,Number((c.counters||{})[f.counterName]||0)+(f.counterName==="+1/+1"?Number(c.countersPlus||0):0));
+  else {
+    cards=_ptRefCandidates(c,f);
+    if(f.countMode==="cards")n=cards.length;
+    else if(f.countMode==="distinctNames")n=new Set(cards.map(x=>normalizeCardName(x.name))).size;
+    else if(f.countMode==="manaValueSum")n=cards.reduce((a,x)=>{const d=dictGet(x.name)||{};const mv=mvNorm(d.manaValue);return a+(mv===""?0:Number(mv)||0);},0);
+    else if(f.countMode==="distinctTypes"){const st=new Set();for(const x of cards)for(const t of cardTypes(x,true))if(PT_COUNTABLE_TYPES.includes(t))st.add(t);types=[...st];n=types.length;}
+  }
+  const p=Math.trunc(n*f.pMultiplier+f.pOffset),t=Math.trunc(n*f.tMultiplier+f.tOffset);
+  return {formula:f,n,p,t,cards,types};
+}
+function ptReferenceDescription(r){
+  if(!r)return""; const f=r.formula; let d=`N=${r.n}（${PT_REF_COUNT_JP[f.countMode]}）`;
+  if(f.countMode!=="sourceCounter"&&f.countMode!=="manual")d+=` / ${PT_REF_SCOPE_JP[f.scope]} / ${f.zones.map(z=>PT_REF_ZONE_JP[z]).join("・")}`;
+  if(r.types&&r.types.length)d+=` / 種類: ${r.types.map(t=>TYPE_JP[t]||t).join("・")}`;
+  if(f.typeFilters.length)d+=` / 対象タイプ: ${f.typeFilters.map(t=>TYPE_JP[t]||t).join("・")}`;
+  return d;
+}
+function ptFormulaSummaryHTML(c){const r=computePtReference(c);return r?`<div class="pt-ref-box"><span class="badge ptref">AUTO P/T</span> <b>${esc(r.formula.label)}</b><div class="pt-ref-preview">${esc(ptReferenceDescription(r))}<br>参照基本値: <b>${r.p}/${r.t}</b>${r.formula.note?` ／ ${esc(r.formula.note)}`:""}</div></div>`:"";}
+function _ptLinearText(m,o){m=Number(m)||0;o=Number(o)||0;let a=m===0?"":m===1?"N":m===-1?"-N":`${m}×N`;if(o)a+=(a?(o>0?"+":"")+o:String(o));return a||"0";}
+function dictPtFormulaSectionHTML(e){const f=normalizePtFormula(e&&e.ptFormula||{});const mulOpts=[-2,-1,0,1,2,3].map(n=>`<option value="${n}">${n}</option>`).join("");return `<details class="dict-pt-formula"><summary class="note" style="cursor:pointer"><b>参照式P/T（自動再計算）</b>${f.enabled?' <span class="badge ptref">ON</span>':""}</summary>
+  <div class="note">墓地・追放・戦場などが変化するたびにNを再計算します。プリセット後も条件を調整できます。基本P/T欄には通常「* / 1+*」など印刷表記を設定してください。</div>
+  <div class="row-inline" style="gap:5px;flex-wrap:wrap"><button type="button" class="btn tiny" data-ptfpreset="cosmogoyf">コスモゴイフ型</button><button type="button" class="btn tiny" data-ptfpreset="tarmogoyf">タルモゴイフ型</button><button type="button" class="btn tiny" data-ptfpreset="graveSpells">自分の墓地のインスタント/ソーサリー枚数</button><button type="button" class="btn tiny warn" data-ptfpreset="clear">解除</button></div>
+  <label class="row-inline" style="gap:6px"><input type="checkbox" id="dePtFEnabled"${f.enabled?" checked":""}> 自動計算を有効にする</label>
+  <div class="pt-ref-grid"><label class="field">表示名<input id="dePtFLabel" value="${esc(f.label)}"></label><label class="field">参照範囲<select id="dePtFScope">${PT_REF_SCOPES.map(v=>`<option value="${v}"${f.scope===v?" selected":""}>${PT_REF_SCOPE_JP[v]}</option>`).join("")}</select></label>
+  <label class="field">数え方<select id="dePtFMode">${PT_REF_COUNT_MODES.map(v=>`<option value="${v}"${f.countMode===v?" selected":""}>${PT_REF_COUNT_JP[v]}</option>`).join("")}</select></label><label class="field">指定カウンター名<input id="dePtFCounter" value="${esc(f.counterName)}"></label></div>
+  <div class="field"><b>参照領域</b><div class="pt-zone-grid">${PT_REF_ZONES.map(z=>`<label><input type="checkbox" class="dePtFZone" value="${z}"${f.zones.includes(z)?" checked":""}>${PT_REF_ZONE_JP[z]}</label>`).join("")}</div></div>
+  <div class="field"><b>カードタイプ条件（空なら制限なし・複数はいずれか）</b>${typeCheckGridHTML(f.typeFilters,"dePtFType")}</div>
+  <div class="pt-ref-grid"><label class="field">サブタイプ条件（/区切り）<input id="dePtFSub" value="${esc(f.subtypeTerms.join("/"))}" placeholder="例: ゾンビ/エルフ"></label><label class="field">色条件（W,U,B,R,G,C）<input id="dePtFColor" value="${esc(f.colorFilters.join(","))}"></label><label class="field">手動N<input id="dePtFManual" type="number" min="0" value="${f.manualN}"></label></div>
+  <div class="pt-formula-row"><b>パワー式</b><label class="field">Nの倍率<select id="dePtFPM">${mulOpts.replace(`value="${f.pMultiplier}"`,`value="${f.pMultiplier}" selected`)}</select></label><label class="field">加算<input id="dePtFPO" type="number" value="${f.pOffset}"></label></div>
+  <div class="pt-formula-row"><b>タフネス式</b><label class="field">Nの倍率<select id="dePtFTM">${mulOpts.replace(`value="${f.tMultiplier}"`,`value="${f.tMultiplier}" selected`)}</select></label><label class="field">加算<input id="dePtFTO" type="number" value="${f.tOffset}"></label></div>
+  <label class="field">メモ<input id="dePtFNote" value="${esc(f.note)}"></label><div id="dePtFPreview" class="pt-ref-preview"></div></details>`;}
+function dictPtFormulaRead(){return normalizePtFormula({enabled:!!((document.getElementById("dePtFEnabled")||{}).checked),label:(document.getElementById("dePtFLabel")||{}).value,scope:(document.getElementById("dePtFScope")||{}).value,zones:[...document.querySelectorAll(".dePtFZone:checked")].map(x=>x.value),countMode:(document.getElementById("dePtFMode")||{}).value,typeFilters:[...document.querySelectorAll(".dePtFType:checked")].map(x=>x.value),subtypeTerms:(document.getElementById("dePtFSub")||{}).value,colorFilters:_searchStrList((document.getElementById("dePtFColor")||{}).value).map(x=>x.toUpperCase()),counterName:(document.getElementById("dePtFCounter")||{}).value,manualN:(document.getElementById("dePtFManual")||{}).value,pMultiplier:(document.getElementById("dePtFPM")||{}).value,pOffset:(document.getElementById("dePtFPO")||{}).value,tMultiplier:(document.getElementById("dePtFTM")||{}).value,tOffset:(document.getElementById("dePtFTO")||{}).value,note:(document.getElementById("dePtFNote")||{}).value});}
+function _ptFormulaPreset(k){if(k==="cosmogoyf")return normalizePtFormula({enabled:true,label:"コスモゴイフ型",scope:"owner",zones:["exile"],countMode:"cards",pMultiplier:1,pOffset:0,tMultiplier:1,tOffset:1,note:"自分がオーナーである追放カード枚数"});if(k==="tarmogoyf")return normalizePtFormula({enabled:true,label:"タルモゴイフ型",scope:"both",zones:["graveyard"],countMode:"distinctTypes",pMultiplier:1,pOffset:0,tMultiplier:1,tOffset:1,note:"両墓地にある異なるカードタイプ数"});if(k==="graveSpells")return normalizePtFormula({enabled:true,label:"墓地のインスタント/ソーサリー枚数",scope:"controller",zones:["graveyard"],countMode:"cards",typeFilters:["Instant","Sorcery"],pMultiplier:1,pOffset:0,tMultiplier:1,tOffset:0});return normalizePtFormula({});}
+function dictPtFormulaApplyUI(f){f=normalizePtFormula(f);const set=(id,v)=>{const e=document.getElementById(id);if(e)e.value=String(v)};const ck=(id,v)=>{const e=document.getElementById(id);if(e)e.checked=!!v};ck("dePtFEnabled",f.enabled);set("dePtFLabel",f.label);set("dePtFScope",f.scope);set("dePtFMode",f.countMode);set("dePtFCounter",f.counterName);set("dePtFSub",f.subtypeTerms.join("/"));set("dePtFColor",f.colorFilters.join(","));set("dePtFManual",f.manualN);set("dePtFPM",f.pMultiplier);set("dePtFPO",f.pOffset);set("dePtFTM",f.tMultiplier);set("dePtFTO",f.tOffset);set("dePtFNote",f.note);document.querySelectorAll(".dePtFZone").forEach(x=>x.checked=f.zones.includes(x.value));document.querySelectorAll(".dePtFType").forEach(x=>x.checked=f.typeFilters.includes(x.value));dictPtFormulaUpdatePreview();}
+function dictPtFormulaUpdatePreview(){const h=document.getElementById("dePtFPreview");if(!h)return;const f=dictPtFormulaRead();h.innerHTML=`計算式: P=${esc(_ptLinearText(f.pMultiplier,f.pOffset))} ／ T=${esc(_ptLinearText(f.tMultiplier,f.tOffset))}　<span class="note">${esc(PT_REF_COUNT_JP[f.countMode])}</span>`;}
+function dictPtFormulaBind(){const root=document.querySelector(".dict-pt-formula");if(!root)return;root.querySelectorAll("[data-ptfpreset]").forEach(b=>b.onclick=ev=>{ev.preventDefault();const k=b.getAttribute("data-ptfpreset");dictPtFormulaApplyUI(_ptFormulaPreset(k));if(k==="cosmogoyf"||k==="tarmogoyf"){const p=document.getElementById("dePow"),t=document.getElementById("deTou");if(p)p.value="*";if(t)t.value="1+*";} });root.addEventListener("input",dictPtFormulaUpdatePreview);root.addEventListener("change",dictPtFormulaUpdatePreview);dictPtFormulaUpdatePreview();}
 function clone(o){ return JSON.parse(JSON.stringify(o)); }
 function $(sel,root){ return (root||document).querySelector(sel); }
 function toast(msg){ const t=$("#toast"); t.textContent=msg; t.style.display="block";
@@ -1805,7 +1937,7 @@ function newPlayer(){
 function defaultState(){
   return {
     version:1,
-    appVersion:"1.7.3",
+    appVersion:"1.9.1",
     dataVersion:4,
     meta:{ lastSaved:null, lastBackup:null, lastDiag:null },
     integrityLog:[],
@@ -1830,7 +1962,7 @@ function defaultState(){
     settings:{ autosave:false, rotateOpponent:true, logAuto:false, showImages:true,
       cardSize:"m", oneScreen:true, handMode:"row", viewMode:"compact", revealOpponentHand:false, shortcuts:true,
       combatLines:true, attackerForward:true, landCompact:false, confirmLight:true,
-      combatDamageAid:true, lethalHighlight:true, applyDamageConfirm:true, cleanupNotice:true, mulliganMode:"simple", keepRuleMode:"none", selectedKeepRuleId:"", cardZoomEnabled:true, cardZoomButton:true, cardZoomSize:"l", cardZoomImagePriority:true, targetLines:true, targetBadges:true, targetWarnings:true, targetCandidateHighlight:true, floatingStack:{visible:true,collapsed:false,x:null,y:null,images:null}, navEnabled:true, navUnresolved:true, navImportantOnly:false, navCompact:false, stackResolveConfirmEach:true, stackResolveWarnConfirm:true, analysisTab:"overview", analysisCompact:false, navInFooter:true, uiPanels:null, layoutPresets:[], panelUnresMode:"all", saveLightDiag:true, lightDiagDangerOnly:true, lightDiagLog:true, libraryTemplates:[], recentLibraryTemplates:[], libraryBoxActionsEnabled:true, libraryBoxRecentTemplates:true, stackFacePromptEnabled:true, cardColorFrameEnabled:true, cardColorChipsEnabled:true, cardColorGradientEnabled:true, cardColorGoldMultiEnabled:true, cardColorLandAsColorless:true, cardColorUnknownBadge:true, smartActionMode:"stackFirst", smartActionButtonEnabled:true, smartActionUnknownOpensMenu:true, castPaymentPromptEnabled:true, castPaymentPromptOnlyWhenCostExists:true, castPaymentDefaultChoice:"pending", castPaymentAllowFree:true, manaPoolEnabled:true, manaTapPromptEnabled:true, manaTapAutoSingleColor:false, manaShowPoolInPlayerPanel:true, manaClearMode:"phase", manaClearConfirm:true, manaClearLog:true, promptQueueEnabled:true, promptQueueMode:"normal", promptQueueAutoRefresh:true, promptQueueShowPriorityPrompt:true, promptQueueShowPaymentWarnings:true, promptQueueShowTargetWarnings:true, promptQueueShowCombatWarnings:true, promptQueueShowManaWarnings:true, promptQueueLogChoices:true, abilitiesEnabled:true, abilityShowInCardMenu:true, abilityPromptTargetAfterStack:true, abilityAskTapCost:true, promptQueueShowAbilityHints:false, abilityTriggerHintsEnabled:false, resolveChecklistEnabled:true, resolveChecklistPromptBeforeResolve:true, resolveChecklistWarnRequired:true, resolveChecklistLogDetail:true, resolveChecklistIncludeSpells:true, resolveChecklistSrwSafeMode:true, tokenWizardEnabled:true, tokenShowBadges:true, tokenDefaultController:"active", tokenAutoCheckChecklistItem:true, tokenCopyIncludesAbilities:false, tokenCopyIncludesChecklist:true, handWizardEnabled:true, handDefaultRevealMode:"hiddenNames", handLogCardNamesDefault:false, handAutoCheckChecklistItem:true, promptQueueShowHandActionHints:false, handHistoryEnabled:true, damageWizardEnabled:true, damageAutoCheckChecklistItem:true, damageLogDetail:true, damageShowCounterBadges:true, damageShowPoisonInPlayerPanel:true, promptQueueShowDamageHints:false, damageHistoryEnabled:true, handViewMode:"all", turnReviewGateEnabled:true, phaseTriggerReminderEnabled:true, manualTriggerEventCheckEnabled:true, onlineServerUrl:"", onlineName:"", onlineAutoBroadcastEnabled:false, onlineAutoViewByRoleEnabled:false, onlineAutoReconnectEnabled:false, onlineResumeSyncEnabled:true, onlineSeatViewByRoleEnabled:true, turnStartAssistEnabled:true, drawStepAutoDrawEnabled:true, drawStepConfirmEnabled:true, drawStepSkipFirstPlayerFirstTurn:true, drawRestrictionsEnabled:true, landPlayAssistEnabled:true, landPlayLimit:1, onlineSideChatEnabled:false, onlineAutoApplyReceivedStateEnabled:false, onlineSideChatX:null, onlineSideChatY:null, onlineSideChatW:null, onlineSideChatH:null, onlineFloatingHudEnabled:false, onlineFloatingHudX:null, onlineFloatingHudY:null, onlineFloatingHudW:null, onlineFloatingHudH:null, commandPanelFloatingEnabled:false, commandPanelX:null, commandPanelY:null, commandPanelW:null, commandPanelH:null }
+      combatDamageAid:true, lethalHighlight:true, applyDamageConfirm:true, cleanupNotice:true, mulliganMode:"simple", keepRuleMode:"none", selectedKeepRuleId:"", cardZoomEnabled:true, cardZoomButton:true, cardZoomSize:"l", cardZoomImagePriority:true, targetLines:true, targetBadges:true, targetWarnings:true, targetCandidateHighlight:true, stackPanelMode:"auto", stackAutoExpand:true, stackAutoFront:true, floatingStack:{visible:true,collapsed:false,x:null,y:null,images:null}, navEnabled:true, navUnresolved:true, navImportantOnly:false, navCompact:false, stackResolveConfirmEach:true, stackResolveWarnConfirm:true, analysisTab:"overview", analysisCompact:false, navInFooter:true, uiPanels:null, layoutPresets:[], panelUnresMode:"all", saveLightDiag:true, lightDiagDangerOnly:true, lightDiagLog:true, libraryTemplates:[], recentLibraryTemplates:[], libraryBoxActionsEnabled:true, libraryBoxRecentTemplates:true, stackFacePromptEnabled:true, cardColorFrameEnabled:true, cardColorChipsEnabled:true, cardColorGradientEnabled:true, cardColorGoldMultiEnabled:true, cardColorLandAsColorless:true, cardColorUnknownBadge:true, smartActionMode:"stackFirst", smartActionButtonEnabled:true, smartActionUnknownOpensMenu:true, castPaymentPromptEnabled:true, castPaymentPromptOnlyWhenCostExists:true, castPaymentDefaultChoice:"pending", castPaymentAllowFree:true, manaPoolEnabled:true, manaTapPromptEnabled:true, manaTapAutoSingleColor:false, manaShowPoolInPlayerPanel:true, manaClearMode:"phase", manaClearConfirm:true, manaClearLog:true, promptQueueEnabled:true, promptQueueMode:"normal", promptQueueAutoRefresh:true, promptQueueShowPriorityPrompt:true, promptQueueShowPaymentWarnings:true, promptQueueShowTargetWarnings:true, promptQueueShowCombatWarnings:true, promptQueueShowManaWarnings:true, promptQueueLogChoices:true, abilitiesEnabled:true, abilityShowInCardMenu:true, abilityPromptTargetAfterStack:true, abilityAskTapCost:true, promptQueueShowAbilityHints:false, abilityTriggerHintsEnabled:false, resolveChecklistEnabled:true, resolveChecklistPromptBeforeResolve:true, resolveChecklistWarnRequired:true, resolveChecklistLogDetail:true, resolveChecklistIncludeSpells:true, resolveChecklistSrwSafeMode:true, tokenWizardEnabled:true, tokenShowBadges:true, tokenDefaultController:"active", tokenAutoCheckChecklistItem:true, tokenCopyIncludesAbilities:false, tokenCopyIncludesChecklist:true, handWizardEnabled:true, handDefaultRevealMode:"hiddenNames", handLogCardNamesDefault:false, handAutoCheckChecklistItem:true, promptQueueShowHandActionHints:false, handHistoryEnabled:true, damageWizardEnabled:true, damageAutoCheckChecklistItem:true, damageLogDetail:true, damageShowCounterBadges:true, damageShowPoisonInPlayerPanel:true, promptQueueShowDamageHints:false, damageHistoryEnabled:true, handViewMode:"all", turnReviewGateEnabled:true, phaseTriggerReminderEnabled:true, manualTriggerEventCheckEnabled:true, onlineServerUrl:"", onlineName:"", onlineAutoBroadcastEnabled:false, onlineAutoViewByRoleEnabled:false, onlineAutoReconnectEnabled:false, onlineResumeSyncEnabled:true, onlineSeatViewByRoleEnabled:true, turnStartAssistEnabled:true, drawStepAutoDrawEnabled:true, drawStepConfirmEnabled:true, drawStepSkipFirstPlayerFirstTurn:true, drawRestrictionsEnabled:true, landPlayAssistEnabled:true, landPlayLimit:1, onlineSideChatEnabled:false, onlineAutoApplyReceivedStateEnabled:false, onlineSideChatX:null, onlineSideChatY:null, onlineSideChatW:null, onlineSideChatH:null, onlineFloatingHudEnabled:false, onlineFloatingHudX:null, onlineFloatingHudY:null, onlineFloatingHudW:null, onlineFloatingHudH:null, commandPanelFloatingEnabled:false, commandPanelX:null, commandPanelY:null, commandPanelW:null, commandPanelH:null }
   };
 }
 let state = defaultState();
@@ -2325,7 +2457,7 @@ function editPT(id){ const f=findCard(id); if(!f) return;
   const p=prompt("パワー",String(f.card.power)); if(p===null) return;
   const t=prompt("タフネス",String(f.card.toughness)); if(t===null) return;
   pushUndo("P/T変更"); f.card.power=p; f.card.toughness=t; addLog(`[${f.card.name}] P/T → ${p}/${t}`); render(); }
-function openCardStateManager(id){ const f=findCard(id); if(!f)return; const c=f.card,pi=_ptInfo(c),mods=cardPtModifiers(c),cnt=Object.entries(c.counters||{}).filter(([,v])=>Number(v)>0); openModal(`カード状態管理 — ${esc(c.name)}`,`<div class="pvrow">現在のP/T: <b>${esc(String(pi.ep))}/${esc(String(pi.et))}</b> <span class="note">基本 ${esc(String(pi.bp))}/${esc(String(pi.bt))}</span></div><div class="row-inline" style="gap:5px;flex-wrap:wrap"><button class="btn sm" data-csm="ctr:+1/+1:1">+1/+1カウンター +1</button><button class="btn sm" data-csm="ctr:+1/+1:-1">+1/+1 -1</button><button class="btn sm" data-csm="ctr:-1/-1:1">-1/-1カウンター +1</button><button class="btn sm" data-csm="ctr:-1/-1:-1">-1/-1 -1</button></div><div class="note"><b>現在のカウンター</b></div><div class="ptmod-list">${cnt.length?cnt.map(([k,v])=>`<div class="ptmod-row"><b>${esc(k)}</b> ×${v}<button class="btn tiny" data-csm="ctr:${encodeURIComponent(k)}:1">＋</button><button class="btn tiny" data-csm="ctr:${encodeURIComponent(k)}:-1">－</button></div>`).join(""):'<div class="note">なし</div>'}</div><div class="grid2"><label class="field">カウンター名<input id="csmCN" value="shield" placeholder="例: shield / 油"></label><label class="field">増減<input id="csmCA" type="number" value="1"></label></div><button class="btn sm" data-csm="addcounter">任意カウンターを反映</button><hr><div class="note"><b>P/T修整</b>（カウンターとは別管理）</div><div class="grid2"><label class="field">P修整<input id="csmP" type="number" value="0"></label><label class="field">T修整<input id="csmT" type="number" value="0"></label><label class="field">名前<input id="csmLabel" value="手動修整"></label><label class="field">期限<select id="csmDur">${AUTO_EFFECT_DURATIONS.map(d=>`<option value="${d}">${AUTO_EFFECT_DURATION_JP[d]}</option>`).join("")}</select></label></div><button class="btn sm primary" data-csm="addmod">P/T修整を追加</button><div class="ptmod-list">${mods.length?mods.map(m=>`<div class="ptmod-row"><span class="badge ptmod">${_signed(m.p)}/${_signed(m.t)}</span>${esc(m.label)} <span class="note">${AUTO_EFFECT_DURATION_JP[m.duration]}</span><button class="btn tiny warn" data-csm="delmod:${m.id}">解除</button></div>`).join(""):'<div class="note">P/T修整なし</div>'}</div><div class="row-inline" style="gap:5px"><button class="btn sm" data-csm="cleareot">ターン終了時修整だけ解除</button><button class="btn sm warn" data-csm="clearall">全P/T修整を解除</button></div>`,`<button class="btn" data-app="closem">閉じる</button>`); setModalHandler(function(e){ const b=e.target.closest("[data-csm]");if(!b)return;const v=b.getAttribute("data-csm"); const refresh=()=>{saveState(true);render();renderPreview();openCardStateManager(id);}; if(v.indexOf("ctr:")===0){const parts=v.split(":"),key=decodeURIComponent(parts[1]),d=_aeNum(parts[2]);act("カウンター変更",()=>{if(!c.counters||typeof c.counters!=="object")c.counters={};const n=Math.max(0,Number(c.counters[key]||0)+d);if(n)c.counters[key]=n;else delete c.counters[key];addLog(`[${c.name}] ${key}カウンター → ${n}`);});refresh();return;} if(v==="addcounter"){const k=($("#csmCN").value||"").trim(),d=_aeNum($("#csmCA").value);if(!k||!d){toast("カウンター名と0以外の増減を入力してください");return;}act("カウンター変更",()=>{if(!c.counters||typeof c.counters!=="object")c.counters={};const n=Math.max(0,Number(c.counters[k]||0)+d);if(n)c.counters[k]=n;else delete c.counters[k];addLog(`[${c.name}] ${k}カウンター ${d>0?"+":""}${d} → ${n}`);});refresh();return;} if(v==="addmod"){const p=_aeNum($("#csmP").value),t=_aeNum($("#csmT").value);if(!p&&!t){toast("PまたはTの修整値を入力してください");return;}act("P/T修整追加",()=>{c.ptModifiers=cardPtModifiers(c);c.ptModifiers.push(normalizePtModifier({label:$("#csmLabel").value||"手動修整",p,t,duration:$("#csmDur").value,createdTurn:state.turn.number}));addLog(`[${c.name}] に ${_signed(p)}/${_signed(t)}（${AUTO_EFFECT_DURATION_JP[$("#csmDur").value]}）`);});refresh();return;} if(v.indexOf("delmod:")===0){const mid=v.slice(7);act("P/T修整解除",()=>{c.ptModifiers=cardPtModifiers(c).filter(m=>m.id!==mid);addLog(`[${c.name}] のP/T修整を解除`);});refresh();return;} if(v==="cleareot"){act("P/T修整解除",()=>{c.ptModifiers=cardPtModifiers(c).filter(m=>m.duration!=="eot");addLog(`[${c.name}] のターン終了時までのP/T修整を解除`);});refresh();return;} if(v==="clearall"){act("P/T修整全解除",()=>{c.ptModifiers=[];addLog(`[${c.name}] のP/T修整をすべて解除`);});refresh();return;} }); }
+function openCardStateManager(id){ const f=findCard(id); if(!f)return; const c=f.card,pi=_ptInfo(c),mods=cardPtModifiers(c),cnt=Object.entries(c.counters||{}).filter(([,v])=>Number(v)>0); openModal(`カード状態管理 — ${esc(c.name)}`,`<div class="pvrow">現在のP/T: <b>${esc(String(pi.ep))}/${esc(String(pi.et))}</b> <span class="note">${pi.dynamic?`参照基本 ${esc(String(pi.bp))}/${esc(String(pi.bt))} / N=${pi.ref.n}`:`基本 ${esc(String(pi.bp))}/${esc(String(pi.bt))}`}</span></div>${ptFormulaSummaryHTML(c)}<div class="row-inline" style="gap:5px;flex-wrap:wrap"><button class="btn sm" data-csm="ctr:+1/+1:1">+1/+1カウンター +1</button><button class="btn sm" data-csm="ctr:+1/+1:-1">+1/+1 -1</button><button class="btn sm" data-csm="ctr:-1/-1:1">-1/-1カウンター +1</button><button class="btn sm" data-csm="ctr:-1/-1:-1">-1/-1 -1</button></div><div class="note"><b>現在のカウンター</b></div><div class="ptmod-list">${cnt.length?cnt.map(([k,v])=>`<div class="ptmod-row"><b>${esc(k)}</b> ×${v}<button class="btn tiny" data-csm="ctr:${encodeURIComponent(k)}:1">＋</button><button class="btn tiny" data-csm="ctr:${encodeURIComponent(k)}:-1">－</button></div>`).join(""):'<div class="note">なし</div>'}</div><div class="grid2"><label class="field">カウンター名<input id="csmCN" value="shield" placeholder="例: shield / 油"></label><label class="field">増減<input id="csmCA" type="number" value="1"></label></div><button class="btn sm" data-csm="addcounter">任意カウンターを反映</button><hr><div class="note"><b>P/T修整</b>（カウンターとは別管理）</div><div class="grid2"><label class="field">P修整<input id="csmP" type="number" value="0"></label><label class="field">T修整<input id="csmT" type="number" value="0"></label><label class="field">名前<input id="csmLabel" value="手動修整"></label><label class="field">期限<select id="csmDur">${AUTO_EFFECT_DURATIONS.map(d=>`<option value="${d}">${AUTO_EFFECT_DURATION_JP[d]}</option>`).join("")}</select></label></div><button class="btn sm primary" data-csm="addmod">P/T修整を追加</button><div class="ptmod-list">${mods.length?mods.map(m=>`<div class="ptmod-row"><span class="badge ptmod">${_signed(m.p)}/${_signed(m.t)}</span>${esc(m.label)} <span class="note">${AUTO_EFFECT_DURATION_JP[m.duration]}</span><button class="btn tiny warn" data-csm="delmod:${m.id}">解除</button></div>`).join(""):'<div class="note">P/T修整なし</div>'}</div><div class="row-inline" style="gap:5px"><button class="btn sm" data-csm="cleareot">ターン終了時修整だけ解除</button><button class="btn sm warn" data-csm="clearall">全P/T修整を解除</button></div>`,`<button class="btn" data-app="closem">閉じる</button>`); setModalHandler(function(e){ const b=e.target.closest("[data-csm]");if(!b)return;const v=b.getAttribute("data-csm"); const refresh=()=>{saveState(true);render();renderPreview();openCardStateManager(id);}; if(v.indexOf("ctr:")===0){const parts=v.split(":"),key=decodeURIComponent(parts[1]),d=_aeNum(parts[2]);act("カウンター変更",()=>{if(!c.counters||typeof c.counters!=="object")c.counters={};const n=Math.max(0,Number(c.counters[key]||0)+d);if(n)c.counters[key]=n;else delete c.counters[key];addLog(`[${c.name}] ${key}カウンター → ${n}`);});refresh();return;} if(v==="addcounter"){const k=($("#csmCN").value||"").trim(),d=_aeNum($("#csmCA").value);if(!k||!d){toast("カウンター名と0以外の増減を入力してください");return;}act("カウンター変更",()=>{if(!c.counters||typeof c.counters!=="object")c.counters={};const n=Math.max(0,Number(c.counters[k]||0)+d);if(n)c.counters[k]=n;else delete c.counters[k];addLog(`[${c.name}] ${k}カウンター ${d>0?"+":""}${d} → ${n}`);});refresh();return;} if(v==="addmod"){const p=_aeNum($("#csmP").value),t=_aeNum($("#csmT").value);if(!p&&!t){toast("PまたはTの修整値を入力してください");return;}act("P/T修整追加",()=>{c.ptModifiers=cardPtModifiers(c);c.ptModifiers.push(normalizePtModifier({label:$("#csmLabel").value||"手動修整",p,t,duration:$("#csmDur").value,createdTurn:state.turn.number}));addLog(`[${c.name}] に ${_signed(p)}/${_signed(t)}（${AUTO_EFFECT_DURATION_JP[$("#csmDur").value]}）`);});refresh();return;} if(v.indexOf("delmod:")===0){const mid=v.slice(7);act("P/T修整解除",()=>{c.ptModifiers=cardPtModifiers(c).filter(m=>m.id!==mid);addLog(`[${c.name}] のP/T修整を解除`);});refresh();return;} if(v==="cleareot"){act("P/T修整解除",()=>{c.ptModifiers=cardPtModifiers(c).filter(m=>m.duration!=="eot");addLog(`[${c.name}] のターン終了時までのP/T修整を解除`);});refresh();return;} if(v==="clearall"){act("P/T修整全解除",()=>{c.ptModifiers=[];addLog(`[${c.name}] のP/T修整をすべて解除`);});refresh();return;} }); }
 
 function toggleAttack(id){ const f=findCard(id); if(!f) return; pushUndo("攻撃指定"); f.card.attacking=!f.card.attacking; f.card.blocking=false;
   addLog(`[${f.card.name}] ${f.card.attacking?"攻撃指定":"攻撃解除"}`); render(); }
@@ -2483,7 +2615,7 @@ function openCardMenu(id){
         <div class="note">
           ${typePillsHTML(c)}
           ${basicLandTypeText(c)?`基本土地タイプ: ${esc(basicLandTypeText(c))}<br>`:""}
-          ${c.power!==""||c.toughness!==""?(function(){const q=_ptInfo(c);return `P/T: ${esc(String(q.ep))}/${esc(String(q.et))}${q.changed?`（基本 ${esc(String(q.bp))}/${esc(String(q.bt))}）`:""}<br>`;})():""}
+          ${c.power!==""||c.toughness!==""||ptFormulaEnabledFor(c)?(function(){const q=_ptInfo(c);return `P/T: ${esc(String(q.ep))}/${esc(String(q.et))}${q.dynamic?`（${esc(String(q.printedP))}/${esc(String(q.printedT))} / N=${q.ref.n}）`:q.changed?`（基本 ${esc(String(q.bp))}/${esc(String(q.bt))}）`:""}<br>`;})():""}${ptFormulaSummaryHTML(c)}
           ${c.countersPlus?`+1/+1: ${c.countersPlus}　`:""}${c.damage?`ダメージ: ${c.damage}`:""}<br>
           ${Object.keys(c.counters||{}).length?"カウンター: "+Object.entries(c.counters).map(([k,v])=>`${esc(k)}×${v}`).join(", ")+"<br>":""}
           ${c.memo?"メモ: "+esc(c.memo):"<span style='color:var(--muted)'>メモなし</span>"}
@@ -2626,6 +2758,7 @@ function cardHTML(c){
   if(c.countersPlus) badges.push(`<span class="badge plus">+${c.countersPlus}</span>`);
   if(c.damage) badges.push(`<span class="badge dmg">${c.damage}d</span>`);
   { const pm=cardPtModifiers(c); if(pm.length){ const d=_ptModDelta(c); badges.push(`<span class="badge ptmod">${_signed(d.p)}/${_signed(d.t)}</span>`); } }
+  { const r=computePtReference(c); if(r) badges.push(`<span class="badge ptref" title="${esc(ptReferenceDescription(r))}">N=${r.n}</span>`); }
   if(state.settings.lethalHighlight!==false && effTou(c)>0 && (c.damage||0)>=effTou(c)) badges.push(`<span class="badge lethal">致死</span>`);
   { const _cb=counterBadgesHTML(c); if(_cb) badges.push(_cb); }
   { const _tk=tokenBadgeHTML(c); if(_tk) badges.push(_tk); }
@@ -2635,7 +2768,7 @@ function cardHTML(c){
   { const _kw=combatKeywordBadgesHTML(c); if(_kw) badges.push(_kw); }
   if(c.blocking){ for(const _tid of blockTargets(c)){ const _tb=findCard(_tid); if(_tb) badges.push(`<span class="badge blk">\u2192${esc((_tb.card.name||"").slice(0,5))}</span>`); } }
   const _types=(_d.types&&_d.types.length)?_d.types:cardTypes(c,true);
-  const showPT = (_types.includes("Creature")||_types.includes("Token")||(_d.power!==""&&_d.power!=null)) && (_d.power!==""||_d.toughness!=="");
+  const showPT = (_types.includes("Creature")||_types.includes("Token")||(_d.power!==""&&_d.power!=null)||ptFormulaEnabledFor(c)) && (_d.power!==""||_d.toughness!==""||ptFormulaEnabledFor(c));
   const combatCls=(c.attacking?" atk":"")+(c.blocking?" blk":"");
   const flag=c.attacking?'<span class="combatflag atk">\u653b\u6483</span>':(c.blocking?'<span class="combatflag blk">\u30d6\u30ed\u30c3\u30af</span>':"");
   const tgtCls=(typeof tgtCardClass==="function")?tgtCardClass(c):"";
@@ -2651,7 +2784,7 @@ function cardHTML(c){
     ${(state.settings.cardZoomButton!==false && state.settings.cardZoomEnabled!==false)?'<span class="zoom-dot" title="押している間 拡大">\ud83d\udd0d</span>':""}
     ${smartActionBtnHTML(c)}
     <div class="cn">${esc(_d.name)}${_d.faceActive?`<span class="cn-orig">（元:${esc(faceShort(_d.repName))}）</span>`:""}</div>
-    ${showPT?`<span class="pt${_pt.changed?" buffed":""}"${_pt.changed?` title="基本 ${esc(String(_pt.bp))}/${esc(String(_pt.bt))}"`:""}>${esc(String(_pt.ep))}/${esc(String(_pt.et))}</span>`:""}
+    ${showPT?`<span class="pt${_pt.changed?" buffed":""}"${_pt.changed?` title="${_pt.dynamic?`参照式 ${esc(String(_pt.printedP))}/${esc(String(_pt.printedT))} / N=${_pt.ref.n}`:`基本 ${esc(String(_pt.bp))}/${esc(String(_pt.bt))}`}"`:""}>${esc(String(_pt.ep))}/${esc(String(_pt.et))}</span>`:""}
     ${(badges.length||tgtB.length)?`<div class="badges">${badges.concat(tgtB).join("")}</div>`:""}
   </div>`;
 }
@@ -3422,6 +3555,7 @@ function renderPreview(){
       <div class="pvrow">${colorInfoHTML(c)}</div>
       ${_manaCostRowHTML(c)}
       ${_pvCountersHTML(c)}
+      ${ptFormulaSummaryHTML(c)}
       ${cardPtModifiers(c).length?`<div class="pvrow"><b>P/T修整</b></div><div class="note">${cardPtModifiers(c).map(m=>esc(ptModifierText(m))).join(" ／ ")}</div>`:""}
       ${_pvTokenInfoHTML(c)}
       ${cardCombatKeywords(c).length?`<div class="pvrow">戦闘能力:</div><div class="combat-keywords">${combatKeywordBadgesHTML(c)}</div>`:""}
@@ -3863,7 +3997,7 @@ function _olSync(){
 function _olLocalUIKey(k){
   if(typeof k!=="string") return false;
   if(k.indexOf("online")===0) return true;
-  return ["uiPanels","floatingStack","layoutPresets","handViewMode","rotateOpponent",
+  return ["uiPanels","floatingStack","stackPanelMode","stackAutoExpand","stackAutoFront","layoutPresets","handViewMode","rotateOpponent",
     "navCompact","navInFooter","navImportantOnly","analysisTab","analysisCompact","panelUnresMode",
     "commandPanelFloatingEnabled","commandPanelX","commandPanelY","commandPanelW","commandPanelH"].indexOf(k)>=0;
 }
@@ -4365,7 +4499,10 @@ function openSettings(){
     ${tog("targetCandidateHighlight",s.targetCandidateHighlight!==false,"対象選択中に候補をハイライト")}
     <div style="border-top:1px solid var(--line);margin:4px 0"></div>
     <div class="note">浮動スタック（ドラッグ移動できるスタック表示）</div>
-    <label class="row-inline" style="gap:8px;cursor:pointer"><input type="checkbox" data-fsset="visible" ${fsState().visible!==false?"checked":""}> 浮動スタックを表示</label>
+    <label class="field">表示モード<select data-fsset="mode"><option value="auto"${(s.stackPanelMode||"auto")==="auto"?" selected":""}>自動（スタックがある時だけ表示）</option><option value="always"${s.stackPanelMode==="always"?" selected":""}>常時表示</option><option value="manual"${s.stackPanelMode==="manual"?" selected":""}>手動</option></select></label>
+    <label class="row-inline" style="gap:8px;cursor:pointer"><input type="checkbox" data-fsset="visible" ${fsState().visible!==false?"checked":""}> 手動表示状態（手動モード用）</label>
+    ${tog("stackAutoExpand",s.stackAutoExpand!==false,"スタックに新しく乗った時は折りたたみを解除")}
+    ${tog("stackAutoFront",s.stackAutoFront!==false,"スタックに新しく乗った時は最前面へ")}
     <label class="row-inline" style="gap:8px;cursor:pointer"><input type="checkbox" data-fsset="collapsed" ${fsState().collapsed?"checked":""}> 折りたたむ</label>
     <label class="row-inline" style="gap:8px;cursor:pointer"><input type="checkbox" data-fsset="images" ${fsImagesOn()?"checked":""}> スタックカード画像を表示</label>
     <div class="field"><span>位置</span><div class="row-inline"><button class="btn sm" data-fs="reset">位置をリセット</button></div></div>
@@ -4636,7 +4773,7 @@ function openModal(title,body,foot,size){
   const root=$("#modalRoot");
   if(!root.innerHTML) _lastFocusEl=document.activeElement;
   root.innerHTML=`<div class="overlay" data-overlay>
-    <div class="modal${size==="sm"?" sm":size==="deck"?" deck-editor":""}" tabindex="-1" role="dialog" aria-modal="true">
+    <div class="modal${size==="sm"?" sm":size==="deck"?" deck-editor":size==="dict"?" dict-editor":""}" tabindex="-1" role="dialog" aria-modal="true">
       <div class="mhead"><h2>${title}</h2><button type="button" class="x" data-app="closem" aria-label="閉じる">×</button></div>
       <div class="mbody">${body}</div>
       <div class="mfoot">${(foot==null||foot==="")?'<button type="button" class="btn" data-app="closem">閉じる</button>':foot}</div>
@@ -4704,7 +4841,7 @@ function loadState(silent){
     if(!state.playtest||typeof state.playtest!=="object") state.playtest={items:{},savedAt:null};
     if(!Array.isArray(state.integrityLog)) state.integrityLog=[];
     if(!state.meta||typeof state.meta!=="object") state.meta={lastSaved:null,lastBackup:null};
-    const _ov=obj.dataVersion; state.appVersion="1.7.3"; state.dataVersion=4;
+    const _ov=obj.dataVersion; state.appVersion=APP_VERSION; state.dataVersion=4;
     if(_ov!==4){ _cptMigrationNote="旧データ(dataVersion "+(_ov||"なし")+")を v4 に移行しました"; if(!silent) addLog(_cptMigrationNote); }
     else { _cptMigrationNote=""; }
     if(!silent){ addLog("状態を読み込みました"); toast("読み込みました"); }
@@ -5357,7 +5494,7 @@ function openDeckEditor(id){
 }
 function normType(s){ s=(s||"").toLowerCase();
   const map={land:"Land",creature:"Creature",instant:"Instant",sorcery:"Sorcery",artifact:"Artifact",
-    enchantment:"Enchantment",planeswalker:"Planeswalker",battle:"Battle",token:"Token",other:"Other"};
+    enchantment:"Enchantment",planeswalker:"Planeswalker",battle:"Battle",kindred:"Kindred",tribal:"Kindred",token:"Token",other:"Other"};
   return map[s]||"Unknown"; }
 function dupDeck(id){ const d=deckById(id); if(!d) return; const nd=clone(d); nd.deckId=uid();
   nd.deckName=d.deckName+" (複製)"; nd.createdAt=nowISO(); nd.updatedAt=nowISO(); state.decks.push(nd);
@@ -5703,9 +5840,9 @@ document.addEventListener("change",function(e){
   const cdn=e.target.closest("[data-cdnote]");
   if(cdn){ const aid=cdn.getAttribute("data-cdnote"); act("ダメージ入力", ()=>{ planFor(aid).note=cdn.value; }); saveState(true); return; }
   const fst=e.target.closest("[data-fsset]");
-  if(fst){ const k=fst.getAttribute("data-fsset"); const f=fsState();
-    if(k==="images") f.images=fst.checked; else f[k]=fst.checked;
-    saveState(true); render(); if($("#modalRoot")&&$("#modalRoot").innerHTML&&/表示設定/.test($("#modalRoot").innerHTML)) openSettings(); return; }
+  if(fst){ const k=fst.getAttribute("data-fsset"),f=fsState();
+    if(k==="mode"){state.settings.stackPanelMode=fst.value;_autoStackDismissSig="";} else if(k==="images")f.images=fst.checked;else f[k]=fst.checked;
+    saveState(true);render();if($("#modalRoot")&&$("#modalRoot").innerHTML&&/表示設定/.test($("#modalRoot").innerHTML))openSettings();return;}
   const tg=e.target.closest("[data-toggle]"); if(!tg) return;
   const k=tg.getAttribute("data-toggle"); state.settings[k]=tg.checked;
   if(k==="logAuto") setLog(tg.checked);
@@ -5948,7 +6085,7 @@ function openSnapshots(){
 /* ============================================================
    ユーザー定義カード辞書
    ============================================================ */
-const DICT_TYPES=["Land","Creature","Instant","Sorcery","Artifact","Enchantment","Planeswalker","Battle","Token","Other","Unknown"];
+const DICT_TYPES=["Land","Creature","Instant","Sorcery","Artifact","Enchantment","Planeswalker","Battle","Kindred","Token","Other","Unknown"];
 function dictAll(){ if(!state.cardDictionary||typeof state.cardDictionary!=="object") state.cardDictionary={}; return state.cardDictionary; }
 function dictKey(name){ return (name||"").trim(); }
 function dictGet(name){
@@ -5979,7 +6116,7 @@ function dictEntryFrom(o){
     splitLeftType:(_leftTypes[0]||""), splitRightType:(_rightTypes[0]||""), splitLeftTypes:_leftTypes, splitRightTypes:_rightTypes,
     splitLeftText:(o.splitLeftText||""), splitRightText:(o.splitRightText||""),
     layout:(o.layout||"normal"), faces:normalizeFaces(o.faces||[]), manaCost:(o.manaCost!==undefined?normalizeManaCost(o.manaCost):null), abilities:normalizeAbilities(o.abilities||[]), resolveChecklist:normalizeChecklist(o.resolveChecklist||[]),
-    autoEffects:normalizeAutoEffects(o.autoEffects||[]), autoEffectConfig:normalizeAutoEffectConfig(o.autoEffectConfig||{}), combatKeywords:normalizeCombatKeywords(o.combatKeywords||[]), drawRules:normalizeDrawRules(o.drawRules||[]),
+    autoEffects:normalizeAutoEffects(o.autoEffects||[]), autoEffectConfig:normalizeAutoEffectConfig(o.autoEffectConfig||{}), ptFormula:normalizePtFormula(o.ptFormula||{}), combatKeywords:normalizeCombatKeywords(o.combatKeywords||[]), drawRules:normalizeDrawRules(o.drawRules||[]),
     searchProfiles:normalizeSearchProfiles(o.searchProfiles||[]), searchClassConfig:normalizeSearchClassConfig(o.searchClassConfig||{}),
     aliases:dedupAliases(o.aliases||[], o.name), updatedAt:nowISO() };
 }
@@ -6011,6 +6148,7 @@ function dictSet(o,silent){
   if(o.resolveChecklist===undefined && ex) ent.resolveChecklist=Array.isArray(ex.resolveChecklist)?ex.resolveChecklist:[];
   if(o.autoEffects===undefined && ex) ent.autoEffects=normalizeAutoEffects(ex.autoEffects||[]);
   if(o.autoEffectConfig===undefined && ex) ent.autoEffectConfig=normalizeAutoEffectConfig(ex.autoEffectConfig||{});
+  if(o.ptFormula===undefined && ex) ent.ptFormula=normalizePtFormula(ex.ptFormula||{});
   if(o.combatKeywords===undefined && ex) ent.combatKeywords=normalizeCombatKeywords(ex.combatKeywords||[]);
   if(o.drawRules===undefined && ex) ent.drawRules=normalizeDrawRules(ex.drawRules||[]);
   if(o.basicLandTypes===undefined && ex) ent.basicLandTypes=normalizeBasicLandTypes(ex.basicLandTypes,ex.subtype);
@@ -6036,6 +6174,7 @@ function dictMergeInto(srcName,dstName){ // 別登録カード(src)を元カー�
   if((dE.manaValue==null||dE.manaValue==="")&&sE.manaValue!=null&&sE.manaValue!=="") dE.manaValue=sE.manaValue;
   ["colors","produces","roleTags","customTags","targetKinds","basicLandTypes"].forEach(k=>{ if((!dE[k]||!dE[k].length)&&sE[k]&&sE[k].length) dE[k]=sE[k].slice(); });
   ["faces","abilities","resolveChecklist","autoEffects","combatKeywords","drawRules","searchProfiles"].forEach(k=>{ if((!dE[k]||!dE[k].length)&&sE[k]&&sE[k].length) dE[k]=JSON.parse(JSON.stringify(sE[k])); });
+  if((!dE.ptFormula||!normalizePtFormula(dE.ptFormula).enabled)&&sE.ptFormula&&normalizePtFormula(sE.ptFormula).enabled)dE.ptFormula=JSON.parse(JSON.stringify(sE.ptFormula));
   if((!dE.searchClassConfig||normalizeSearchClassConfig(dE.searchClassConfig).mode==="auto")&&sE.searchClassConfig) dE.searchClassConfig=JSON.parse(JSON.stringify(sE.searchClassConfig));
   if(sE.autoEffectConfig){ const dc=normalizeAutoEffectConfig(dE.autoEffectConfig||{}), sc=normalizeAutoEffectConfig(sE.autoEffectConfig); if(dc.xMode==="none"&&!dc.alternativeExile.enabled&&(sc.xMode!=="none"||sc.alternativeExile.enabled)) dE.autoEffectConfig=JSON.parse(JSON.stringify(sc)); }
   dE.aliases=dedupAliases((dE.aliases||[]).concat([sE.name], sE.aliases||[]), dE.name);
@@ -6158,7 +6297,7 @@ function openDictionary(){
   const q=_dictFilter.q.toLowerCase(), ft=_dictFilter.type;
   if(q) entries=entries.filter(e=>{ // 表面/表示名/別名 に加え、裏面名・分割の左右名も検索対象
     const hay=[e.name,e.displayName||"",...(e.aliases||[]),e.backName||"",e.backDisplayName||"",e.subtype||"",basicLandTypeText(e),
-      e.splitLeftName||"",e.splitRightName||"",e.splitLeftDisplayName||"",e.splitRightDisplayName||"",searchClassText(e),...normalizeSearchProfiles(e.searchProfiles||[]).map(p=>p.label+" "+searchProfileConditionText(p))].join("\u0000").toLowerCase();
+      e.splitLeftName||"",e.splitRightName||"",e.splitLeftDisplayName||"",e.splitRightDisplayName||"",searchClassText(e),(e.ptFormula&&normalizePtFormula(e.ptFormula).enabled?normalizePtFormula(e.ptFormula).label:""),...normalizeSearchProfiles(e.searchProfiles||[]).map(p=>p.label+" "+searchProfileConditionText(p))].join("\u0000").toLowerCase();
     return hay.includes(q); });
   if(ft) entries=entries.filter(e=>baseTypesOf(e).includes(ft));
   entries.sort((a,b)=>a.name.localeCompare(b.name,"ja"));
@@ -6314,96 +6453,135 @@ function openDictQualityCheck(){
     if(v.indexOf("edit:")===0){ const gi=parseInt(v.slice(5),10); const nm=_dqcCards[gi]; if(nm) openDictEditor(nm); return; }
   });
 }
+
+function _dictEditorPtMode(e){
+  const f=normalizePtFormula(e&&e.ptFormula||{}); if(f.enabled)return "reference";
+  const vals=[e&&e.power,e&&e.toughness].map(v=>String(v==null?"":v));
+  return vals.some(v=>/[X*∞]/.test(v))?"variable":"fixed";
+}
+function dictEditorImageSectionHTML(e){
+  return `<div class="dict-section-card"><div class="dict-section-title">カード画像</div>
+    <label class="field">画像URL（共有用・任意）<input type="text" id="deImgUrl" value="${esc(e.imageUrl||"")}" placeholder="https://..."></label>
+    <div class="row-inline" style="gap:6px;flex-wrap:wrap;align-items:center">
+      <button class="btn sm" id="deUpBtn" type="button">画像をアップロード</button>
+      <input type="file" id="deUpFile" accept=".png,.jpg,.jpeg,.webp,.gif,image/png,image/jpeg,image/webp,image/gif" style="display:none">
+      <input type="password" id="deUpPw" placeholder="管理pw（保存しません）" autocomplete="off" style="width:170px">
+      <span class="note" id="deUpNote"></span>
+    </div><div class="note dict-img-preview" id="deImgPrev"></div>
+    <div class="note">画像ID: ${e.imageId?esc(e.imageId):"(なし)"} ／ ローカル画像 → URL → テキストの順で表示します。</div>
+  </div>`;
+}
+function dictEditorAliasesSectionHTML(e,ex){
+  return `<div class="dict-section-card"><div class="dict-section-title">名前の表記ゆれ・統合</div>
+    <label class="field">エイリアス（日本語名・英語名・表記ゆれ）</label>
+    <div class="row-inline" style="gap:6px"><input type="text" id="deAliasNew" placeholder="エイリアスを入力" style="flex:1"><button class="btn sm" id="deAliasAdd" type="button">追加</button></div>
+    <div id="deAliasList" style="margin:6px 0"></div>
+    <details><summary class="note" style="cursor:pointer">テキストで一括編集（1行に1つ）</summary><textarea id="deAlias" rows="3">${esc((e.aliases||[]).join("\\n"))}</textarea></details>
+    ${ex?`<div class="row-inline" style="gap:6px;margin-top:8px;flex-wrap:wrap"><button class="btn sm" id="deMerge" type="button">別登録カードをこのカードへ統合…</button><span class="note">重複登録を1枚へまとめ、元の名前は別名として保持します。</span></div>`:""}
+  </div>`;
+}
+function dictEditorFormatSectionHTML(e){
+  return `<div class="dict-section-card"><div class="dict-section-title">カード形式</div>
+    <label class="field">形式<select id="deFormat"><option value="normal"${cardFormatOf(e)==="normal"?" selected":""}>通常</option><option value="doubleFaced"${cardFormatOf(e)==="doubleFaced"?" selected":""}>両面カード</option><option value="split"${cardFormatOf(e)==="split"?" selected":""}>分割カード</option></select></label>
+    <div class="note">通常カードでは、下の追加項目は表示されません。</div>
+    <div id="deDFBox" class="dict-format-box" style="display:none">
+      <div class="dict-section-title">裏面</div><div class="grid2">
+        <label class="field">裏面カード名<input type="text" id="deBackName" value="${esc(e.backName||"")}"></label>
+        <label class="field">裏面 表示名<input type="text" id="deBackDispName" value="${esc(e.backDisplayName||"")}"></label>
+        <label class="field">裏面タイプ（複数は / 区切り）<input type="text" id="deBackType" value="${esc(e.backType||"")}"></label>
+        <label class="field">裏面 画像URL<input type="text" id="deBackImgUrl" value="${esc(e.backImageUrl||"")}" placeholder="https://..."></label>
+      </div><label class="field">裏面メモ<textarea id="deBackMemo" rows="2">${esc(e.backMemo||"")}</textarea></label>
+      <div class="row-inline" style="gap:6px;flex-wrap:wrap"><button class="btn sm" id="deBackUpBtn" type="button">裏面画像をアップロード</button><input type="file" id="deBackUpFile" accept=".png,.jpg,.jpeg,.webp,.gif,image/png,image/jpeg,image/webp,image/gif" style="display:none"><span class="note" id="deBackUpNote"></span></div>
+      <div class="note dict-img-preview" id="deBackImgPrev"></div>
+    </div>
+    <div id="deSPBox" class="dict-format-box" style="display:none">
+      <div class="dict-section-title">分割カード</div><div class="grid2">
+        <label class="field">左側 カード名<input type="text" id="deSpLName" value="${esc(e.splitLeftName||"")}"></label><label class="field">右側 カード名<input type="text" id="deSpRName" value="${esc(e.splitRightName||"")}"></label>
+        <label class="field">左側 表示名<input type="text" id="deSpLDisp" value="${esc(e.splitLeftDisplayName||"")}"></label><label class="field">右側 表示名<input type="text" id="deSpRDisp" value="${esc(e.splitRightDisplayName||"")}"></label>
+        <label class="field">左側 マナコスト<input type="text" id="deSpLCost" value="${esc(e.splitLeftManaCost||"")}"></label><label class="field">右側 マナコスト<input type="text" id="deSpRCost" value="${esc(e.splitRightManaCost||"")}"></label>
+        <label class="field">左側 タイプ（/区切り）<input type="text" id="deSpLType" value="${esc(e.splitLeftType||"")}"></label><label class="field">右側 タイプ（/区切り）<input type="text" id="deSpRType" value="${esc(e.splitRightType||"")}"></label>
+        <label class="field">左側 テキスト<textarea id="deSpLText" rows="3">${esc(e.splitLeftText||"")}</textarea></label><label class="field">右側 テキスト<textarea id="deSpRText" rows="3">${esc(e.splitRightText||"")}</textarea></label>
+      </div>
+    </div>
+  </div>`;
+}
+function dictEditorBodyHTML(e,ex,zones){
+  const pm=_dictEditorPtMode(e), primary=baseTypesOf(e)[0]||e.type||"Unknown";
+  return `<div class="dict-editor-shell" data-de-mode="simple">
+    <div class="dict-editor-toolbar">
+      <div><b>編集モード</b><div class="dict-mode-switch"><button type="button" class="btn sm primary" data-demode="simple">かんたん</button><button type="button" class="btn sm" data-demode="advanced">詳細</button></div></div>
+      <div class="dict-editor-help"><b>入力の目安</b><span>通常は「基本情報」と必要な「能力／自動化」だけで保存できます。</span></div>
+    </div>
+    <div class="dict-editor-tabs" role="tablist">
+      <button type="button" class="active" data-detab="basic">基本情報</button><button type="button" data-detab="abilities">能力</button><button type="button" data-detab="automation">自動化</button><button type="button" data-detab="special">特殊形式</button><button type="button" data-detab="details" class="de-advanced-only">詳細設定</button>
+    </div>
+    <div class="dict-editor-panel active" data-depanel="basic">
+      <div class="dict-section-card"><div class="dict-section-title">名前・タイプ</div><div class="grid2">
+        <label class="field">カード名（識別・照合用${ex?"／変更不可":""}）<input type="text" id="deName" value="${esc(e.name)}"${ex?" readonly":""}></label>
+        <label class="field">表示名（任意）<input type="text" id="deDispName" value="${esc(e.displayName||"")}" placeholder="空欄ならカード名を表示"></label>
+      </div>
+      <select id="deType" aria-hidden="true" tabindex="-1" style="display:none">${DICT_TYPES.map(t=>`<option value="${t}"${t===primary?" selected":""}>${TYP(t)}</option>`).join("")}</select>
+      <div class="field"><b>カードタイプ（複数可）</b><div class="note">最初に選んだタイプを内部の主要タイプとして自動使用します。</div>${typeCheckGridHTML(baseTypesOf(e),"deTypeChk")}</div>
+      <div class="grid2"><label class="field">サブタイプ<input type="text" id="deSub" value="${esc(e.subtype)}" placeholder="例: 人間 / ウィザード / 装備品"></label></div>
+      <div id="deLandTypeBox" class="dict-context-block"><b>基本土地タイプ</b><div class="note">平地・島・沼・山・森。フェッチの候補判定に使います。</div>${basicLandTypeCheckGridHTML(basicLandTypesOf(e),"deBasicLandType")}</div>
+      </div>
+      ${dictBasicStatsSectionHTML(e)}
+      <div id="dePtBlock" class="dict-section-card dict-context-block"><div class="dict-section-title">パワー／タフネス</div>
+        <label class="field">方式<select id="dePtMode"><option value="fixed"${pm==="fixed"?" selected":""}>固定値</option><option value="variable"${pm==="variable"?" selected":""}>効果で変動（*・Xなど）</option><option value="reference"${pm==="reference"?" selected":""}>墓地・追放などを自動参照</option></select></label>
+        <div class="grid2"><label class="field"><span id="dePowLabel">パワー</span>${ptSelectHTML("dePow",e.power,"power","pt-value-select","")}</label><label class="field"><span id="deTouLabel">タフネス</span>${ptSelectHTML("deTou",e.toughness,"toughness","pt-value-select","")}</label></div>
+        <div id="dePtModeNote" class="note"></div><div id="dePtFormulaWrap">${dictPtFormulaSectionHTML(e)}</div>
+      </div>
+      <div class="dict-section-card"><div class="dict-section-title">メモ</div><label class="field">カード本文・確認メモ<textarea id="deMemo" rows="3">${esc(e.memo)}</textarea></label></div>
+      ${dictEditorImageSectionHTML(e)}
+    </div>
+    <div class="dict-editor-panel" data-depanel="abilities">
+      <div id="deCombatBlock" class="dict-section-card"><div class="dict-section-title">クリーチャーの戦闘能力</div><div class="note">戦闘ダメージ支援で使うキーワードだけ選びます。</div>${combatKeywordCheckHTML(e.combatKeywords||[],"deCombatKeyword")}</div>
+      <div class="dict-section-card"><div class="dict-section-title">起動・誘発能力</div><div class="note">能力ごとにタイミング、コスト、対象、解決処理をまとめて登録します。</div>${dictAbilitiesSectionHTML(e)}</div>
+    </div>
+    <div class="dict-editor-panel" data-depanel="automation">
+      <div class="dict-section-card"><div class="dict-section-title">カード本体の自動化</div><div class="note">主にインスタント／ソーサリーを唱えた時の対象と解決処理です。起動・誘発能力は「能力」タブで設定します。</div>${dictTargetSectionHTML(e)}${dictAutoEffectsSectionHTML(e)}${dictChecklistSectionHTML(e)}</div>
+      <div class="dict-section-card"><div class="dict-section-title">サーチ・常在ルール</div>${dictSearchSectionHTML(e)}${dictDrawRulesSectionHTML(e)}</div>
+    </div>
+    <div class="dict-editor-panel" data-depanel="special">${dictEditorFormatSectionHTML(e)}<div class="de-advanced-only dict-section-card"><div class="dict-section-title">高度な表示用面データ</div>${dictFacesSectionHTML(e)}</div></div>
+    <div class="dict-editor-panel" data-depanel="details">
+      <div class="dict-section-card"><div class="dict-section-title">配置・互換設定</div><label class="field">デフォルト置き場<select id="deZone">${zones.map(z=>`<option value="${z}"${z===e.defaultZone?" selected":""}>${z?(ZONE_JP[z]||z):"自動"}</option>`).join("")}</select></label><div class="note">通常は「自動」のままで構いません。土地・クリーチャー等のタイプから置き場を決めます。</div></div>
+      ${dictExtSectionHTML(e)}${dictEditorAliasesSectionHTML(e,ex)}
+    </div>
+  </div>`;
+}
+function dictEditorUiBind(e){
+  const root=document.querySelector(".dict-editor-shell"); if(!root)return;
+  let mode="simple"; try{mode=localStorage.getItem("cpt_dict_editor_mode")||"simple";}catch(_){} if(!["simple","advanced"].includes(mode))mode="simple";
+  let tab="basic";
+  const applyTab=()=>{root.querySelectorAll("[data-detab]").forEach(b=>b.classList.toggle("active",b.dataset.detab===tab));root.querySelectorAll("[data-depanel]").forEach(p=>p.classList.toggle("active",p.dataset.depanel===tab));};
+  const applyMode=()=>{root.dataset.deMode=mode;root.querySelectorAll("[data-demode]").forEach(b=>{const on=b.dataset.demode===mode;b.classList.toggle("primary",on);});if(mode==="simple"&&tab==="details")tab="basic";applyTab();try{localStorage.setItem("cpt_dict_editor_mode",mode);}catch(_){}};
+  root.querySelectorAll("[data-demode]").forEach(b=>b.onclick=()=>{mode=b.dataset.demode;applyMode();syncTypes();});
+  root.querySelectorAll("[data-detab]").forEach(b=>b.onclick=()=>{tab=b.dataset.detab;applyTab();});
+  const typeChecks=[...root.querySelectorAll(".deTypeChk")], primary=document.getElementById("deType");
+  const syncTypes=()=>{let selected=typeChecks.filter(x=>x.checked);if(!selected.length){if(primary)primary.value="Unknown";}else if(primary){if(!selected.some(x=>x.value===primary.value))primary.value=selected[0].value;const ordered=[...selected].sort((a,b)=>(a.value===primary.value?-1:b.value===primary.value?1:0)); if(ordered[0])primary.value=ordered[0].value;}
+    const vals=new Set(selected.map(x=>x.value)), advanced=mode==="advanced";
+    const land=document.getElementById("deLandTypeBox"),pt=document.getElementById("dePtBlock"),combat=document.getElementById("deCombatBlock");
+    if(land)land.style.display=(advanced||vals.has("Land"))?"":"none";
+    const hasPt=!!((document.getElementById("dePow")||{}).value||(document.getElementById("deTou")||{}).value||((document.getElementById("dePtFEnabled")||{}).checked));
+    if(pt)pt.style.display=(advanced||vals.has("Creature")||vals.has("Token")||hasPt)?"":"none";
+    if(combat)combat.style.display=(advanced||vals.has("Creature")||vals.has("Token"))?"":"none";
+  };
+  typeChecks.forEach(x=>x.addEventListener("change",()=>{if(x.checked&&primary&&primary.value==="Unknown")primary.value=x.value;syncTypes();}));
+  root.querySelectorAll(".deBasicLandType").forEach(x=>x.addEventListener("change",()=>{if(x.checked){const l=typeChecks.find(y=>y.value==="Land");if(l)l.checked=true;if(primary&&primary.value==="Unknown")primary.value="Land";}syncTypes();}));
+  const ptMode=document.getElementById("dePtMode");
+  const syncPtMode=()=>{if(!ptMode)return;const m=ptMode.value,wrap=document.getElementById("dePtFormulaWrap"),en=document.getElementById("dePtFEnabled"),note=document.getElementById("dePtModeNote"),pl=document.getElementById("dePowLabel"),tl=document.getElementById("deTouLabel"),det=wrap&&wrap.querySelector(".dict-pt-formula");if(wrap)wrap.style.display=m==="reference"?"":"none";if(det&&m==="reference")det.open=true;if(en)en.checked=m==="reference";if(pl)pl.textContent=m==="fixed"?"パワー":"印刷上のパワー表記";if(tl)tl.textContent=m==="fixed"?"タフネス":"印刷上のタフネス表記";if(note)note.innerHTML=m==="fixed"?"数字を選びます。":m==="variable"?"<b>*</b>、<b>1+*</b>、<b>X</b>などを選び、対戦中は手動修整できます。":"墓地・追放などからNを自動再計算します。下のプリセットを使うと簡単です。";};
+  if(ptMode)ptMode.onchange=syncPtMode;
+  root.addEventListener("click",ev=>{const p=ev.target.closest&&ev.target.closest("[data-ptfpreset]");if(p&&p.dataset.ptfpreset!=="clear"&&ptMode){ptMode.value="reference";setTimeout(syncPtMode,0);}if(p&&p.dataset.ptfpreset==="clear"&&ptMode){ptMode.value="variable";setTimeout(syncPtMode,0);}});
+  const fmt=document.getElementById("deFormat"); if(fmt){const syncFmt=()=>{const v=fmt.value,df=document.getElementById("deDFBox"),sp=document.getElementById("deSPBox");if(df)df.style.display=v==="doubleFaced"?"":"none";if(sp)sp.style.display=v==="split"?"":"none";};fmt.onchange=syncFmt;syncFmt();}
+  applyMode();syncPtMode();syncTypes();
+}
+
 function openDictEditor(name){
   const ex = name?dictGet(name):null;
   const e = ex || {name:(typeof name==="string"?dictKey(name):""),displayName:"",type:"Unknown",subtype:"",basicLandTypes:[],power:"",toughness:"",memo:"",imageId:null,imageUrl:"",defaultZone:"",cardFormat:"normal"};
   const zones=["","library","hand","creatures","lands","others","graveyard","exile","sideboard"];
-  openModal(ex?`辞書編集 — ${esc(e.name)}`:"辞書 新規登録",`
-    <div class="grid2">
-      <label class="field">カード名（識別名・照合用${ex?"・変更不可":""}）<input type="text" id="deName" value="${esc(e.name)}"${ex?" readonly":""}></label>
-      <label class="field">表示名（任意・画面表示のみ／照合には使いません）<input type="text" id="deDispName" value="${esc(e.displayName||"")}" placeholder="例: 稲妻（空欄なら識別名を表示）"></label>
-      <label class="field">主要タイプ<select id="deType">${DICT_TYPES.map(t=>`<option value="${t}"${t===(baseTypesOf(e)[0]||e.type)?" selected":""}>${TYP(t)}</option>`).join("")}</select></label>
-      <div class="field" style="grid-column:1/-1"><b>カードタイプ（複数選択可）</b><div class="note">例: アーティファクト・クリーチャー。主要タイプは表示・旧データ互換に使います。</div>${typeCheckGridHTML(baseTypesOf(e),"deTypeChk")}</div>
-    </div>
-    <div class="grid2">
-      <label class="field">サブタイプ<input type="text" id="deSub" value="${esc(e.subtype)}" placeholder="例: 兵士 / ドラゴン / 門"></label>
-      <label class="field">デフォルト置き場<select id="deZone">${zones.map(z=>`<option value="${z}"${z===e.defaultZone?" selected":""}>${z?(ZONE_JP[z]||z):"(なし)"}</option>`).join("")}</select></label>
-      <div class="field" style="grid-column:1/-1"><b>基本土地タイプ</b><div class="note">平地・島・沼・山・森。これは「基本土地カードかどうか」とは別です。デュアルランド等の非基本土地にも設定でき、フェッチの候補判定に使います。</div>${basicLandTypeCheckGridHTML(basicLandTypesOf(e),"deBasicLandType")}</div>
-    </div>
-    <div class="grid2">
-      <label class="field">パワー<input type="text" id="dePow" value="${esc(e.power)}"></label>
-      <label class="field">タフネス<input type="text" id="deTou" value="${esc(e.toughness)}"></label>
-    </div>
-    <label class="field">メモ<textarea id="deMemo" rows="2">${esc(e.memo)}</textarea></label>
-    <details><summary class="note" style="cursor:pointer"><b>戦闘キーワード</b></summary><div class="note">戦闘ダメージ支援で使用します。完全なルール判定ではありません。</div>${combatKeywordCheckHTML(e.combatKeywords||[],"deCombatKeyword")}</details>
-    ${dictExtSectionHTML(e)}
-    ${dictFacesSectionHTML(e)}
-    ${dictAbilitiesSectionHTML(e)}
-    ${dictChecklistSectionHTML(e)}
-    ${dictAutoEffectsSectionHTML(e)}
-    ${dictSearchSectionHTML(e)}
-    ${dictDrawRulesSectionHTML(e)}
-    ${dictTargetSectionHTML(e)}
-    <label class="field">エイリアス（表記ゆれ・別名）</label>
-    <div class="row-inline" style="gap:6px"><input type="text" id="deAliasNew" placeholder="エイリアスを入力" style="flex:1"><button class="btn sm" id="deAliasAdd" type="button">追加</button></div>
-    <div id="deAliasList" style="margin:6px 0"></div>
-    <details style="margin-bottom:6px"><summary class="note" style="cursor:pointer">テキストで一括編集（1行に1つ）</summary>
-      <textarea id="deAlias" rows="3">${esc((e.aliases||[]).join("\n"))}</textarea></details>
-    ${ex?`<div class="row-inline" style="gap:6px;margin-top:4px"><button class="btn sm" id="deMerge" type="button">別登録カードをこのカードへ統合…</button><span class="note" style="font-size:10px">日本語名等で分裂したカードを1枚に統合（元名は別名に保持・デッキ/盤面参照も置換・画像URL等は欠けている側へ補完）</span></div>`:""}
-    <label class="field">画像URL（共有用・任意）<input type="text" id="deImgUrl" value="${esc(e.imageUrl||"")}" placeholder="https://... （外部URLを参照。画像本体は保存/共有しません）"></label>
-    <div class="row-inline" style="gap:6px;flex-wrap:wrap;align-items:center">
-      <button class="btn sm" id="deUpBtn" type="button">画像をアップロード</button>
-      <input type="file" id="deUpFile" accept=".png,.jpg,.jpeg,.webp,.gif,image/png,image/jpeg,image/webp,image/gif" style="display:none">
-      <input type="password" id="deUpPw" placeholder="管理pw（保存しません）" autocomplete="off" style="width:150px">
-      <span class="note" id="deUpNote"></span>
-    </div>
-    <div class="note" id="deImgPrev" style="min-height:20px"></div>
-    <label class="field">カード形式（識別は常に表面のカード名／デッキでは1枚として数えます）<select id="deFormat">
-      <option value="normal"${cardFormatOf(e)==="normal"?" selected":""}>通常</option>
-      <option value="doubleFaced"${cardFormatOf(e)==="doubleFaced"?" selected":""}>両面カード</option>
-      <option value="split"${cardFormatOf(e)==="split"?" selected":""}>分割カード</option></select></label>
-    <div id="deDFBox" style="display:none;border:1px solid var(--line);border-radius:6px;padding:6px">
-      <div class="note"><b>裏面</b>（裏面名は検索対象・デッキでは表面のカード名1枚として扱います）</div>
-      <div class="grid2">
-        <label class="field">裏面カード名<input type="text" id="deBackName" value="${esc(e.backName||"")}" placeholder="例: Back Face Name"></label>
-        <label class="field">裏面 表示名（任意）<input type="text" id="deBackDispName" value="${esc(e.backDisplayName||"")}" placeholder="例: 裏面の日本語名"></label>
-      </div>
-      <div class="grid2">
-        <label class="field">裏面タイプ（複数は / 区切り）<input type="text" id="deBackType" value="${esc(e.backType||"")}"></label>
-        <label class="field">裏面 画像URL<input type="text" id="deBackImgUrl" value="${esc(e.backImageUrl||"")}" placeholder="https://..."></label>
-      </div>
-      <label class="field">裏面メモ（任意）<textarea id="deBackMemo" rows="2">${esc(e.backMemo||"")}</textarea></label>
-      <div class="row-inline" style="gap:6px;flex-wrap:wrap;align-items:center">
-        <button class="btn sm" id="deBackUpBtn" type="button">裏面画像をアップロード</button>
-        <input type="file" id="deBackUpFile" accept=".png,.jpg,.jpeg,.webp,.gif,image/png,image/jpeg,image/webp,image/gif" style="display:none">
-        <span class="note" id="deBackUpNote"></span></div>
-      <div class="note" id="deBackImgPrev" style="min-height:20px"></div>
-    </div>
-    <div id="deSPBox" style="display:none;border:1px solid var(--line);border-radius:6px;padding:6px">
-      <div class="note"><b>分割カード</b>（画像は上の「画像URL/imageId」に分割カード全体の画像を登録。左右は別カードとして辞書一覧に出しません）</div>
-      <div class="grid2">
-        <label class="field">左側 カード名<input type="text" id="deSpLName" value="${esc(e.splitLeftName||"")}"></label>
-        <label class="field">右側 カード名<input type="text" id="deSpRName" value="${esc(e.splitRightName||"")}"></label>
-      </div>
-      <div class="grid2">
-        <label class="field">左側 表示名（任意）<input type="text" id="deSpLDisp" value="${esc(e.splitLeftDisplayName||"")}"></label>
-        <label class="field">右側 表示名（任意）<input type="text" id="deSpRDisp" value="${esc(e.splitRightDisplayName||"")}"></label>
-      </div>
-      <div class="grid2">
-        <label class="field">左側 マナコスト（任意）<input type="text" id="deSpLCost" value="${esc(e.splitLeftManaCost||"")}"></label>
-        <label class="field">右側 マナコスト（任意）<input type="text" id="deSpRCost" value="${esc(e.splitRightManaCost||"")}"></label>
-      </div>
-      <div class="grid2">
-        <label class="field">左側 タイプ（複数は / 区切り）<input type="text" id="deSpLType" value="${esc(e.splitLeftType||"")}"></label>
-        <label class="field">右側 タイプ（複数は / 区切り）<input type="text" id="deSpRType" value="${esc(e.splitRightType||"")}"></label>
-      </div>
-      <div class="grid2">
-        <label class="field">左側 テキスト（任意）<textarea id="deSpLText" rows="2">${esc(e.splitLeftText||"")}</textarea></label>
-        <label class="field">右側 テキスト（任意）<textarea id="deSpRText" rows="2">${esc(e.splitRightText||"")}</textarea></label>
-      </div>
-    </div>
-    <div class="note">画像ID: ${e.imageId?esc(e.imageId):"(なし)"} ／ 画像本体は辞書に保存しません。表示優先度: ①ローカル画像(画像ID) ②画像URL ③画像なし。画像URLは共有辞書に含まれます（外部URL参照のみ・リンク切れ時はテキスト表示）。</div>`,
-    `<button class="btn" data-app="closem">キャンセル</button><button class="btn primary" id="deSave">保存</button>`);
+  openModal(ex?`辞書編集 — ${esc(e.name)}`:"辞書 新規登録",dictEditorBodyHTML(e,ex,zones),
+    `<button class="btn" data-app="closem">キャンセル</button><button class="btn primary" id="deSave">保存</button>`,"dict");
   function _readAliases(){ return ($("#deAlias").value||"").split(/\r?\n/).map(x=>x.trim()).filter(Boolean); }
   function _renderAliasList(){
     const arr=_readAliases();
@@ -6412,7 +6590,7 @@ function openDictEditor(name){
   }
   $("#deAliasAdd").onclick=()=>{ const v=$("#deAliasNew").value.trim(); if(!v) return; const arr=_readAliases(); arr.push(v); $("#deAlias").value=arr.join("\n"); $("#deAliasNew").value=""; _renderAliasList(); };
   $("#deAliasNew").onkeydown=(ev)=>{ if(ev.key==="Enter"){ ev.preventDefault(); $("#deAliasAdd").click(); } };
-  _renderAliasList(); dictExtBind(); dictFacesInit(e); dictFacesBind(); dictAbilitiesInit(e); dictAbilitiesBind(); dictChecklistBind(); dictAutoEffectsInit(e); dictAutoEffectsBind(); dictSearchProfilesInit(e); dictSearchProfilesBind(); dictDrawRulesBind();
+  _renderAliasList(); dictExtBind(); dictFacesInit(e); dictFacesBind(); dictAbilitiesInit(e); dictAbilitiesBind(); dictChecklistBind(); dictAutoEffectsInit(e); dictAutoEffectsBind(); dictSearchProfilesInit(e); dictSearchProfilesBind(); dictDrawRulesBind(); dictPtFormulaBind(); dictEditorUiBind(e);
   (function(){ const mg=$("#deMerge"); if(!mg) return; // 別登録カード統合（編集中カードが統合先）
     mg.onclick=()=>{ openModal("カード統合 — "+esc(e.name),
       `<div class="note">別登録されたカード（例: 日本語名で新規作成してしまったカード）を「${esc(e.name)}」へ統合します。統合元の辞書項目は削除され、その名前は別名として保持、デッキ/盤面の参照も置換されます。画像URL等の欠けている情報は統合元から補完されます。<br>※未保存の編集内容は破棄されます。</div><label class="field">統合元カード名<input type="text" id="dmSrc" placeholder="統合するカード名（例: 稲妻）"></label>`,
@@ -6467,32 +6645,20 @@ function openDictEditor(name){
   }
   wireImgUpload({btn:"#deUpBtn",file:"#deUpFile",note:"#deUpNote",prev:"#deImgPrev",url:"#deImgUrl"});
   wireImgUpload({btn:"#deBackUpBtn",file:"#deBackUpFile",note:"#deBackUpNote",prev:"#deBackImgPrev",url:"#deBackImgUrl"});
-  (function(){ // 複数タイプ: 主要タイプを常に選択リストの先頭へ
-    const sel=$("#deType"), checks=[...document.querySelectorAll(".deTypeChk")]; if(!sel||!checks.length) return;
-    const sync=()=>{ const c=checks.find(x=>x.value===sel.value); if(c) c.checked=true; };
-    sel.onchange=sync; checks.forEach(c=>c.onchange=()=>{ if(c.checked && (sel.value==="Unknown"||!checks.find(x=>x.value===sel.value&&x.checked))) sel.value=c.value; if(!c.checked&&c.value===sel.value){ const n=checks.find(x=>x.checked); sel.value=n?n.value:"Unknown"; } sync(); });
-    document.querySelectorAll(".deBasicLandType").forEach(x=>x.onchange=()=>{if(x.checked){const land=checks.find(c=>c.value==="Land");if(land)land.checked=true;if(sel.value==="Unknown")sel.value="Land";sync();}}); sync();
-  })();
-  (function(){ // カード形式に応じて入力欄を出し分け
-    const sel=$("#deFormat"); if(!sel) return;
-    const upd=()=>{ const v=sel.value;
-      const df=$("#deDFBox"), sp=$("#deSPBox");
-      if(df) df.style.display=(v==="doubleFaced")?"":"none";
-      if(sp) sp.style.display=(v==="split")?"":"none"; };
-    sel.onchange=upd; upd();
-  })();
   (function(){ // 未保存変更のdirty判定＋一時保存（保存/破棄で削除）
     const snap=()=>JSON.stringify({n:($("#deName")||{}).value||"",d:($("#deDispName")||{}).value||"",t:($("#deType")||{}).value||"",ts:readTypeChecks(".deTypeChk"),
       s:($("#deSub")||{}).value||"",blt:readBasicLandTypeChecks(".deBasicLandType"),p:($("#dePow")||{}).value||"",g:($("#deTou")||{}).value||"",m:($("#deMemo")||{}).value||"",ck:[...document.querySelectorAll(".deCombatKeyword:checked")].map(x=>x.value),
-      u:($("#deImgUrl")||{}).value||"",z:($("#deZone")||{}).value||"",a:($("#deAlias")||{}).value||"",ae:dictAutoEffectsRead(),ac:dictAutoEffectConfigRead(),sp:dictSearchProfilesRead(),sc:dictSearchClassConfigRead(),dr:dictDrawRulesRead()});
+      u:($("#deImgUrl")||{}).value||"",z:($("#deZone")||{}).value||"",a:($("#deAlias")||{}).value||"",ae:dictAutoEffectsRead(),ac:dictAutoEffectConfigRead(),pf:dictPtFormulaRead(),sp:dictSearchProfilesRead(),sc:dictSearchClassConfigRead(),dr:dictDrawRulesRead()});
     const base=snap();
     window._deDirtyBase=base; window._deSnap=snap;
     setModalDirty({isDirty:()=>snap()!==base, onDiscard:()=>_draftClear(DRAFT_DICT)});
     const mb=document.querySelector("#modalRoot .mbody"); if(!mb) return; let t=null;
-    mb.addEventListener("input",()=>{ clearTimeout(t); t=setTimeout(()=>{ try{
+    const _scheduleDictDraft=()=>{ clearTimeout(t); t=setTimeout(()=>{ try{
       if(snap()===base){ _draftClear(DRAFT_DICT); return; }
       _draftSave(DRAFT_DICT,{name:(ex?e.name:null), f:JSON.parse(snap())});
-    }catch(_){} },400); });
+    }catch(_){} },400); };
+    mb.addEventListener("input",_scheduleDictDraft);
+    mb.addEventListener("change",_scheduleDictDraft);
   })();
   $("#deSave").onclick=()=>{
     safe(()=>{
@@ -6513,7 +6679,7 @@ function openDictEditor(name){
         splitLeftManaCost:_v("#deSpLCost"), splitRightManaCost:_v("#deSpRCost"),
         splitLeftType:_v("#deSpLType"), splitRightType:_v("#deSpRType"), splitLeftTypes:normalizeExtraTypeList(_v("#deSpLType")), splitRightTypes:normalizeExtraTypeList(_v("#deSpRType")),
         splitLeftText:($("#deSpLText")?$("#deSpLText").value:""), splitRightText:($("#deSpRText")?$("#deSpRText").value:""),
-        abilities:dictAbilitiesRead(), resolveChecklist:dictChecklistRead(), autoEffects:dictAutoEffectsRead(), autoEffectConfig:dictAutoEffectConfigRead(), searchProfiles:dictSearchProfilesRead(), searchClassConfig:dictSearchClassConfigRead(), combatKeywords:[...document.querySelectorAll(".deCombatKeyword:checked")].map(x=>x.value), drawRules:dictDrawRulesRead() };
+        abilities:dictAbilitiesRead(), resolveChecklist:dictChecklistRead(), autoEffects:dictAutoEffectsRead(), autoEffectConfig:dictAutoEffectConfigRead(), ptFormula:dictPtFormulaRead(), searchProfiles:dictSearchProfilesRead(), searchClassConfig:dictSearchClassConfigRead(), combatKeywords:[...document.querySelectorAll(".deCombatKeyword:checked")].map(x=>x.value), drawRules:dictDrawRulesRead() };
       const doSave=(saveName,mergeAliasName)=>{ safe(()=>{
         const als=snap.aliases.slice(); if(mergeAliasName) als.push(mergeAliasName);
         const obj={name:saveName,displayName:snap.displayName,type:snap.type,types:snap.types,subtype:snap.subtype,basicLandTypes:snap.basicLandTypes,
@@ -6530,7 +6696,7 @@ function openDictEditor(name){
           aliases:als,
           colors:_ext.colors,manaValue:_ext.manaValue,produces:_ext.produces,roleTags:_ext.roleTags,customTags:_ext.customTags,priorityNote:_ext.priorityNote,manaCost:_ext.manaCost,
           canTarget:_tg.canTarget,targetRequired:_tg.targetRequired,targetKinds:_tg.targetKinds,defaultTargetMemo:_tg.defaultTargetMemo,
-          layout:_fc.layout,faces:_fc.faces,abilities:snap.abilities,resolveChecklist:snap.resolveChecklist,autoEffects:snap.autoEffects,autoEffectConfig:snap.autoEffectConfig,searchProfiles:snap.searchProfiles,searchClassConfig:snap.searchClassConfig,combatKeywords:snap.combatKeywords,drawRules:snap.drawRules};
+          layout:_fc.layout,faces:_fc.faces,abilities:snap.abilities,resolveChecklist:snap.resolveChecklist,autoEffects:snap.autoEffects,autoEffectConfig:snap.autoEffectConfig,ptFormula:snap.ptFormula,searchProfiles:snap.searchProfiles,searchClassConfig:snap.searchClassConfig,combatKeywords:snap.combatKeywords,drawRules:snap.drawRules};
         if(mergeAliasName){ // 既存カードへの統合保存: 空欄の入力で既存情報を消さない
           const exE=dictAll()[saveName]||{}; // preserve規則がないフィールドは既存値をコピーして維持
           obj.aliases=(exE.aliases||[]).concat(obj.aliases||[]); // 既存の別名を消さず結合（dictEntryFromで重複除去）
@@ -6538,6 +6704,7 @@ function openDictEditor(name){
           if(obj.type==="Unknown"&&exE.type&&exE.type!=="Unknown") obj.type=exE.type;
           if(obj.imageId==null&&exE.imageId) obj.imageId=exE.imageId;
           ["types","basicLandTypes","backTypes","splitLeftTypes","splitRightTypes","colors","produces","roleTags","customTags","targetKinds","faces","abilities","resolveChecklist","autoEffects","combatKeywords","drawRules","searchProfiles"].forEach(k=>{ if(Array.isArray(obj[k])&&!obj[k].length) delete obj[k]; }); // これらはdictSetのpreserve規則あり
+          if(obj.ptFormula&&!normalizePtFormula(obj.ptFormula).enabled&&exE.ptFormula&&normalizePtFormula(exE.ptFormula).enabled) delete obj.ptFormula;
           if(obj.manaValue===""||obj.manaValue==null) delete obj.manaValue;
           if(obj.manaCost==null) delete obj.manaCost;
           if(obj.layout==="normal") delete obj.layout;
@@ -7144,11 +7311,12 @@ function effPow(c){ const i=_ptInfo(c); return i.pNum?Number(i.ep):numOr0(i.ep);
 function effTou(c){ const i=_ptInfo(c); return i.tNum?Number(i.et):numOr0(i.et); }
 /* 実効P/T表示情報: カウンターとP/T修整を内訳別に反映 */
 function _ptInfo(c){
-  const di=getCardDisplayInfo(c); const bp=di.power, bt=di.toughness;
-  const pNum=/^-?\d+$/.test(String(bp).trim()), tNum=/^-?\d+$/.test(String(bt).trim());
+  const di=getCardDisplayInfo(c); const printedP=di.power, printedT=di.toughness, ref=computePtReference(c);
+  const bp=ref?ref.p:printedP, bt=ref?ref.t:printedT;
+  const pNum=ref?true:/^-?\d+$/.test(String(bp).trim()), tNum=ref?true:/^-?\d+$/.test(String(bt).trim());
   const counterDelta=(c.countersPlus||0)+_ptCounterDelta(c), mods=_ptModDelta(c);
   const ep=pNum?(numOr0(bp)+counterDelta+mods.p):bp, et=tNum?(numOr0(bt)+counterDelta+mods.t):bt;
-  return { bp, bt, ep, et, delta:counterDelta, counterDelta, modP:mods.p, modT:mods.t, pNum, tNum, changed:((counterDelta||mods.p||mods.t) && (pNum||tNum)) };
+  return { printedP,printedT,bp,bt,ep,et,delta:counterDelta,counterDelta,modP:mods.p,modT:mods.t,pNum,tNum,ref,dynamic:!!ref,changed:(!!ref||((counterDelta||mods.p||mods.t)&&(pNum||tNum))) };
 }
 function cdPlan(){ if(!state.turn.combatDamagePlan||typeof state.turn.combatDamagePlan!=="object") state.turn.combatDamagePlan={}; return state.turn.combatDamagePlan; }
 function planFor(aid){ const p=cdPlan(); if(!p[aid]) p[aid]={assign:{},playerDamage:0,note:""}; if(!p[aid].assign) p[aid].assign={}; return p[aid]; }
@@ -8609,24 +8777,30 @@ function ohEvalSnapshot(hand){
 }
 
 /* 辞書編集フォーム：色/マナ/produces/役割/カスタム/priorityNote セクション */
-function dictExtSectionHTML(e){
-  const colors=dedupColors(e.colors||[]), prod=dedupProduce(e.produces||[]), roles=dedupArr(e.roleTags||[]), cust=dedupArr(e.customTags||[]);
-  return `<details class="dict-ext" open><summary class="note" style="cursor:pointer">色 / マナ総量 / 出せる色 / 役割タグ</summary>
+function dictBasicStatsSectionHTML(e){
+  const colors=dedupColors(e.colors||[]);
+  return `<div class="dict-section-card dict-basic-stats"><div class="dict-section-title">色・マナ</div>
     <div class="field">色（無色は C）<div class="ckrow">${OH_COLORS.map(c=>`<label class="ckbadge c-${c}"><input type="checkbox" class="deColor" value="${c}"${colors.includes(c)?" checked":""}>${c}</label>`).join("")}</div></div>
     <div class="grid2">
+      <label class="field">マナコスト<input type="text" id="deMC" value="${esc((e.manaCost&&e.manaCost.text)||"")}" placeholder="例: 1R / 2UU / XG / 0"></label>
       <label class="field">マナ総量<input type="number" id="deMV" min="0" value="${e.manaValue===0?0:(e.manaValue||"")}" placeholder="空欄可"></label>
-      <div class="field">出せる色<div class="ckrow">${OH_PRODUCE.map(c=>`<label class="ckbadge ${c==="Any"?"c-Any":"c-"+c}"><input type="checkbox" class="deProd" value="${c}"${prod.includes(c)?" checked":""}>${c==="Any"?"◇":c}</label>`).join("")}</div></div>
     </div>
+    <div id="deMCParse" class="note" style="font-size:11px"></div>
+  </div>`;
+}
+function dictExtSectionHTML(e){
+  const prod=dedupProduce(e.produces||[]), roles=dedupArr(e.roleTags||[]), cust=dedupArr(e.customTags||[]);
+  return `<div class="dict-section-card dict-advanced-meta"><div class="dict-section-title">詳細な分類・分析情報</div>
+    <div class="note">通常の対戦操作には必須ではありません。初手分析、デッキ集計、マナ支払い補助などで使います。</div>
+    <div class="field">出せる色<div class="ckrow">${OH_PRODUCE.map(c=>`<label class="ckbadge ${c==="Any"?"c-Any":"c-"+c}"><input type="checkbox" class="deProd" value="${c}"${prod.includes(c)?" checked":""}>${c==="Any"?"◇":c}</label>`).join("")}</div></div>
     <div class="field">役割タグ<div class="ckrow">${OH_ROLE_TAGS.map(t=>`<label class="ckrole"><input type="checkbox" class="deRole" value="${t}"${roles.includes(t)?" checked":""}>${esc(t)}</label>`).join("")}</div></div>
     <div class="field">カスタムタグ<div class="row-inline" style="gap:6px"><input type="text" id="deCustNew" placeholder="タグを入力" style="flex:1"><button class="btn sm" id="deCustAdd" type="button">追加</button></div>
       <div id="deCustList" style="margin:4px 0"></div><textarea id="deCust" style="display:none">${esc(cust.join("\\n"))}</textarea></div>
     <div class="grid2">
-      <label class="field">マナコスト(例: 1R, 2UU, XG, 0)<input type="text" id="deMC" value="${esc((e.manaCost&&e.manaCost.text)||"")}" placeholder="W/U/B/R/G/C/X/数字"></label>
-      <label class="field">コストメモ<input type="text" id="deMCNotes" value="${esc((e.manaCost&&e.manaCost.notes)||"")}" placeholder="代替コスト等"></label>
+      <label class="field">コスト・代替コストメモ<input type="text" id="deMCNotes" value="${esc((e.manaCost&&e.manaCost.notes)||"")}" placeholder="例: 代替コスト、追加コスト"></label>
+      <label class="field">初手判断メモ<input type="text" id="dePrio" value="${esc(e.priorityNote||"")}" placeholder="例: 赤マナがある時だけ強い"></label>
     </div>
-    <div id="deMCParse" class="note" style="font-size:11px"></div>
-    <label class="field">初手判断メモ(priorityNote)<input type="text" id="dePrio" value="${esc(e.priorityNote||"")}" placeholder="例: 赤マナがある時だけ強い"></label>
-  </details>`;
+  </div>`;
 }
 function dictExtBind(){
   const _mcp=()=>{ const el=$("#deMCParse"); if(!el) return; const t=$("#deMC")?$("#deMC").value:""; const c=normalizeManaCost(t); el.textContent=c?("解析: "+manaCostSummary(c)+(c.invalid&&c.invalid.length?(" / 無効文字: "+c.invalid.join("")):"")):"解析: （コストなし）"; };
@@ -8964,7 +9138,7 @@ function _zoomRender(c, mode){
     main=`<div class="zoom-textcard" style="width:${px.w}px;max-width:92vw"><div class="zoom-tc-body">${_zoomInfo(c)}</div></div>`;
   }
   const badges=_zoomBadges(c);
-  const small = (mode==="image")?`<div class="zoom-side"><div class="zi-name">${esc(c.name)}</div><div class="zi-type">${esc(TYP(c.type))}${c.subtype?" — "+esc(c.subtype):""}</div>${((c.power!==""&&c.power!=null)||(c.toughness!==""&&c.toughness!=null))?`<div class="zi-pt">${esc(c.power)}/${esc(c.toughness)}</div>`:""}${badges?`<div class="zoom-badges">${badges}</div>`:""}</div>`
+  const small = (mode==="image")?`<div class="zoom-side"><div class="zi-name">${esc(c.name)}</div><div class="zi-type">${esc(TYP(c.type))}${c.subtype?" — "+esc(c.subtype):""}</div>${((c.power!==""&&c.power!=null)||(c.toughness!==""&&c.toughness!=null)||ptFormulaEnabledFor(c))?(function(){const q=_ptInfo(c);return `<div class="zi-pt">${esc(String(q.ep))}/${esc(String(q.et))}</div>`;})():""}${badges?`<div class="zoom-badges">${badges}</div>`:""}</div>`
     : (badges?`<div class="zoom-badges">${badges}</div>`:"");
   return `<div class="zoom-inner ${mode==="image"?"with-img":"text-only"}">${main}${small}</div>`;
 }
@@ -9208,7 +9382,8 @@ function maybePromptTarget(id){
 /* ---- 辞書拡張: 編集フォーム部品 ---- */
 function dictTargetSectionHTML(e){
   const kinds=Array.isArray(e.targetKinds)?e.targetKinds:[];
-  return `<details class="dict-ext"><summary class="note" style="cursor:pointer">対象（対象を取るカード設定）</summary>
+  return `<details class="dict-ext"><summary class="note" style="cursor:pointer"><b>カード本体（呪文）の対象</b></summary>
+    <div class="note">インスタント／ソーサリーなど、カード本体をスタックに置く時の対象です。起動・誘発能力の対象は「能力」タブ内で設定します。</div>
     <label class="row-inline" style="gap:8px;cursor:pointer"><input type="checkbox" id="deCanTarget"${e.canTarget?" checked":""}> 対象を取るカード</label>
     <label class="row-inline" style="gap:8px;cursor:pointer"><input type="checkbox" id="deTgtReq"${e.targetRequired?" checked":""}> 対象必須</label>
     <div class="field">対象の種類（候補ハイライトの参考）<div class="ckrow">${TARGET_KINDS.map(t=>`<label class="ckrole"><input type="checkbox" class="deTgtKind" value="${t}"${kinds.includes(t)?" checked":""}>${t}</label>`).join("")}</div></div>
@@ -9259,13 +9434,20 @@ function fsCardMini(c, idx, topIdx){
     </div>
   </div>`;
 }
+let _autoStackDismissSig="";
+let _autoStackLastSig="";
+function stackPanelMode(){const v=(state.settings&&state.settings.stackPanelMode)||"auto";return ["auto","always","manual"].includes(v)?v:"auto";}
 function renderFloatStack(){
-  if(!state.settings) return;
-  const f=panelState("stack");
+  if(!state.settings)return;
+  const f=panelState("stack"),s=state.stack,n=s.length,mode=stackPanelMode(),sig=s.map(x=>x&&x.id||x&&x.name||"?").join("|");
   let host=document.getElementById("floatStack");
-  if(!host){ host=document.createElement("div"); host.id="floatStack"; document.body.appendChild(host); }
-  if(f.visible===false){ host.style.display="none"; host.innerHTML=""; return; }
-  const s=state.stack, n=s.length, topIdx=n-1;
+  if(!host){host=document.createElement("div");host.id="floatStack";document.body.appendChild(host);}
+  const changed=n>0&&sig!==_autoStackLastSig;
+  if(mode==="auto"&&changed){_autoStackDismissSig="";if(state.settings.stackAutoExpand!==false)f.collapsed=false;if(state.settings.stackAutoFront!==false){const up=uiPanels();let mx=120;for(const k of PANEL_IDS)mx=Math.max(mx,up[k].zIndex||120);f.zIndex=Math.min(160,mx+1);}}
+  _autoStackLastSig=sig;
+  const show=mode==="always"?true:mode==="manual"?f.visible!==false:(n>0&&_autoStackDismissSig!==sig);
+  if(!show){host.style.display="none";host.innerHTML="";return;}
+  const topIdx=n-1;
   const W=f.width||Math.min(220, Math.max(150, Math.round((window.innerWidth||1024)*0.18)));
   if(f.x==null||f.y==null){ const d=_defaultPos("stack"); f.x=d.x; f.y=d.y; }
   clampPanel(f);
@@ -9310,10 +9492,10 @@ function _fsClamp(x,y,w){
   if(ny<0) ny=0; if(ny>vh-30) ny=vh-30;
   return {x:nx,y:ny};
 }
-function fsToggleVisible(){ const f=fsState(); f.visible=!f.visible; saveState(true); render(); }
+function fsToggleVisible(){const f=fsState(),m=stackPanelMode(),sig=state.stack.map(x=>x&&x.id||x&&x.name||"?").join("|");if(m==="auto"){_autoStackDismissSig=(_autoStackDismissSig===sig?"":sig);}else f.visible=!f.visible;saveState(true);render();}
 function fsToggleCollapse(){ const f=fsState(); f.collapsed=!f.collapsed; saveState(true); render(); }
 function fsResetPos(){ const f=fsState(); f.x=Math.round((window.innerWidth||1024)*0.56); f.y=Math.round((window.innerHeight||768)*0.26); saveState(true); render(); }
-function fsHide(){ const f=fsState(); f.visible=false; saveState(true); render(); toast("浮動スタックを非表示にしました（設定/フッターで再表示）"); }
+function fsHide(){const f=fsState(),m=stackPanelMode();if(m==="auto"){_autoStackDismissSig=state.stack.map(x=>x&&x.id||x&&x.name||"?").join("|");render();toast("現在のスタック表示だけ閉じました（内容が変わると再表示）");return;}f.visible=false;saveState(true);render();toast("浮動スタックを非表示にしました（設定/フッターで再表示）");}
 
 /* 旧ドラッグは共通パネル基盤(_pDrag)へ統合 */
 
@@ -11162,7 +11344,7 @@ function _libSearchBind(){
 /* ============================================================
    総合安定化: 自己診断 / バックアップ / プレイテスト / ヘルプ / バージョン
    ============================================================ */
-const APP_VERSION="1.7.3";
+const APP_VERSION="1.9.1";
 const DATA_VERSION=4;
 const LS_BACKUP_KEY="cpt_backups_v1";
 let _cptMigrationNote="";
@@ -11589,6 +11771,8 @@ const HELP_SECTIONS=[
   ["辞書 / 辞書メンテ / 分析", [
     "辞書でカード情報（type/色/MV/役割/別名/メモ）を登録。辞書メンテで一括編集・品質確認。",
     "サーチ能力を構造化登録すると、フェッチ/土地サーチ/土地加速/Tutor/山札選択を自動分類し、専用ボタンから条件付き検索を実行できます。フェッチは平地/島/沼/山/森の基本土地タイプで候補を絞れます（非基本土地でも該当タイプを持てば候補）。",
+    "参照式P/Tで、追放カード枚数・墓地の指定タイプ枚数・両墓地の異なるカードタイプ数などからP/Tを自動再計算できます。コスモゴイフ型／タルモゴイフ型プリセットがあります。",
+    "浮動スタックは自動モードならスタックが1件以上の時だけ表示され、空になると自動で収納されます。",
     "分析でマッチ/初手/キープ基準/辞書品質の集計を確認。"]],
   ["レイアウト / バックアップ / 自己診断", [
     "レイアウト: 浮動パネル（スタック/ナビ/対象/未解決/ログ）の表示・配置・プリセット保存。",
@@ -12092,7 +12276,7 @@ function faceFromMain(e){ return normalizeFace({ name:e.name, type:e.type, subty
 /* ---------- 辞書編集: 複数面セクション ---------- */
 let _deFaces=[];
 function dictFacesSectionHTML(e){
-  return `<details class="dict-faces"><summary class="note" style="cursor:pointer">複数面（両面/分割/モーダル等・表示用）</summary>
+  return `<details class="dict-faces"><summary class="note" style="cursor:pointer"><b>高度な面データ（通常は不要）</b></summary>
     <div class="note" style="font-size:10px">これは表示用情報です。盤面挙動・スタック処理は変わりません。面はユーザーが手動で登録します。</div>
     <label class="field">レイアウト<select id="deLayout">${LAYOUT_OPTIONS.map(([v,l])=>`<option value="${v}"${dictLayout(e)===v?" selected":""}>${l}</option>`).join("")}</select></label>
     <div class="row-inline" style="gap:6px;margin:4px 0"><button type="button" class="btn sm" data-fcmd="add">面を追加</button><button type="button" class="btn sm" data-fcmd="fromMain">代表情報から面を作成</button></div>
@@ -12125,7 +12309,7 @@ function _deFacesRender(){
       <div class="field">役割タグ<div class="ckrow">${OH_ROLE_TAGS.map(t=>`<label class="ckrole"><input type="checkbox" class="fRole-${i}" value="${t}"${f.roleTags.includes(t)?" checked":""}>${esc(t)}</label>`).join("")}</div></div>
       <div class="grid2">
         <label class="field">カスタムタグ(| 区切り)<input type="text" class="fCust-${i}" value="${esc((f.customTags||[]).join("|"))}"></label>
-        <label class="field">P/T<span class="row-inline" style="gap:3px"><input type="text" class="fPow-${i}" value="${esc(f.power)}" placeholder="P" style="width:46px"><input type="text" class="fTou-${i}" value="${esc(f.toughness)}" placeholder="T" style="width:46px"></span></label>
+        <label class="field">P/T<span class="row-inline" style="gap:4px">${ptSelectHTML("",f.power,"power",`fPow-${i}`,"width:112px")}${ptSelectHTML("",f.toughness,"toughness",`fTou-${i}`,"width:112px")}</span></label>
         <label class="field">loyalty<input type="text" class="fLoy-${i}" value="${esc(f.loyalty)}" placeholder="忠誠度"></label>
         <label class="field">defense<input type="text" class="fDef-${i}" value="${esc(f.defense)}" placeholder="防御値"></label>
       </div>
@@ -13841,7 +14025,7 @@ function dictDrawRulesBind(){ const root=document.querySelector(".dict-draw-rule
 let _deAutoEffects=[];
 function dictAutoEffectsSectionHTML(e){
   const cfg=normalizeAutoEffectConfig(e&&e.autoEffectConfig||{});
-  return `<details class="dict-auto-effects"><summary class="note" style="cursor:pointer"><b>解決時の自動効果（複数手順・対象・X）</b></summary>
+  return `<details class="dict-auto-effects"><summary class="note" style="cursor:pointer"><b>カード本体（呪文）の解決処理</b></summary>
     <div class="note" style="font-size:10px">複数の効果を上から順に、スタック解決時の確認後に適用します。対象カード/プレイヤー、自分/相手、X、ドロー、ダメージ、移動、トークン等を登録できます。カード本文の自動解析はしません。</div>
     <div class="grid2">
       <label class="field">通常キャスト時のX<select id="aeXMode"><option value="none"${cfg.xMode==="none"?" selected":""}>Xを使わない（0）</option><option value="manual"${cfg.xMode==="manual"?" selected":""}>唱える時にXを入力</option></select></label>
@@ -14145,7 +14329,7 @@ function cptFixChecklist(){
 
 /* 辞書編集: カードレベル checklist セクション */
 function dictChecklistSectionHTML(e){
-  return `<details class="dict-cl"><summary class="note" style="cursor:pointer">解決チェックリスト（呪文・手動補助）</summary>
+  return `<details class="dict-cl"><summary class="note" style="cursor:pointer"><b>カード本体（呪文）の解決チェック</b></summary>
     <div class="note" style="font-size:10px">解決時に手動処理の確認項目を表示します（効果の自動処理はしません）。1行に1項目: ラベル | カテゴリ | 必須/- | actionHint | メモ</div>
     <div class="row-inline" style="gap:4px;flex-wrap:wrap;margin:3px 0">${CL_PRESETS.slice(0,6).map((p,i)=>`<button type="button" class="btn tiny" data-clpreset="${i}">+${esc(p[0])}</button>`).join("")}</div>
     ${_clTemplatePickerHTML("#deChecklist")}
