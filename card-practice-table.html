@@ -1034,6 +1034,17 @@
   .modal{background:var(--panel);border:1px solid var(--line2);border-radius:14px;
     width:100%;max-width:920px;margin:auto;box-shadow:0 20px 60px rgba(0,0,0,.5)}
   .modal.sm{max-width:460px}
+  .cast-mini{display:flex;flex-direction:column;gap:8px}
+  .cast-mini-summary{display:grid;grid-template-columns:1fr auto;gap:8px;align-items:center;padding:8px 10px;border:1px solid var(--line);border-radius:9px;background:var(--bg2)}
+  .cast-mini-summary b{font-size:13px}
+  .cast-mini-cost{font-weight:800;color:var(--accent);white-space:nowrap}
+  .cast-mini-normal{width:100%;text-align:left;display:flex;align-items:center;justify-content:space-between;gap:8px;padding:9px 11px}
+  .cast-mini-pitch-head{display:flex;align-items:center;justify-content:space-between;gap:8px;font-size:12px}
+  .cast-mini-list{display:flex;flex-direction:column;gap:4px;max-height:240px;overflow:auto;padding:2px}
+  .cast-mini-card{width:100%;display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px;align-items:center;text-align:left;padding:7px 9px}
+  .cast-mini-card .name{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:700}
+  .cast-mini-card .result{font-size:11px;color:var(--accent);white-space:nowrap}
+  .cast-mini-warn{font-size:11px;color:#ffd166;padding:6px 8px;border:1px solid rgba(224,168,60,.4);border-radius:7px;background:rgba(224,168,60,.08)}
   .mhead{display:flex;justify-content:space-between;align-items:center;padding:14px 16px;
     border-bottom:1px solid var(--line)}
   .mhead h2{font-size:17px}
@@ -2018,7 +2029,7 @@ function newPlayer(){
 function defaultState(){
   return {
     version:1,
-    appVersion:"2.5.1",
+    appVersion:"2.5.2",
     dataVersion:7,
     meta:{ lastSaved:null, lastBackup:null, lastDiag:null },
     integrityLog:[],
@@ -11616,7 +11627,7 @@ function _libSearchBind(){
 /* ============================================================
    総合安定化: 自己診断 / バックアップ / プレイテスト / ヘルプ / バージョン
    ============================================================ */
-const APP_VERSION="2.5.1";
+const APP_VERSION="2.5.2";
 const DATA_VERSION=7;
 const LS_BACKUP_KEY="cpt_backups_v1";
 let _cptMigrationNote="";
@@ -15675,7 +15686,7 @@ function applyRuleRegistrationPreset(id){const pr=RULE_REG_PRESETS[id];if(!pr)re
 function ruleScopeOptions(v){return RULE_SCOPES.map(x=>`<option value="${x}"${v===x?" selected":""}>${RULE_SCOPE_JP[x]}</option>`).join("");}
 function dictRuleProfileSectionHTML(e){const p=normalizeRuleProfile(e&&e.ruleProfile||{}),sp=normalizeSpellCostProfile(e&&e.spellCostProfile||{});return `<div class="dict-section-card" id="deRuleProfile"><div class="dict-section-title">対象耐性・常在能力</div><div class="note">対象候補の絞り込みや、よくある置換を補助します。例外時は警告を無視して手動処理できます。</div><div class="rule-grid"><label><input type="checkbox" id="deRuleHex"${p.keywords.hexproof?" checked":""}> 呪禁</label><label><input type="checkbox" id="deRuleShroud"${p.keywords.shroud?" checked":""}> 被覆</label><label><input type="checkbox" id="deRuleInd"${p.keywords.indestructible?" checked":""}> 破壊不能</label><label><input type="checkbox" id="deRuleCantSac"${p.keywords.cantSacrifice?" checked":""}> 生け贄にできない</label></div><div class="grid2"><label class="field">護法コスト<input id="deRuleWard" value="${esc(p.keywords.wardCost)}" placeholder="例: 2 / 1U / 3点のライフ"></label><div class="field">プロテクション（色）<div class="ckrow">${["W","U","B","R","G","C"].map(c=>`<label class="ckbadge c-${c}"><input type="checkbox" class="deRuleProt" value="${c}"${p.keywords.protectionColors.includes(c)?" checked":""}>${c}</label>`).join("")}</div></div></div></div>
   <div class="dict-section-card"><div class="dict-section-title">置換・常在ルール</div><div class="rule-row"><label><input type="checkbox" id="deRuleG2E"${p.replacements.graveToExile.enabled?" checked":""}> 墓地へ行く代わりに追放</label><select id="deRuleG2EScope">${ruleScopeOptions(p.replacements.graveToExile.scope)}</select></div><div class="rule-row"><label><input type="checkbox" id="deRuleNoGain"${p.replacements.cantGainLife.enabled?" checked":""}> ライフを得られない</label><select id="deRuleNoGainScope">${ruleScopeOptions(p.replacements.cantGainLife.scope)}</select></div><div class="rule-row"><label><input type="checkbox" id="deRulePrevent"${p.replacements.preventDamage.enabled?" checked":""}> ダメージ軽減</label><select id="deRulePreventScope">${ruleScopeOptions(p.replacements.preventDamage.scope)}</select><input id="deRulePreventN" type="number" min="0" value="${p.replacements.preventDamage.amount}" style="width:75px"><label><input type="checkbox" id="deRulePreventAll"${p.replacements.preventDamage.all?" checked":""}>すべて</label></div><div class="rule-row"><label><input type="checkbox" id="deRuleETap"${p.replacements.enterTapped.enabled?" checked":""}> パーマネントはタップ状態で出る</label><select id="deRuleETapScope">${ruleScopeOptions(p.replacements.enterTapped.scope)}</select></div><div class="rule-row"><label><input type="checkbox" id="deRuleECounter"${p.replacements.enterCounters.enabled?" checked":""}> カウンターを置いて出る</label><select id="deRuleECounterScope">${ruleScopeOptions(p.replacements.enterCounters.scope)}</select><input id="deRuleECounterName" value="${esc(p.replacements.enterCounters.name)}" style="width:120px"><input id="deRuleECounterN" type="number" min="0" value="${p.replacements.enterCounters.amount}" style="width:65px"></div><div class="grid2"><label class="field">相手の呪文コスト増加（不特定）<input id="deRuleTax" type="number" min="0" value="${p.staticRules.spellTax}"></label><label class="field">自分の呪文コスト軽減（不特定）<input id="deRuleReduce" type="number" min="0" value="${p.staticRules.spellReduction}"></label><label class="field">手札上限（空欄=通常）<input id="deRuleHandLimit" type="number" min="0" value="${p.staticRules.handLimit}"></label><label class="field">唱え方の制限メモ<input id="deRuleCastNote" value="${esc(p.staticRules.castRestrictionNote)}" placeholder="例: 各ターン1つまで"></label></div><label class="field">補足メモ<input id="deRuleNote" value="${esc(p.note)}"></label></div>
-  <div class="dict-section-card"><div class="dict-section-title">特殊コスト・追加コスト</div><label><input type="checkbox" id="deSCEnabled"${sp.enabled?" checked":""}> 特殊コスト補助を使う</label><div class="grid2"><label class="field">方式<select id="deSCKind">${RULE_SPECIAL_KINDS.map(x=>`<option value="${x}"${sp.kind===x?" selected":""}>${RULE_SPECIAL_KIND_JP[x]}</option>`).join("")}</select></label><label class="field">参照色<select id="deSCColor">${["W","U","B","R","G","C"].map(x=>`<option value="${x}"${sp.color===x?" selected":""}>${x}</option>`).join("")}</select></label><label class="field">最大使用枚数／体数<input id="deSCCount" type="number" min="1" value="${sp.count}"></label><label><input type="checkbox" id="deSCFlexible"${sp.flexibleCount?" checked":""}> 0〜上限まで任意数を選べる</label><label class="field">1件あたり／固定の不特定軽減<input id="deSCReduce" type="number" min="0" value="${sp.genericReduction}"></label><label class="field">ライフ支払い<input id="deSCLife" type="number" min="0" value="${sp.lifePayment}"></label><label class="field">追加コスト<input id="deSCExtra" value="${esc(sp.extraCost)}" placeholder="例: 1R"></label><label class="field">代替マナコスト<input id="deSCAltMana" value="${esc(sp.alternativeManaCost)}" placeholder="例: 3U / 0"></label><label class="field">代替コスト表示<input id="deSCAlt" value="${esc(sp.alternativeCost)}" placeholder="例: 青いカード1枚を追放"></label><label class="field">候補タイプ（|区切り）<input id="deSCTypes" value="${esc(sp.candidateTypes.join("|"))}" placeholder="例: Creature|Artifact"></label><label class="field">必要パワー（犠牲など）<input id="deSCPower" type="number" min="0" value="${sp.powerThreshold}"></label><label><input type="checkbox" id="deSCMvX"${sp.useManaValueAsX?" checked":""}> 選択カードのMVをXにする</label></div><div class="note" style="font-size:10px">召集・探査・即席は必要な範囲で任意数を選択できます。現出・献身・親和・協約・犠牲・共謀・カスタム代替コストも登録できます。複数の代替コストを同時には使えません。</div><label class="field">特殊コストメモ<input id="deSCNote" value="${esc(sp.note)}"></label></div>`;}
+  <div class="dict-section-card"><div class="dict-section-title">特殊コスト・追加コスト</div><div class="row-inline" style="gap:5px;flex-wrap:wrap;margin-bottom:6px"><span class="note">ピッチ用プリセット:</span><button type="button" class="btn tiny" data-scpreset="force">意志の力型</button><button type="button" class="btn tiny" data-scpreset="shoal">猛火の群れ型</button></div><label><input type="checkbox" id="deSCEnabled"${sp.enabled?" checked":""}> 特殊コスト補助を使う</label><div class="grid2"><label class="field">方式<select id="deSCKind">${RULE_SPECIAL_KINDS.map(x=>`<option value="${x}"${sp.kind===x?" selected":""}>${RULE_SPECIAL_KIND_JP[x]}</option>`).join("")}</select></label><label class="field">参照色<select id="deSCColor">${["W","U","B","R","G","C"].map(x=>`<option value="${x}"${sp.color===x?" selected":""}>${x}</option>`).join("")}</select></label><label class="field">最大使用枚数／体数<input id="deSCCount" type="number" min="1" value="${sp.count}"></label><label><input type="checkbox" id="deSCFlexible"${sp.flexibleCount?" checked":""}> 0〜上限まで任意数を選べる</label><label class="field">1件あたり／固定の不特定軽減<input id="deSCReduce" type="number" min="0" value="${sp.genericReduction}"></label><label class="field">ライフ支払い<input id="deSCLife" type="number" min="0" value="${sp.lifePayment}"></label><label class="field">追加コスト<input id="deSCExtra" value="${esc(sp.extraCost)}" placeholder="例: 1R"></label><label class="field">代替マナコスト<input id="deSCAltMana" value="${esc(sp.alternativeManaCost)}" placeholder="例: 3U / 0"></label><label class="field">代替コスト表示<input id="deSCAlt" value="${esc(sp.alternativeCost)}" placeholder="例: 青いカード1枚を追放"></label><label class="field">候補タイプ（|区切り）<input id="deSCTypes" value="${esc(sp.candidateTypes.join("|"))}" placeholder="例: Creature|Artifact"></label><label class="field">必要パワー（犠牲など）<input id="deSCPower" type="number" min="0" value="${sp.powerThreshold}"></label><label><input type="checkbox" id="deSCMvX"${sp.useManaValueAsX?" checked":""}> 選択カードのMVをXにする</label></div><div class="note" style="font-size:10px">召集・探査・即席は必要な範囲で任意数を選択できます。現出・献身・親和・協約・犠牲・共謀・カスタム代替コストも登録できます。複数の代替コストを同時には使えません。</div><label class="field">特殊コストメモ<input id="deSCNote" value="${esc(sp.note)}"></label></div>`;}
 function _ruleEl(id){return document.getElementById(id);}
 function dictRuleProfileRead(){const ck=id=>!!(_ruleEl(id)&&_ruleEl(id).checked),v=id=>(_ruleEl(id)?_ruleEl(id).value:"");return normalizeRuleProfile({keywords:{hexproof:ck("deRuleHex"),shroud:ck("deRuleShroud"),indestructible:ck("deRuleInd"),cantSacrifice:ck("deRuleCantSac"),wardCost:v("deRuleWard"),protectionColors:[...document.querySelectorAll(".deRuleProt:checked")].map(x=>x.value)},replacements:{graveToExile:{enabled:ck("deRuleG2E"),scope:v("deRuleG2EScope")},cantGainLife:{enabled:ck("deRuleNoGain"),scope:v("deRuleNoGainScope")},preventDamage:{enabled:ck("deRulePrevent"),scope:v("deRulePreventScope"),amount:v("deRulePreventN"),all:ck("deRulePreventAll")},enterTapped:{enabled:ck("deRuleETap"),scope:v("deRuleETapScope")},enterCounters:{enabled:ck("deRuleECounter"),scope:v("deRuleECounterScope"),name:v("deRuleECounterName"),amount:v("deRuleECounterN")}},staticRules:{spellTax:v("deRuleTax"),spellReduction:v("deRuleReduce"),handLimit:v("deRuleHandLimit"),castRestrictionNote:v("deRuleCastNote")},note:v("deRuleNote")});}
 function dictSpellCostRead(){const ck=id=>!!(_ruleEl(id)&&_ruleEl(id).checked),v=id=>(_ruleEl(id)?_ruleEl(id).value:"");return normalizeSpellCostProfile({enabled:ck("deSCEnabled"),kind:v("deSCKind"),color:v("deSCColor"),count:v("deSCCount"),flexibleCount:ck("deSCFlexible"),genericReduction:v("deSCReduce"),lifePayment:v("deSCLife"),extraCost:v("deSCExtra"),alternativeManaCost:v("deSCAltMana"),alternativeCost:v("deSCAlt"),candidateTypes:v("deSCTypes"),powerThreshold:v("deSCPower"),useManaValueAsX:ck("deSCMvX"),note:v("deSCNote")});}
@@ -16116,6 +16127,47 @@ function v24SpecialChoice(card,owner,sp,done){sp=normalizeSpellCostProfile(sp);i
   openModal(`特殊コスト — ${esc(card.name)}`,`<div class="note">${esc(label)}: ${esc(sp.alternativeCost||sp.note||"手動で確認してください")}</div>`,`<button class="btn" data-rs="normal">通常コスト</button><button class="btn primary" data-rs="manual">手動支払い済み</button>`);setModalHandler(function(e){const b=e.target.closest("[data-rs]");if(!b)return;closeModal();done(b.getAttribute("data-rs")==="manual"?{kind:sp.kind,ids:[],manual:true,label}:{});});
 }
 ruleSpecialCostPrompt=v24SpecialChoice;
+
+/* v2.5.2: ピッチコスト専用のコンパクト唱え方パネル */
+const _v252SpecialChoiceBase=v24SpecialChoice;
+function v252PitchChoice(card,owner,sp,done){
+  sp=normalizeSpellCostProfile(sp);
+  const cand=v24CostCandidates(card,owner,sp),label=RULE_SPECIAL_KIND_JP[sp.kind]||"ピッチコスト";
+  const colorName=MC_COLJP[sp.color]||sp.color,life=Math.max(0,Number(sp.lifePayment||0));
+  const normalCost=manaCostToText(getCardManaCost(card))||"通常コスト";
+  const xMode=sp.useManaValueAsX===true;
+  const altText=sp.alternativeCost||`${colorName}いカード1枚を追放${life?`＋ライフ${life}点`:""}`;
+  const lifeOk=Number((state.players[owner]||{}).life||0)>=life;
+  const cards=cand.map(c=>{const mv=_cardRegManaValue(c),nm=getCardDisplayInfo(c).name,result=xMode?`MV ${mv==null?"?":mv} → X=${mv==null?"?":mv}`:`追放${life?`＋${life}点`:""}`;return `<button type="button" class="btn cast-mini-card" data-v252-pitch="${c.id}"${(!lifeOk||(mv==null&&xMode))?" disabled":""}><span class="name">${esc(nm)}</span><span class="result">${esc(result)}</span></button>`;}).join("");
+  const warning=!lifeOk?`ライフが${life}点未満なのでピッチコストを支払えません。`:(!cand.length?`条件を満たす${colorName}いカードが手札にありません。`:"");
+  openModal(`唱え方 — ${esc(card.name)}`,`<div class="cast-mini"><button type="button" class="btn cast-mini-normal" data-v252-normal="1"><span><b>通常コストで唱える</b></span><span class="cast-mini-cost">${esc(normalCost)}</span></button><div class="cast-mini-summary"><div><b>ピッチコスト</b><div class="note">${esc(altText)}</div></div><span class="badge autox">${xMode?"X自動":"代替"}</span></div>${warning?`<div class="cast-mini-warn">${esc(warning)}</div>`:""}<div class="cast-mini-pitch-head"><span>追放するカードを選択</span><span class="note">${cand.length}枚</span></div><div class="cast-mini-list">${cards||'<div class="note">候補なし</div>'}</div>${sp.note?`<div class="note">${esc(sp.note)}</div>`:""}</div>`,`<button type="button" class="btn" data-app="closem">キャンセル</button>`,`sm`);
+  setModalHandler(function(e){
+    if(e.target.closest("[data-v252-normal]")){closeModal();done({});return;}
+    const b=e.target.closest("[data-v252-pitch]");if(!b)return;
+    const id=b.getAttribute("data-v252-pitch"),f=findCard(id);if(!f||f.zone!=="hand"||f.player!==owner){toast("追放するカードが手札に見つかりません");return;}
+    const mv=_cardRegManaValue(f.card);if(xMode&&mv==null){toast("選択カードのマナ総量が未登録です");return;}
+    if(Number(state.players[owner].life||0)<life){toast("ライフが足りません");return;}
+    const special={kind:"pitchExile",ids:[id],reduction:0,reduceMana:v24EmptyManaVector(),life,usedAlternative:true,alternativeManaCost:sp.alternativeManaCost||"0",label:sp.alternativeCost||label};
+    if(xMode)special.xValue=mv;
+    closeModal();done(special);
+  });
+}
+v24SpecialChoice=function(card,owner,sp,done){sp=normalizeSpellCostProfile(sp);if(sp.enabled&&sp.kind==="pitchExile")return v252PitchChoice(card,owner,sp,done);return _v252SpecialChoiceBase(card,owner,sp,done);};
+ruleSpecialCostPrompt=v24SpecialChoice;
+
+/* 辞書: よく使うピッチコストの入力プリセット */
+function v252ApplyPitchPreset(kind){
+  const set=(id,v,check)=>{const el=document.getElementById(id);if(!el)return;if(check)el.checked=!!v;else el.value=v;};
+  set("deSCEnabled",true,true);set("deSCKind","pitchExile");set("deSCCount","1");set("deSCFlexible",false,true);set("deSCReduce","0");set("deSCExtra","");set("deSCAltMana","0");set("deSCTypes","");set("deSCPower","0");
+  if(kind==="force"){
+    set("deSCColor","U");set("deSCLife","1");set("deSCAlt","青いカード1枚を追放し、1点のライフを支払う");set("deSCMvX",false,true);set("deSCNote","通常のマナコストか、青いカード追放＋1点ライフを選択");
+  }else{
+    set("deSCColor","R");set("deSCLife","0");set("deSCAlt","赤いカード1枚を追放し、そのマナ総量をXにする");set("deSCMvX",true,true);set("deSCNote","追放したカードのマナ総量からXを自動決定");
+  }
+  toast(kind==="force"?"意志の力型ピッチを入力しました":"猛火の群れ型ピッチを入力しました");
+}
+const _v252DictEditorUiBind=dictEditorUiBind;
+dictEditorUiBind=function(e){_v252DictEditorUiBind(e);document.querySelectorAll("[data-scpreset]").forEach(b=>b.onclick=ev=>{ev.preventDefault();v252ApplyPitchPreset(b.getAttribute("data-scpreset"));});};
 
 /* 唱える時点の対象選択 */
 let _v24CastFlow=null,_v24CastCancelling=false;
