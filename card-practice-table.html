@@ -207,13 +207,15 @@
   .card .ct .tmini.fx{border-color:#f0b85a;color:#ffe0a0}.card .ct .tmini.eot{border-color:#8fb8ff;color:#cfe2ff}
   .type-grid{display:flex;flex-wrap:wrap;gap:5px;margin-top:4px}.type-grid label{display:inline-flex;align-items:center;gap:4px;padding:4px 7px;border:1px solid var(--line);border-radius:7px;background:var(--bg2);font-size:11px;cursor:pointer}.type-grid label:has(input:checked){border-color:var(--accent);background:rgba(224,168,60,.14)}
   .type-summary{display:flex;flex-wrap:wrap;gap:4px;align-items:center}.type-pill{display:inline-flex;align-items:center;padding:1px 6px;border-radius:10px;border:1px solid var(--line2);font-size:10px;background:var(--bg2)}.type-pill.fx{border-color:#d09b43;color:#ffe0a0}.type-pill.eot{border-color:#6e9fe0;color:#cfe2ff}
-  .card .pt{position:absolute;bottom:2px;right:4px;font-weight:800;font-size:13px;
-    background:rgba(0,0,0,.45);border-radius:5px;padding:0 4px}
-  .card .badges{position:absolute;bottom:2px;left:3px;display:flex;gap:2px}
-  .card .badge{font-size:9px;font-weight:700;padding:0 3px;border-radius:4px}
+  .card .pt{position:absolute;bottom:3px;right:3px;z-index:5;font-weight:800;font-size:13px;
+    background:rgba(8,10,18,.82);border:1px solid rgba(255,255,255,.2);border-radius:6px;padding:1px 5px;line-height:1.15;
+    box-shadow:0 1px 2px rgba(0,0,0,.35)}
+  .card .badges{position:absolute;top:3px;left:3px;right:22px;z-index:4;display:flex;flex-wrap:wrap;align-items:flex-start;gap:2px;pointer-events:none}
+  .card .badge{font-size:9px;font-weight:700;padding:0 3px;border-radius:4px;max-width:100%;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   .badge.plus{background:#2f5a36;color:#bfe9c8}
   .badge.dmg{background:#5a2f2f;color:#f0c0c0}
   .badge.ctr{background:#3a3f5a;color:#cfd6f0}
+  .badge.more{background:rgba(0,0,0,.55);color:#e8e8e8}
   .card .img{display:block;width:100%;height:var(--cimg);object-fit:contain;object-position:center;border-radius:5px;margin-bottom:3px;background:#000}
   .field.ohand .fieldcards{display:flex;flex-wrap:nowrap;gap:8px;overflow-x:auto;overflow-y:hidden;align-items:flex-start;padding:2px 1px 4px;min-height:calc(var(--opponent-hand-hch, calc(var(--cw) * 88 / 63)) + 2px)}
   .field.ohand .fieldcards .card{width:var(--opponent-hand-hcw,var(--cw));height:var(--opponent-hand-hch,auto);min-height:0;display:flex;flex-direction:column}
