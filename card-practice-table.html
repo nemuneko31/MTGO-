@@ -2117,7 +2117,7 @@ function newPlayer(){
 function defaultState(){
   return {
     version:1,
-    appVersion:"4.0.3",
+    appVersion:"4.0.5",
     dataVersion:9,
     meta:{ lastSaved:null, lastBackup:null, lastDiag:null },
     integrityLog:[],
@@ -11728,7 +11728,7 @@ function _libSearchBind(){
 /* ============================================================
    総合安定化: 自己診断 / バックアップ / プレイテスト / ヘルプ / バージョン
    ============================================================ */
-const APP_VERSION="4.0.4";
+const APP_VERSION="4.0.5";
 const DATA_VERSION=9;
 const LS_BACKUP_KEY="cpt_backups_v1";
 let _cptMigrationNote="";
@@ -18011,6 +18011,94 @@ function v404Diagnose(){
   const e=normalizeAutoEffect({kind:"pt",targetMode:"targetCards",ptValueSource:"targetPower",pX:1,tX:0,duration:"eot"});
   return{version:APP_VERSION,source:e.ptValueSource,needsX:autoEffectsNeedX([e]),line:autoEffectLine(e,0),targetPower:v404PtEffectValue(e,target,0)};
 }
+
+/* ============================================================
+   v4.0.5 Easy Effect Checklist Sync Fix
+   - かんたん効果から削除・変更した項目に対応する ees:* チェックだけを除去
+   - 手動登録のチェック項目は保持
+   - 「自動化へ反映」がOFFでも、削除済みの生成チェックは残さない
+   ============================================================ */
+const _v405EesCompileBase=eesCompile;
+function v405ExpectedChecklistMap(studio){
+  const s=eesNormalizeStudio(clone(studio||{}));
+  s.applyToAutomation=true;
+  s.replaceExisting=true;
+  const shadow=_v405EesCompileBase({name:"__v405_checklist_shadow__"},{},s);
+  const root=new Set(normalizeChecklist(shadow.resolveChecklist||[]).map(x=>String(x.id||"")));
+  const abilities=new Map();
+  for(const a of normalizeAbilities(shadow.abilities||[])){
+    abilities.set(String(a.id||""),new Set(normalizeChecklist(a.resolveChecklist||[]).map(x=>String(x.id||""))));
+  }
+  return{root,abilities};
+}
+function v405PruneGeneratedChecklist(entry,studio){
+  entry=entry||{};
+  const expected=v405ExpectedChecklistMap(studio);
+  let removed=0;
+  const prune=(arr,allow)=>{
+    const seen=new Set();
+    return normalizeChecklist(arr||[]).filter(it=>{
+      const id=String(it.id||"");
+      if(id.startsWith("ees:")&&!allow.has(id)){removed++;return false;}
+      const key=id||`${it.label}|${it.category}|${it.actionHint}`;
+      if(seen.has(key)){removed++;return false;}
+      seen.add(key);
+      return true;
+    });
+  };
+  entry.resolveChecklist=prune(entry.resolveChecklist,expected.root);
+  entry.abilities=normalizeAbilities(entry.abilities||[]).map(a=>{
+    const allow=expected.abilities.get(String(a.id||""))||new Set();
+    a.resolveChecklist=prune(a.resolveChecklist,allow);
+    return a;
+  });
+  return{entry,removed};
+}
+eesCompile=function(entry,existing,studio){
+  const out=_v405EesCompileBase(entry,existing,studio);
+  const r=v405PruneGeneratedChecklist(out,studio);
+  const st=eesNormalizeStudio(r.entry.effectStudio||studio||{});
+  if(r.removed){
+    const report=Array.isArray(st.lastReport)?st.lastReport.slice():[];
+    report.push({level:"ok",text:`削除・変更済みのかんたん効果由来チェック ${r.removed}件を同期削除`});
+    st.lastReport=report.slice(-40);
+    st.updatedAt=nowISO();
+    r.entry.effectStudio=st;
+  }
+  return r.entry;
+};
+function v405Diagnose(){
+  const live=eesNormalizeStudio({applyToAutomation:false,abilities:[{id:"ab-live",kind:"spell",effects:[{id:"ef-live",effectId:"customManual",note:"残す"}]}]});
+  const entry={resolveChecklist:[
+    normalizeChecklistItem({id:"ees:ef-live",label:"残す生成チェック",required:true}),
+    normalizeChecklistItem({id:"ees:ef-deleted",label:"削除済み生成チェック",required:true}),
+    normalizeChecklistItem({id:"manual-1",label:"手動チェック",required:true})
+  ]};
+  const r=v405PruneGeneratedChecklist(entry,live);
+  return{version:APP_VERSION,removed:r.removed,ids:r.entry.resolveChecklist.map(x=>x.id),manualKept:r.entry.resolveChecklist.some(x=>x.id==="manual-1"),deletedGone:!r.entry.resolveChecklist.some(x=>x.id==="ees:ef-deleted")};
+}
+function v405SyncAllDictionaryChecklists(){
+  let removed=0,cards=0;
+  for(const e of Object.values(state.cardDictionary||{})){
+    if(!e||!e.effectStudio)continue;
+    const before=JSON.stringify([e.resolveChecklist||[],(e.abilities||[]).map(a=>a&&a.resolveChecklist||[])]);
+    const r=v405PruneGeneratedChecklist(e,e.effectStudio);
+    const after=JSON.stringify([r.entry.resolveChecklist||[],(r.entry.abilities||[]).map(a=>a&&a.resolveChecklist||[])]);
+    if(before!==after){removed+=r.removed;cards++;}
+  }
+  return{removed,cards};
+}
+const _v405InitBase=init;
+init=function(){
+  const r=_v405InitBase();
+  const synced=v405SyncAllDictionaryChecklists();
+  if(synced.removed){
+    try{cptLog("migration","ok",`削除済みのかんたん効果チェック ${synced.removed}件を${synced.cards}カードから同期削除`);}catch(_){}
+    try{saveState(true);}catch(_){}
+    try{render();}catch(_){}
+  }
+  return r;
+};
 
 window.addEventListener("error",function(ev){ showErr(ev.message||"不明なエラー"); });
 window.addEventListener("DOMContentLoaded",init);
