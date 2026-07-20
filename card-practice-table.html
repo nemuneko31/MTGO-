@@ -11728,7 +11728,7 @@ function _libSearchBind(){
 /* ============================================================
    総合安定化: 自己診断 / バックアップ / プレイテスト / ヘルプ / バージョン
    ============================================================ */
-const APP_VERSION="4.0.3";
+const APP_VERSION="4.0.4";
 const DATA_VERSION=9;
 const LS_BACKUP_KEY="cpt_backups_v1";
 let _cptMigrationNote="";
@@ -17849,6 +17849,168 @@ try{if(Array.isArray(HELP_SECTIONS))HELP_SECTIONS.unshift(["v4.0 完成版監査
 (function(){const st=document.createElement("style");st.id="v40ReleaseAuditStyle";st.textContent=`
 .v40-tabs{display:flex;gap:5px;flex-wrap:wrap;margin-bottom:9px;position:sticky;top:0;background:var(--panel);z-index:2;padding:4px 0}.v40-hero{display:flex;justify-content:space-between;align-items:center;padding:14px;border:1px solid var(--line);border-radius:12px}.v40-hero span{font-size:11px;opacity:.75}.v40-hero b{display:block;font-size:18px}.v40-hero.ready{border-color:#4fa66a;background:rgba(65,150,85,.12)}.v40-hero.caution{border-color:#bf9b3f;background:rgba(180,135,35,.12)}.v40-hero.blocked{border-color:#bd5151;background:rgba(180,55,55,.13)}.v40-big{font-size:34px;font-weight:900}.v40-cards,.v40-levels{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:7px;margin:9px 0}.v40-cards{grid-template-columns:repeat(4,minmax(0,1fr))}.v40-cards>div,.v40-level{display:grid;text-align:center;padding:9px;border:1px solid var(--line);border-radius:9px;background:var(--panel2)}.v40-cards b,.v40-level b{font-size:20px}.v40-cards span,.v40-level span{font-size:10px;opacity:.75}.v40-section{padding:9px;border:1px solid var(--line);border-radius:9px;margin:8px 0}.v40-section h3{margin:0 0 6px}.v40-section.ok{border-color:#4b9160}.v40-section.warn{border-color:#a77b31}.v40-actions,.v40-filter{display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin:8px 0}.v40-filter input{flex:1;min-width:160px}.v40-dict-list,.v40-data-list,.v40-check-list,.v40-unsupported{display:grid;gap:5px;max-height:58vh;overflow:auto}.v40-dict-row{display:grid;grid-template-columns:85px 1fr auto;gap:8px;align-items:center;padding:7px;border:1px solid var(--line);border-radius:8px}.v40-dict-row small{display:grid;opacity:.75}.v40-dict-row em{font-style:normal;color:#ff9a8f}.v40-badge{padding:4px 6px;border-radius:999px;text-align:center;font-size:10px}.v40-badge.auto,.v40-level.auto{background:rgba(55,150,85,.20)}.v40-badge.choice,.v40-level.choice{background:rgba(55,115,175,.20)}.v40-badge.manual,.v40-level.manual{background:rgba(180,135,40,.20)}.v40-badge.incomplete,.v40-level.incomplete{background:rgba(180,55,55,.22)}.v40-badge.basic,.v40-level.basic{background:rgba(120,120,130,.16)}.v40-data-row{display:grid;grid-template-columns:100px 1fr 150px;gap:7px;padding:7px;border-bottom:1px solid var(--line)}.v40-data-row.danger{border-left:3px solid #d85e5e}.v40-data-row.warn{border-left:3px solid #c49a42}.v40-check{border:1px solid var(--line);border-radius:8px;padding:6px}.v40-check summary{display:flex;gap:8px;align-items:center}.v40-check.ok summary span{color:#67c57c}.v40-check.fail summary span{color:#ef7070}.v40-check pre{white-space:pre-wrap;font-size:10px;max-height:240px;overflow:auto}.v40-unsupported>div{display:grid;grid-template-columns:minmax(150px,.7fr) 1.3fr;gap:8px;padding:8px;border:1px solid var(--line);border-radius:8px}.v40-settings{display:grid;gap:7px;margin-top:8px}.v40-settings label{display:flex;gap:7px;align-items:center}.v40-settings input[type=number]{width:64px}@media(max-width:720px){.v40-cards{grid-template-columns:repeat(2,1fr)}.v40-levels{grid-template-columns:repeat(2,1fr)}.v40-dict-row{grid-template-columns:75px 1fr}.v40-dict-row button{grid-column:2}.v40-data-row,.v40-unsupported>div{grid-template-columns:1fr}}
 `;document.head.appendChild(st);})();
+
+
+/* ============================================================
+   v4.0.4 Target P/T Reference Modifier
+   - 解決時に対象の現在P/Tを一度だけ参照するP/T修整
+   - 狂暴化型: 対象の現在パワー ×1 を +P、Tは×0、ターン終了時まで
+   ============================================================ */
+const V404_PT_VALUE_SOURCES=["fixed","castX","targetPower","targetToughness"];
+const V404_PT_VALUE_SOURCE_JP={fixed:"固定値",castX:"唱える時に決めたX",targetPower:"対象の現在のパワー（解決時に1回）",targetToughness:"対象の現在のタフネス（解決時に1回）"};
+
+/* 自動効果データへ参照元を追加。既存のP×X/T×Xは従来どおりcastXへ移行 */
+const _v404NormalizeAutoEffectBase=normalizeAutoEffect;
+normalizeAutoEffect=function(e){
+  e=e||{};
+  const r=_v404NormalizeAutoEffectBase(e);
+  const inferred=(r.kind==="pt"&&(r.pX||r.tX))?"castX":"fixed";
+  r.ptValueSource=V404_PT_VALUE_SOURCES.includes(e.ptValueSource)?e.ptValueSource:inferred;
+  return r;
+};
+normalizeAutoEffects=function(arr){return Array.isArray(arr)?arr.map(normalizeAutoEffect):[];};
+autoEffectsNeedX=function(effects){return normalizeAutoEffects(effects).some(e=>e.enabled&&((e.kind==="pt"&&e.ptValueSource==="castX"&&(e.pX||e.tX))||e.amountX));};
+function v404PtEffectValue(e,c,castX){
+  if(e.ptValueSource==="targetPower"||e.ptValueSource==="targetToughness"){
+    const q=_ptInfo(c),power=e.ptValueSource==="targetPower";
+    const numeric=power?q.pNum:q.tNum;
+    const value=power?q.ep:q.et;
+    if(!numeric||!Number.isFinite(Number(value)))return null;
+    return Number(value);
+  }
+  if(e.ptValueSource==="castX")return Math.max(0,_aeNum(castX));
+  return 0;
+}
+const _v404AutoEffectLineBase=autoEffectLine;
+autoEffectLine=function(e,x){
+  e=normalizeAutoEffect(e);
+  if(e.kind!=="pt"||!["targetPower","targetToughness"].includes(e.ptValueSource))return _v404AutoEffectLineBase(e,x);
+  const src=e.ptValueSource==="targetPower"?"対象の現在のパワー":"対象の現在のタフネス";
+  const pMul=_signed(e.pX),tMul=_signed(e.tX),fixed=(e.pFixed||e.tFixed)?`＋固定${_signed(e.pFixed)}/${_signed(e.tFixed)}`:"";
+  return `${e.label||"P/T修整"}: ${src}を解決時に1回参照し、Pへ${pMul}倍 / Tへ${tMul}倍${fixed}（${AUTO_EFFECT_DURATION_JP[e.duration]} / ${AUTO_EFFECT_TARGET_JP[e.targetMode]||e.targetMode}）`;
+};
+
+/* 参照型P/T効果だけ対象ごとに解決時スナップショットし、既存の安全な効果処理へ渡す */
+const _v404ApplySourceAutoEffectsBase=_applySourceAutoEffects;
+_applySourceAutoEffects=function(src,x,choice){
+  const effects=_sourceAutoEffects(src), selected=new Set((choice&&choice.stepIds)||effects.map(e=>e.id));
+  const hasRef=effects.some(e=>selected.has(e.id)&&e.kind==="pt"&&["targetPower","targetToughness"].includes(e.ptValueSource));
+  if(!hasRef)return _v404ApplySourceAutoEffectsBase(src,x,choice);
+  const logs=[];
+  for(const raw of effects){
+    const e=normalizeAutoEffect(raw);
+    if(!selected.has(e.id))continue;
+    if(e.kind==="pt"&&["targetPower","targetToughness"].includes(e.ptValueSource)){
+      const cards=_aeCardTargets(src,e);
+      for(const c of cards){
+        if(!_aeCardValidFor(e,c))continue;
+        const ref=v404PtEffectValue(e,c,x);
+        if(ref===null){
+          const msg=`[${c.name}] の現在${e.ptValueSource==="targetPower"?"パワー":"タフネス"}を数値化できないため、P/T修整を手動確認してください`;
+          addLog(`自動効果: ${msg}`);logs.push(msg);continue;
+        }
+        const fixed=normalizeAutoEffect({...e,ptValueSource:"fixed",pFixed:e.pFixed+e.pX*ref,tFixed:e.tFixed+e.tX*ref,pX:0,tX:0});
+        const tmp={...src,targetIds:[c.id],targetPlayerIds:[],autoEffects:[fixed],castAutoEffects:[fixed]};
+        const part=_v404ApplySourceAutoEffectsBase(tmp,ref,{apply:true,xValue:ref,stepIds:[fixed.id],discard:(choice&&choice.discard)||{}})||[];
+        logs.push(...part);
+        addLog(`参照値確定: [${c.name}] ${e.ptValueSource==="targetPower"?"パワー":"タフネス"}=${ref}（解決時に1回）`);
+      }
+    }else{
+      const tmp={...src,autoEffects:[e],castAutoEffects:[e]};
+      const part=_v404ApplySourceAutoEffectsBase(tmp,x,{...(choice||{}),apply:true,stepIds:[e.id]})||[];
+      logs.push(...part);
+    }
+  }
+  src.targetStatus="resolved";
+  return logs;
+};
+
+/* かんたん効果スタジオの保存項目 */
+const _v404EesNormalizeEffectBase=eesNormalizeEffect;
+eesNormalizeEffect=function(e){
+  e=e||{};
+  const r=_v404EesNormalizeEffectBase(e);
+  r.ptValueSource=V404_PT_VALUE_SOURCES.includes(e.ptValueSource)?e.ptValueSource:"fixed";
+  return r;
+};
+const _v404EesEffectFieldsHTMLBase=eesEffectFieldsHTML;
+eesEffectFieldsHTML=function(e){
+  e=eesNormalizeEffect(e);
+  if(e.effectId!=="ptModify")return _v404EesEffectFieldsHTMLBase(e);
+  const ref=e.ptValueSource!=="fixed", pLabel=ref?"パワーへの倍率":"パワー修整",tLabel=ref?"タフネスへの倍率":"タフネス修整";
+  const formula=e.ptValueSource==="targetPower"?`解決時の対象パワー × ${e.amount} をPへ、× ${e.amount2} をTへ加えます。値は一度だけ固定されます。`:e.ptValueSource==="targetToughness"?`解決時の対象タフネス × ${e.amount} をPへ、× ${e.amount2} をTへ加えます。値は一度だけ固定されます。`:e.ptValueSource==="castX"?`唱える時に決めたX × 倍率を修整値にします。`:`入力した固定値をそのまま修整します。`;
+  return `<div class="grid2"><label class="field" style="grid-column:1/-1">参照する値<select data-eesef="ptValueSource">${V404_PT_VALUE_SOURCES.map(v=>`<option value="${v}"${e.ptValueSource===v?" selected":""}>${V404_PT_VALUE_SOURCE_JP[v]}</option>`).join("")}</select></label><label class="field">${pLabel}<input data-eesef="amount" type="number" value="${esc(e.amount)}"></label><label class="field">${tLabel}<input data-eesef="amount2" type="number" value="${esc(e.amount2)}"></label><label class="field">期限<select data-eesef="duration">${eesSelectOptions(EES_DURATIONS,e.duration)}</select></label><div class="field" style="grid-column:1/-1"><button type="button" class="btn sm" data-v404ptpreset="berserk">狂暴化型：現在のパワーを倍にする</button><div class="note">${esc(formula)}</div></div></div><label class="row-inline"><input type="checkbox" data-eesef-check="optional"${e.optional?" checked":""}> 任意の効果（してもよい）</label>`;
+};
+const _v404EesEffectTextBase=eesEffectText;
+eesEffectText=function(e){
+  e=eesNormalizeEffect(e);
+  if(e.effectId!=="ptModify"||e.ptValueSource==="fixed")return _v404EesEffectTextBase(e);
+  const ref=V404_PT_VALUE_SOURCE_JP[e.ptValueSource]||e.ptValueSource;
+  return `${ref} ×（P:${e.amount} / T:${e.amount2}）の修整（${EES_DURATION_JP[e.duration]||e.duration}）`;
+};
+const _v404EesAutoEffectBase=eesAutoEffect;
+eesAutoEffect=function(e,a){
+  e=eesNormalizeEffect(e);
+  const r=_v404EesAutoEffectBase(e,a);
+  if(!r||e.effectId!=="ptModify")return r;
+  if(e.ptValueSource==="fixed")return normalizeAutoEffect({...r,ptValueSource:"fixed"});
+  return normalizeAutoEffect({...r,ptValueSource:e.ptValueSource,pFixed:0,tFixed:0,pX:eesNum(e.amount,0),tX:eesNum(e.amount2,0)});
+};
+
+/* 狂暴化型ワンクリック設定 */
+const _v404EesBindPanelBase=eesBindPanel;
+eesBindPanel=function(e){
+  _v404EesBindPanelBase(e);
+  const root=document.querySelector('[data-depanel="easyEffects"]');
+  if(!root||root.dataset.v404PtBound)return;
+  root.dataset.v404PtBound="1";
+  root.addEventListener("click",ev=>{
+    const b=ev.target.closest('[data-v404ptpreset="berserk"]');
+    if(!b)return;
+    const ef=eesCurrentEffect();
+    if(!ef||ef.effectId!=="ptModify")return;
+    ef.ptValueSource="targetPower";ef.amount="1";ef.amount2="0";ef.duration="eot";
+    eesRenderAll();toast("狂暴化型を設定しました：解決時の対象パワーを1回参照し、同じ値だけ+P/+0します");
+  });
+};
+
+/* 常在型では対象の現在値参照を自動レイヤー化しない */
+const _v404V32GeneratedFromStudioBase=v32GeneratedFromStudio;
+v32GeneratedFromStudio=function(studio){
+  const s=eesNormalizeStudio(studio),r=_v404V32GeneratedFromStudioBase(s),blocked=new Set();
+  for(const a of s.abilities)if(v32IsStaticAbility(a))for(const e of a.effects)if(e.effectId==="ptModify"&&e.ptValueSource!=="fixed")blocked.add(e.id);
+  if(blocked.size){r.profiles=r.profiles.filter(p=>!blocked.has(String(p.sourceEffectId||"").replace(/^ees:/,""))&&!blocked.has(p.sourceEffectId));for(const a of s.abilities)for(const e of a.effects)if(blocked.has(e.id))r.manual.push(`${a.title}: 対象の現在P/T参照は解決時の一回限り効果専用です。常在型では手動確認になります`);}
+  return r;
+};
+
+/* 詳細自動化タブにも参照元を表示し、開いて保存しても情報を失わない */
+const _v404AutoEffectBlockHTMLBase=_autoEffectBlockHTML;
+_autoEffectBlockHTML=function(a,i){
+  a=normalizeAutoEffect(a);
+  let h=_v404AutoEffectBlockHTMLBase(a,i);
+  const field=`<label class="field">P/T参照元<select class="aePtSource-${i}">${V404_PT_VALUE_SOURCES.map(v=>`<option value="${v}"${a.ptValueSource===v?" selected":""}>${V404_PT_VALUE_SOURCE_JP[v]}</option>`).join("")}</select></label>`;
+  return h.replace('<label class="field">P固定',field+'<label class="field">P固定');
+};
+const _v404DictSyncAutoEffectsBase=_dictSyncAutoEffects;
+_dictSyncAutoEffects=function(){
+  _v404DictSyncAutoEffectsBase();
+  const h=document.getElementById("deAutoEffectList");
+  if(!h)return;
+  _deAutoEffects=_deAutoEffects.map((a,i)=>normalizeAutoEffect({...a,ptValueSource:(h.querySelector(`.aePtSource-${i}`)||{}).value||a.ptValueSource||"fixed"}));
+};
+
+/* 質問ウィザードにも同じ参照元を保存 */
+const _v404V28BuildWizardAbilityBase=v28BuildWizardAbility;
+v28BuildWizardAbility=function(w){const a=_v404V28BuildWizardAbilityBase(w);if(a.effects&&a.effects[0]&&a.effects[0].effectId==="ptModify")a.effects[0].ptValueSource=V404_PT_VALUE_SOURCES.includes(w&&w.ptValueSource)?w.ptValueSource:"fixed";return eesNormalizeAbility(a);};
+const _v404V28WizardFieldsHTMLBase=v28WizardFieldsHTML;
+v28WizardFieldsHTML=function(w){let h=_v404V28WizardFieldsHTMLBase(w);if(w&&w.effectId==="ptModify")h=`<label class="field">参照する値<select data-v28wiz="ptValueSource">${V404_PT_VALUE_SOURCES.map(v=>`<option value="${v}"${(w.ptValueSource||"fixed")===v?" selected":""}>${V404_PT_VALUE_SOURCE_JP[v]}</option>`).join("")}</select></label>`+h;return h;};
+
+Object.assign(EES_CATALOG_MAP.ptModify,{desc:"固定値、唱える時のX、または解決時の対象の現在P/Tを一度だけ参照して修整"});
+function v404Diagnose(){
+  const target={id:"v404-target",name:"診断対象",owner:"A",controller:"A",zone:"creatures",type:"Creature",types:["Creature"],power:"3",toughness:"3",counters:{},ptModifiers:[]};
+  const e=normalizeAutoEffect({kind:"pt",targetMode:"targetCards",ptValueSource:"targetPower",pX:1,tX:0,duration:"eot"});
+  return{version:APP_VERSION,source:e.ptValueSource,needsX:autoEffectsNeedX([e]),line:autoEffectLine(e,0),targetPower:v404PtEffectValue(e,target,0)};
+}
 
 window.addEventListener("error",function(ev){ showErr(ev.message||"不明なエラー"); });
 window.addEventListener("DOMContentLoaded",init);
