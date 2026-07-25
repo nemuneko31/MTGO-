@@ -11728,7 +11728,7 @@ function _libSearchBind(){
 /* ============================================================
    総合安定化: 自己診断 / バックアップ / プレイテスト / ヘルプ / バージョン
    ============================================================ */
-const APP_VERSION="4.0.5";
+const APP_VERSION="4.2.0";
 const DATA_VERSION=9;
 const LS_BACKUP_KEY="cpt_backups_v1";
 let _cptMigrationNote="";
@@ -18099,6 +18099,448 @@ init=function(){
   }
   return r;
 };
+
+
+
+/* ============================================================
+   v4.1.0 Combat Declaration & Damage Sequence Suite
+   攻撃宣言・ブロック宣言・先制/通常ダメージを一続きに安全補助
+   ============================================================ */
+const V41_VERSION="4.1.0";
+const V41_DEFAULT_SETTINGS={
+  combatDeclarationSuiteEnabled:true,
+  combatAutoOpenAttackDeclaration:true,
+  combatAutoOpenBlockDeclaration:true,
+  combatAutoOpenDamageSequence:true,
+  combatAutoTapAttackers:true,
+  combatAutoAssignDamage:true,
+  combatAutoMoveLethal:true,
+  combatAdvancedKeywordRules:true
+};
+function v41Settings(){
+  state.settings=state.settings||{};
+  for(const [k,v] of Object.entries(V41_DEFAULT_SETTINGS))if(state.settings[k]===undefined)state.settings[k]=v;
+  return state.settings;
+}
+function v41Enabled(k){const x=v41Settings();return x.combatDeclarationSuiteEnabled!==false&&(k?x[k]!==false:true);}
+function v41Turn(){
+  state.turn=state.turn||{};
+  if(!state.turn.v41Combat||typeof state.turn.v41Combat!=="object")state.turn.v41Combat={stage:"idle",attackDeclared:false,blockDeclared:false,firstDone:false,normalDone:false};
+  return state.turn.v41Combat;
+}
+function v41ResetTurnCombat(){state.turn.v41Combat={stage:"idle",attackDeclared:false,blockDeclared:false,firstDone:false,normalDone:false};}
+
+/* 既存キーワード配列へ、安全に判定できる戦闘関連だけ追加 */
+[
+  ["indestructible","破壊不能","破壊不能"],["infect","感染","感染"],["wither","萎縮","萎縮"],
+  ["shadow","シャドー","影"],["horsemanship","馬術","馬術"],["fear","畏怖","畏怖"],
+  ["intimidate","威嚇","威嚇"],["skulk","潜伏","潜伏"]
+].forEach(([k,j,s])=>{if(!COMBAT_KEYWORDS.includes(k))COMBAT_KEYWORDS.push(k);COMBAT_KEYWORD_JP[k]=j;COMBAT_KEYWORD_SHORT[k]=s;});
+
+function v41BattlefieldCards(p){const out=[];for(const z of ["creatures","lands","others"])for(const c of(state.players[p][z]||[]))out.push(c);return out;}
+function v41Creatures(p){return v41BattlefieldCards(p).filter(c=>cardHasType(c,"Creature"));}
+function v41Other(p){return p==="A"?"B":"A";}
+function v41Colors(c){try{return normalizeColorArray((_ccColorsOf(c)||{}).cols||[]).filter(x=>x!=="C");}catch(_){return[];}}
+function v41IsArtifactCreature(c){return cardHasType(c,"Creature")&&cardHasType(c,"Artifact");}
+function v41ProtectionColors(c){try{return normalizeRuleProfile(ruleProfileOf(c)||{}).keywords.protectionColors||[];}catch(_){return[];}}
+function v41HasRule(c,k){try{return typeof v33HasCombatRule==="function"&&v33HasCombatRule(c,k);}catch(_){return false;}}
+function v41CanAttack(c){
+  let q=typeof saCanAttack==="function"?saCanAttack(c):{ok:true};
+  if(!q.ok)return q;
+  if(v41HasRule(c,"cantAttack"))return{ok:false,reason:"攻撃できない効果を受けています"};
+  return{ok:true,reason:""};
+}
+function v41CanBlock(b,a){
+  if(!b||!a)return{ok:false,reason:"カードが見つかりません"};
+  if(!cardHasType(b,"Creature"))return{ok:false,reason:"クリーチャーではありません"};
+  if(b.tapped)return{ok:false,reason:"タップ状態です"};
+  if(v41HasRule(b,"cantBlock"))return{ok:false,reason:"ブロックできない効果を受けています"};
+  if(typeof v33CanBlock==="function"){const q=v33CanBlock(b,a);if(!q.ok)return q;}
+  if(v41Enabled("combatAdvancedKeywordRules")){
+    if(hasCombatKeyword(a,"shadow")!==hasCombatKeyword(b,"shadow"))return{ok:false,reason:"シャドーの条件が合いません"};
+    if(hasCombatKeyword(a,"horsemanship")&&!hasCombatKeyword(b,"horsemanship"))return{ok:false,reason:"馬術をブロックできません"};
+    if(hasCombatKeyword(a,"fear")&&!v41IsArtifactCreature(b)&&!v41Colors(b).includes("B"))return{ok:false,reason:"畏怖をブロックできません"};
+    if(hasCombatKeyword(a,"intimidate")){
+      const same=v41Colors(a).some(x=>v41Colors(b).includes(x));
+      if(!v41IsArtifactCreature(b)&&!same)return{ok:false,reason:"威嚇をブロックできません"};
+    }
+    if(hasCombatKeyword(a,"skulk")&&effPow(b)>effPow(a))return{ok:false,reason:"潜伏のため、より大きいパワーではブロックできません"};
+    const prot=v41ProtectionColors(a),bc=v41Colors(b);
+    if(prot.some(x=>bc.includes(x)))return{ok:false,reason:`${prot.join("/")}からのプロテクション`};
+  }
+  return{ok:true,reason:""};
+}
+function v41MustAttack(c){return v41HasRule(c,"mustAttack");}
+function v41MustBlock(c){return v41HasRule(c,"mustBlock");}
+function v41Defenders(c){
+  try{return typeof v33DefenderCandidates==="function"?v33DefenderCandidates(c):[{id:`player:${v41Other(c.controller||c.owner)}`,name:pname(v41Other(c.controller||c.owner)),kind:"player"}];}
+  catch(_){const p=v41Other(c.controller||c.owner);return[{id:`player:${p}`,name:pname(p),kind:"player"}];}
+}
+function v41KeywordSummary(c){const ks=cardCombatKeywords(c);return ks.length?ks.map(k=>COMBAT_KEYWORD_JP[k]||k).join(" / "):"なし";}
+
+let _v41AutoOpenKey="";
+function v41PhaseAssist(){
+  if(!v41Enabled())return;
+  const key=`${state.turn.number}:${state.turn.phase}:${state.turn.active}`;
+  if(_v41AutoOpenKey===key)return;
+  const root=document.getElementById("modalRoot");if(root&&root.innerHTML.trim())return;
+  if(state.turn.phase===5&&v41Enabled("combatAutoOpenAttackDeclaration")){_v41AutoOpenKey=key;openV41AttackDeclaration();}
+  else if(state.turn.phase===6&&v41Enabled("combatAutoOpenBlockDeclaration")&&combatAttackers().length){_v41AutoOpenKey=key;openV41BlockDeclaration();}
+  else if(state.turn.phase===7&&v41Enabled("combatAutoOpenDamageSequence")&&combatAttackers().length){_v41AutoOpenKey=key;openV41DamageSequence();}
+}
+
+function openV41AttackDeclaration(){
+  if(!v41Enabled()){toast("戦闘宣言補助がOFFです");return;}
+  const p=state.turn.active,opp=v41Other(p),cards=v41Creatures(p);
+  const rows=cards.map(c=>{const q=v41CanAttack(c),defs=v41Defenders(c),cur=c.attackDefenderId||`player:${opp}`;return`<div class="v41-row${q.ok?"":" disabled"}">
+    <label class="v41-main"><input type="checkbox" data-v41atk="${esc(c.id)}"${c.attacking&&q.ok?" checked":""}${q.ok?"":" disabled"}><span><b>${esc(c.name)}</b><small>${effPow(c)}/${effTou(c)} ／ ${esc(v41KeywordSummary(c))}${v41MustAttack(c)?" ／ 攻撃要件":""}</small>${q.ok?"":`<em>${esc(q.reason)}</em>`}</span></label>
+    <label class="field">攻撃先<select data-v41def="${esc(c.id)}"${q.ok?"":" disabled"}>${defs.map(d=>`<option value="${esc(d.id)}"${d.id===cur?" selected":""}>${esc(d.name)}${d.kind==="player"?"":`（${d.kind==="battle"?"バトル":"PW"}）`}</option>`).join("")}</select></label>
+  </div>`;}).join("")||'<div class="note">攻撃候補のクリーチャーがいません。</div>';
+  openModal(`攻撃クリーチャー宣言 — ${esc(pname(p))}`,`<div class="note">攻撃するクリーチャーと攻撃先をまとめて選びます。確定時、警戒を持たない攻撃クリーチャーを自動タップします。</div><div class="v41-toolbar"><button class="btn sm" data-v41atkcmd="legal">攻撃可能を全選択</button><button class="btn sm" data-v41atkcmd="must">攻撃要件だけ選択</button><button class="btn sm warn" data-v41atkcmd="clear">全解除</button></div><div class="v41-list">${rows}</div><label class="row-inline"><input type="checkbox" id="v41AttackOverride"> 攻撃要件の警告を確認して無視する</label>`,`<button class="btn" data-app="closem">キャンセル</button><button class="btn primary" data-v41atkcmd="commit">攻撃宣言を確定</button><button class="btn primary" data-v41atkcmd="commitNext">確定してブロック指定へ</button>`,`lg`);
+  setModalHandler(function(e){const b=e.target.closest("[data-v41atkcmd]");if(!b)return;const a=b.dataset.v41atkcmd;
+    if(["legal","must","clear"].includes(a)){document.querySelectorAll("[data-v41atk]").forEach(x=>{const f=findCard(x.dataset.v41atk);x.checked=a==="legal"?!!(f&&v41CanAttack(f.card).ok):a==="must"?!!(f&&v41CanAttack(f.card).ok&&v41MustAttack(f.card)):false;});return;}
+    const selected=[...document.querySelectorAll("[data-v41atk]:checked")].map(x=>x.dataset.v41atk),sel=new Set(selected),missing=cards.filter(c=>v41MustAttack(c)&&v41CanAttack(c).ok&&!sel.has(c.id));
+    if(missing.length&&!document.getElementById("v41AttackOverride").checked){toast(`攻撃要件を満たしていません: ${missing.map(c=>c.name).join("、")}`);return;}
+    const defs={};for(const id of selected){const el=document.querySelector(`[data-v41def="${CSS.escape(id)}"]`);defs[id]=el?el.value:`player:${opp}`;}
+    act("攻撃クリーチャー宣言",()=>{
+      for(const c of cards){c.attacking=sel.has(c.id);c.blocking=false;c.blockingTargetId=null;c.blockingTargetIds=[];c.v41WasBlocked=false;c.v41BlockOrderConfirmed=false;if(c.attacking){c.attackDefenderId=defs[c.id]||`player:${opp}`;if(v41Enabled("combatAutoTapAttackers")&&!hasCombatKeyword(c,"vigilance"))c.tapped=true;}else c.attackDefenderId="";}
+      for(const c of v41Creatures(opp)){c.blocking=false;c.blockingTargetId=null;c.blockingTargetIds=[];}
+      state.turn.combatDamagePlan={};v41ResetTurnCombat();const rt=v41Turn();rt.stage="attackDeclared";rt.attackDeclared=true;
+      addLog(`${pname(p)} が攻撃クリーチャー${selected.length}体を宣言`);
+    });
+    closeModal();saveState(true);render();
+    for(const id of selected){const f=findCard(id);if(f&&typeof saEvent==="function"&&typeof saQueueTiming==="function"){const ev=saEvent("attack",f.card,{defenderId:defs[id]});saQueueTiming("attack",ev,f.card);}}
+    if(a==="commitNext"){setPhase(6);setTimeout(openV41BlockDeclaration,0);}
+  });
+}
+
+function openV41BlockDeclaration(){
+  if(!v41Enabled()){toast("戦闘宣言補助がOFFです");return;}
+  const atks=combatAttackers();if(!atks.length){toast("攻撃クリーチャーがいません");return;}
+  const p=v41Other(state.turn.active),blockers=v41Creatures(p);
+  const rows=blockers.map(b=>{const current=blockTargets(b)[0]||"",opts=atks.map(a=>{const q=v41CanBlock(b,a);return`<option value="${esc(a.id)}"${current===a.id?" selected":""}${q.ok?"":" disabled"}>${esc(a.name)} ${effPow(a)}/${effTou(a)}${q.ok?"":`（${esc(q.reason)}）`}</option>`;}).join("");const any=atks.some(a=>v41CanBlock(b,a).ok);return`<div class="v41-row${any?"":" disabled"}"><div class="v41-main"><span><b>${esc(b.name)}</b><small>${effPow(b)}/${effTou(b)} ／ ${esc(v41KeywordSummary(b))}${v41MustBlock(b)?" ／ ブロック要件":""}</small>${any?"":"<em>合法なブロック先がありません</em>"}</span></div><label class="field">ブロック先<select data-v41blk="${esc(b.id)}"${any?"":" disabled"}><option value="">ブロックしない</option>${opts}</select></label></div>`;}).join("")||'<div class="note">ブロッカー候補がいません。</div>';
+  openModal(`ブロック・クリーチャー宣言 — ${esc(pname(p))}`,`<div class="note">各ブロッカーのブロック先を選びます。1体の攻撃クリーチャーを複数体でブロックできます。1体で複数をブロックする特殊能力は従来の個別設定を使用してください。</div><div class="v41-list">${rows}</div><label class="row-inline"><input type="checkbox" id="v41BlockOverride"> 威迫・ブロック要件の警告を確認して無視する</label>`,`<button class="btn" data-app="closem">キャンセル</button><button class="btn primary" data-v41blkcmd="commit">ブロック宣言を確定</button><button class="btn primary" data-v41blkcmd="commitNext">確定してダメージへ</button>`,`lg`);
+  setModalHandler(function(e){const b=e.target.closest("[data-v41blkcmd]");if(!b)return;const mode=b.dataset.v41blkcmd,map={};document.querySelectorAll("[data-v41blk]").forEach(x=>map[x.dataset.v41blk]=x.value||"");const counts={};for(const aid of Object.values(map))if(aid)counts[aid]=(counts[aid]||0)+1;const warn=[];
+    for(const a of atks)if(hasCombatKeyword(a,"menace")&&counts[a.id]===1)warn.push(`[${a.name}] は威迫のため2体以上必要`);
+    for(const bl of blockers)if(v41MustBlock(bl)&&!map[bl.id]&&atks.some(a=>v41CanBlock(bl,a).ok))warn.push(`[${bl.name}] は可能ならブロックする要件あり`);
+    if(warn.length&&!document.getElementById("v41BlockOverride").checked){toast(warn[0]);return;}
+    const chosen=blockers.filter(x=>map[x.id]);
+    act("ブロック・クリーチャー宣言",()=>{
+      for(const bl of blockers)setBlockTargets(bl,map[bl.id]?[map[bl.id]]:[],true);
+      for(const a of atks){const ids=blockers.filter(x=>map[x.id]===a.id).map(x=>x.id);a.v41WasBlocked=ids.length>0;a.v41BlockOrderConfirmed=ids.length<=1;a.v33BlockOrder=ids.slice();}
+      state.turn.combatDamagePlan={};const rt=v41Turn();rt.stage="blockDeclared";rt.blockDeclared=true;rt.firstDone=false;rt.normalDone=false;addLog(`${pname(p)} がブロッカー${chosen.length}体を宣言`);
+    });
+    closeModal();saveState(true);render();for(const bl of chosen){if(typeof saEvent==="function"&&typeof saQueueTiming==="function"){const ev=saEvent("block",bl,{attackerId:map[bl.id]});saQueueTiming("block",ev,bl);}}
+    if(mode==="commitNext"){setPhase(7);setTimeout(openV41DamageSequence,0);}
+  });
+}
+
+function v41BlockOrderIssues(){const out=[];for(const a of combatAttackers()){const bs=combatBlockersOf(a.id);if(bs.length>1&&!a.v41BlockOrderConfirmed)out.push(a);for(const b of bs)if(blockTargets(b).length>1&&!out.includes(a))out.push(a);}return out;}
+function v41ConfirmCurrentOrder(id){const f=findCard(id);if(!f)return;const a=f.card,ids=combatBlockersOf(id).map(x=>x.id);act("ブロック順確定",()=>{a.v33BlockOrder=ids;a.v41BlockOrderConfirmed=true;});saveState(true);render();openV41DamageSequence();}
+function v41AutoPlan(step){
+  const issues=v41BlockOrderIssues();if(issues.length)return{ok:false,reason:`ダメージ割り振り順の確認が必要: ${issues.map(x=>x.name).join("、")}`};
+  act("戦闘ダメージ自動割り振り",()=>{state.turn.combatDamagePlan={};for(const a of combatAttackers()){const bs=combatBlockersOf(a.id),p=planFor(a.id);p.assign={};p.playerDamage=0;let rem=Math.max(0,effPow(a));for(const b of bs){const need=hasCombatKeyword(a,"deathtouch")?1:Math.max(0,effTou(b)-(b.damage||0));const give=Math.min(rem,Math.max(0,need));p.assign[b.id]=give;rem-=give;}if((!bs.length&&!a.v41WasBlocked)||hasCombatKeyword(a,"trample"))p.playerDamage=Math.max(0,rem);p.note=`v4.1 ${_combatStepJP(step)} 自動割り振り`;}});return{ok:true};
+}
+function v41Contribution(source,targetType,target,amount,step){return{source,targetType,target,amount:Math.max(0,Number(amount)||0),step,deathtouch:hasCombatKeyword(source,"deathtouch"),lifelink:hasCombatKeyword(source,"lifelink"),infect:hasCombatKeyword(source,"infect"),wither:hasCombatKeyword(source,"wither")};}
+function v41Contributions(step){const out=[];for(const a of combatAttackers()){const am=_combatDamageMultiplier(a,step);if(am>0){const p=planRead(a.id),bs=combatBlockersOf(a.id);for(const b of bs){const n=numOr0(p.assign[b.id])*am;if(n>0)out.push(v41Contribution(a,"card",b,n,step));}const pd=numOr0(p.playerDamage)*am;if(pd>0){const did=a.attackDefenderId;if(did&&!String(did).startsWith("player:")){const f=findCard(did);if(f)out.push(v41Contribution(a,"card",f.card,pd,step));}else out.push(v41Contribution(a,"player",did&&String(did).startsWith("player:")?String(did).slice(7):v41Other(a.controller||a.owner),pd,step));}}
+    for(const b of combatBlockersOf(a.id)){const bm=_combatDamageMultiplier(b,step),n=Math.max(0,effPow(b))*bm;if(n>0)out.push(v41Contribution(b,"card",a,n,step));}}
+  return out;}
+function v41Indestructible(c){return hasCombatKeyword(c,"indestructible")||(typeof ruleIsIndestructible==="function"&&ruleIsIndestructible(c));}
+function v41Prevented(affected,n,label){if(typeof rulePreventAmount!=="function")return{amount:n,prevented:0};const q=rulePreventAmount(affected,n);if(q.prevented)addLog(`軽減: ${label}への戦闘ダメージを${q.prevented}点軽減`);return q;}
+function v41SbaAfterDamage(deathtouchIds){const move=[],battle=[];for(const p of["A","B"])for(const z of["creatures","others"]){for(const c of(state.players[p][z]||[])){if(cardHasType(c,"Creature")){const zero=effTou(c)<=0,lethal=(c.damage||0)>=effTou(c)||deathtouchIds.has(c.id);if(zero||(lethal&&!v41Indestructible(c)))move.push(c.id);}else if(cardHasType(c,"Planeswalker")&&Number(c.counters&&c.counters.loyalty||0)<=0)move.push(c.id);else if(cardHasType(c,"Battle")&&Number(c.counters&&c.counters.defense||0)<=0)battle.push(c);}}
+  let sent=0;if(v41Enabled("combatAutoMoveLethal"))for(const id of [...new Set(move)]){const f=findCard(id);if(f){moveCard(id,f.card.owner,"graveyard",null,true);sent++;}}
+  return{sent,pending:v41Enabled("combatAutoMoveLethal")?[]:move,battles:battle};}
+function v41ApplyDamageStep(step){
+  if(!v41Enabled("combatAutoAssignDamage")){toast("自動割り振りがOFFです。従来の詳細ウィザードを使用してください");startCombatResolveWizard();return;}
+  const plan=v41AutoPlan(step);if(!plan.ok){toast(plan.reason);return;}
+  const contributions=v41Contributions(step),deathtouch=new Set(),sourceDealt={},logs=[];let sba={sent:0,pending:[],battles:[]};
+  act(`戦闘処理（${_combatStepJP(step)}）`,()=>{
+    for(const x of contributions){const src=x.source,ctrl=src.controller||src.owner;let affected,label;if(x.targetType==="player"){affected=x.target;label=pname(x.target);}else{affected=x.target.controller||x.target.owner;label=`[${x.target.name}]`;}
+      const q=v41Prevented(affected,x.amount,label),n=q.amount;if(n<=0)continue;sourceDealt[src.id]=(sourceDealt[src.id]||0)+n;
+      if(x.targetType==="player"){if(x.infect&&v41Enabled("combatAdvancedKeywordRules")){state.players[x.target].poison=Math.max(0,(state.players[x.target].poison||0)+n);logs.push(`${src.name}→${pname(x.target)} 毒${n}`);}else{state.players[x.target].life-=n;logs.push(`${src.name}→${pname(x.target)} ${n}点`);}if(src.isCommander&&typeof v34Runtime==="function"&&v34Enabled("commanderDamageEnabled")){const rt=v34Runtime(),key=v34CommanderKey(src);rt.commanderDamage[x.target][key]=v34CommanderDamageTo(x.target,key)+n;}}
+      else if(cardHasType(x.target,"Planeswalker")){x.target.counters=x.target.counters||{};x.target.counters.loyalty=Math.max(0,Number(x.target.counters.loyalty||0)-n);logs.push(`${x.target.name} 忠誠-${n}`);}
+      else if(cardHasType(x.target,"Battle")){x.target.counters=x.target.counters||{};x.target.counters.defense=Math.max(0,Number(x.target.counters.defense||0)-n);logs.push(`${x.target.name} 守備-${n}`);}
+      else if(v41Enabled("combatAdvancedKeywordRules")&&(x.infect||x.wither)){x.target.counters=x.target.counters||{};x.target.counters["-1/-1"]=Number(x.target.counters["-1/-1"]||0)+n;logs.push(`${x.target.name} -1/-1×${n}`);if(x.deathtouch)deathtouch.add(x.target.id);}
+      else{x.target.damage=(x.target.damage||0)+n;logs.push(`${x.target.name} dmg+${n}`);if(x.deathtouch)deathtouch.add(x.target.id);}
+    }
+    for(const [id,n] of Object.entries(sourceDealt)){const f=findCard(id);if(!f)continue;if(hasCombatKeyword(f.card,"lifelink")){const p=f.card.controller||f.card.owner;if(typeof ruleLifeGainBlocked==="function"&&ruleLifeGainBlocked(p).length)addLog(`置換: ${pname(p)} は絆魂でライフを得られない`);else{state.players[p].life+=n;logs.push(`${pname(p)} 絆魂+${n}`);}}}
+    sba=v41SbaAfterDamage(deathtouch);state.turn.combatDamagePlan={};const rt=v41Turn();if(step==="first"){rt.firstDone=true;rt.stage="firstDone";}else{rt.normalDone=true;rt.stage="normalDone";}addLog(`${_combatStepJP(step)}: ${logs.join(" / ")||"ダメージなし"}${sba.sent?` / 墓地${sba.sent}枚`:""}`);
+  });
+  saveState(true);render();
+  if(sba.pending&&sba.pending.length)toast(`致死候補${sba.pending.length}体を手動確認してください`);
+  for(const [id,n] of Object.entries(sourceDealt)){const f=findCard(id);if(f&&n>0&&typeof saEvent==="function"&&typeof saQueueTiming==="function"){const ev=saEvent("combatDamage",f.card,{amount:n,step});saQueueTiming("combat",ev,f.card);}}
+  if(sba.battles.length)toast(`守備値0のバトルがあります: ${sba.battles.map(x=>x.name).join("、")}（変身等を確認）`);
+  openV41DamageSequence();
+}
+function v41HasFirstStep(){return combatAttackers().some(a=>hasCombatKeyword(a,"firstStrike")||hasCombatKeyword(a,"doubleStrike")||combatBlockersOf(a.id).some(b=>hasCombatKeyword(b,"firstStrike")||hasCombatKeyword(b,"doubleStrike")));}
+function openV41DamageSequence(){
+  if(!v41Enabled()){startCombatResolveWizard();return;}const atks=combatAttackers();if(!atks.length){toast("攻撃クリーチャーがいません");return;}const rt=v41Turn(),first=v41HasFirstStep(),issues=v41BlockOrderIssues();
+  const rows=atks.map(a=>{const bs=combatBlockersOf(a.id),def=a.attackDefenderId&&String(a.attackDefenderId).startsWith("player:")?pname(String(a.attackDefenderId).slice(7)):(findCard(a.attackDefenderId||"")?.card.name||pname(v41Other(a.controller||a.owner)));return`<div class="v41-combat-row"><div><b>${esc(a.name)}</b> ${effPow(a)}/${effTou(a)} <span>→ ${esc(def)}</span></div><small>${bs.length?`ブロック: ${bs.map(b=>`${esc(b.name)} ${effPow(b)}/${effTou(b)}`).join(" → ")}`:(a.v41WasBlocked?"ブロッカーは戦場を離れた（ブロック済み）":"未ブロック")}<br>${esc(v41KeywordSummary(a))}</small>${bs.length>1&&!a.v41BlockOrderConfirmed?`<div class="v41-orderwarn">割り振り順を確認してください <button class="btn tiny" data-v41dmg="order:${a.id}">順番を変更</button><button class="btn tiny primary" data-v41dmg="confirmOrder:${a.id}">表示順で確定</button></div>`:""}</div>`;}).join("");
+  const status=`<div class="v41-status"><span class="${rt.firstDone?"done":""}">先制段階 ${first?(rt.firstDone?"完了":"未処理"):"なし"}</span><span class="${rt.normalDone?"done":""}">通常段階 ${rt.normalDone?"完了":"未処理"}</span></div>`;
+  let actions='';if(!v41Enabled("combatAutoAssignDamage"))actions='<div class="oh-warn">自動割り振りがOFFです。下の「従来の詳細ウィザード」を使用してください。</div>';else if(issues.length)actions='<div class="oh-warn">複数ブロックの割り振り順が未確認です。</div>';else if(first&&!rt.firstDone)actions='<button class="btn primary" data-v41dmg="first">先制・二段攻撃の第1段階を自動適用</button>';else if(!rt.normalDone)actions='<button class="btn primary" data-v41dmg="normal">通常戦闘ダメージを自動適用</button>';else actions='<button class="btn primary" data-v41dmg="end">戦闘終了ステップへ進む</button>';
+  openModal("戦闘ダメージ進行",`${status}<div class="note">致死順、接死、トランプル、先制攻撃、二段攻撃、絆魂、感染、萎縮、破壊不能、PW／バトルへの攻撃を補助します。特殊な置換や1体で複数をブロックする能力は手動ウィザードを使用してください。</div><div class="v41-list">${rows}</div><div class="v41-actions">${actions}</div>`,`<button class="btn" data-app="closem">閉じる</button><button class="btn" data-v41dmg="manual">従来の詳細ウィザード</button>`,`lg`);
+  setModalHandler(function(e){const b=e.target.closest("[data-v41dmg]");if(!b)return;const v=b.dataset.v41dmg;if(v==="manual"){closeModal();startCombatResolveWizard();return;}if(v==="first"||v==="normal"){closeModal();v41ApplyDamageStep(v);return;}if(v==="end"){closeModal();setPhase(8);return;}const [cmd,id]=v.split(":");if(cmd==="order"){closeModal();v33ChooseBlockOrder(id);return;}if(cmd==="confirmOrder"){closeModal();v41ConfirmCurrentOrder(id);}}
+  );
+}
+function openV41CombatFlow(){const ph=state.turn.phase;if(ph<=5)openV41AttackDeclaration();else if(ph===6)openV41BlockDeclaration();else openV41DamageSequence();}
+
+/* 戦闘パネルに宣言ボタンを常設 */
+const _v41CombatPanelHTMLBase=combatPanelHTML;
+combatPanelHTML=function(){const base=_v41CombatPanelHTMLBase(),ph=state.turn.phase,show=ph>=4&&ph<=8;if(!v41Enabled()&&!base)return base;const bar=show?`<div class="combatpanel v41-quick"><div class="cp-head"><span>戦闘フロー</span></div><div class="v41-quickbuttons"><button class="btn tiny${ph===5?" primary":""}" data-v41combat="attack">攻撃宣言</button><button class="btn tiny${ph===6?" primary":""}" data-v41combat="block">ブロック宣言</button><button class="btn tiny${ph===7?" primary":""}" data-v41combat="damage">ダメージ進行</button></div></div>`:"";return bar+base;};
+
+document.addEventListener("click",function(e){const b=e.target.closest&&e.target.closest("[data-v41combat]");if(!b)return;e.preventDefault();e.stopPropagation();const v=b.dataset.v41combat;if(v==="attack")openV41AttackDeclaration();else if(v==="block")openV41BlockDeclaration();else if(v==="damage")openV41DamageSequence();else openV41CombatFlow();},true);
+
+/* フェイズ到達時の自動表示 */
+const _v41SetPhaseBase=setPhase;
+setPhase=function(i){const r=_v41SetPhaseBase(i);setTimeout(v41PhaseAssist,30);return r;};
+const _v41PhaseAdvanceRawBase=_phaseAdvanceRaw;
+_phaseAdvanceRaw=function(){const before=state.turn.phase,r=_v41PhaseAdvanceRawBase();if(before===8&&state.turn.phase!==8){forEachCard(c=>{c.attacking=false;c.blocking=false;c.blockingTargetId=null;c.blockingTargetIds=[];c.v41WasBlocked=false;c.v41BlockOrderConfirmed=false;});state.turn.combatDamagePlan={};v41ResetTurnCombat();saveState(true);render();}setTimeout(v41PhaseAssist,30);return r;};
+const _v41ClearAllCombatBase=clearAllCombat;
+clearAllCombat=function(skip){const r=_v41ClearAllCombatBase(skip);v41ResetTurnCombat();return r;};
+const _v41ClearTurnStartBase=_clearCombatForTurnStart;
+_clearCombatForTurnStart=function(){const n=_v41ClearTurnStartBase();v41ResetTurnCombat();return n;};
+
+/* ルール補助・設定へ入口追加 */
+const _v41OpenRuleSuiteBase=openRuleSuite;
+openRuleSuite=function(){const r=_v41OpenRuleSuiteBase();setTimeout(()=>{const grid=document.querySelector("#modalRoot .menu-grid");if(!grid||grid.querySelector("[data-v41combat='flow']"))return;const b=document.createElement("button");b.className="btn";b.dataset.v41combat="flow";b.textContent="戦闘宣言・ダメージ進行";grid.prepend(b);},0);return r;};
+function v41SettingToggle(k,label,help){return`<label class="v33-setting"><input type="checkbox" data-v41setting="${k}"${v41Settings()[k]!==false?" checked":""}><span><b>${esc(label)}</b><small>${esc(help)}</small></span></label>`;}
+const _v41OpenSettingsBase=openSettings;
+openSettings=function(){const r=_v41OpenSettingsBase();setTimeout(()=>{const body=document.querySelector("#modalRoot .mbody");if(!body||body.querySelector("[data-v41settings]"))return;const box=document.createElement("details");box.open=true;box.dataset.v41settings="1";box.innerHTML=`<summary>v4.1 戦闘宣言・ダメージ進行</summary><div class="v33-settings-grid">${v41SettingToggle("combatDeclarationSuiteEnabled","戦闘フロー補助を有効化","攻撃・ブロック・ダメージを一続きにする親スイッチ")}${v41SettingToggle("combatAutoOpenAttackDeclaration","攻撃指定で自動表示","攻撃指定フェイズ到達時に宣言画面を開く")}${v41SettingToggle("combatAutoOpenBlockDeclaration","ブロック指定で自動表示","ブロック指定フェイズ到達時に宣言画面を開く")}${v41SettingToggle("combatAutoOpenDamageSequence","ダメージで自動表示","戦闘ダメージフェイズ到達時に進行画面を開く")}${v41SettingToggle("combatAutoTapAttackers","攻撃時に自動タップ","警戒持ちはタップしない")}${v41SettingToggle("combatAutoAssignDamage","致死順に自動割り振り","接死・トランプル・ブロック順を考慮")}${v41SettingToggle("combatAutoMoveLethal","致死カードを自動で墓地へ","破壊不能は除外。特殊な再生等は手動確認")}${v41SettingToggle("combatAdvancedKeywordRules","高度な戦闘能力を判定","感染・萎縮・畏怖・威嚇・潜伏・シャドー・馬術")}</div>`;body.appendChild(box);box.onchange=e=>{const x=e.target.closest("[data-v41setting]");if(!x)return;state.settings[x.dataset.v41setting]=x.checked;saveState(true);toast("v4.1戦闘設定を保存しました");};},0);return r;};
+
+/* v2.5の一意戦闘ダメージ自動適用とは二重実行しない */
+const _v41V25MaybeAutoCombatDamageBase=typeof v25MaybeAutoCombatDamage==="function"?v25MaybeAutoCombatDamage:null;
+if(_v41V25MaybeAutoCombatDamageBase)v25MaybeAutoCombatDamage=function(){if(v41Enabled())return 0;return _v41V25MaybeAutoCombatDamageBase();};
+
+function v41Diagnose(){return{version:V41_VERSION,settings:Object.fromEntries(Object.keys(V41_DEFAULT_SETTINGS).map(k=>[k,v41Settings()[k]!==false])),keywords:["firstStrike","doubleStrike","trample","deathtouch","lifelink","vigilance","haste","menace","flying","reach","indestructible","infect","wither","shadow","horsemanship","fear","intimidate","skulk"].filter(k=>COMBAT_KEYWORDS.includes(k)),phase:state.turn.phase,attackers:combatAttackers().length,stage:v41Turn().stage};}
+
+(function(){const st=document.createElement("style");st.id="v41CombatStyle";st.textContent=`
+.v41-quick{margin-bottom:6px}.v41-quickbuttons{display:grid;grid-template-columns:repeat(3,1fr);gap:4px;padding:5px}.v41-list{display:grid;gap:7px;max-height:55vh;overflow:auto}.v41-row{display:grid;grid-template-columns:minmax(210px,1.5fr) minmax(180px,1fr);gap:8px;align-items:center;border:1px solid var(--line);border-radius:9px;padding:8px;background:var(--panel2)}.v41-row.disabled{opacity:.62}.v41-main{display:flex;gap:8px;align-items:flex-start}.v41-main>span{display:grid;gap:2px}.v41-main small{color:var(--muted)}.v41-main em{font-style:normal;color:#ffb4a2;font-size:10px}.v41-toolbar,.v41-actions{display:flex;flex-wrap:wrap;gap:6px;margin:8px 0}.v41-status{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:8px}.v41-status span{border:1px solid var(--line);border-radius:8px;padding:7px;text-align:center}.v41-status span.done{border-color:#3f8a59;background:rgba(63,138,89,.13)}.v41-combat-row{border:1px solid var(--line);border-radius:9px;padding:8px;background:var(--panel2)}.v41-combat-row small{color:var(--muted)}.v41-orderwarn{margin-top:6px;padding:6px;border:1px solid #b77a2d;border-radius:7px;background:rgba(183,122,45,.1)}@media(max-width:720px){.v41-row{grid-template-columns:1fr}.v41-list{max-height:52vh}.v41-quickbuttons{grid-template-columns:1fr}.v41-status{grid-template-columns:1fr}}
+`;document.head.appendChild(st);})();
+
+/* ============================================================
+   v4.2.0 Card Name Import & Expanded Auto Rules
+   - カード名からScryfallの公開APIを参照し、基本情報と安全な効果候補を入力
+   - 取得しただけでは保存しない。カード編集の保存で確定
+   - 《渦巻く知識》型「ドロー後、手札からN枚を順番指定して山札上へ」を自動処理
+   ============================================================ */
+const V42_VERSION="4.2.0";
+const V42_API_ORIGIN="https://api.scryfall.com";
+const V42_CACHE_KEY="cpt_v42_card_cache";
+let _v42LastRequestAt=0;
+let _v42LookupSerial=0;
+let _v42HandTopQueue=[];
+let _v42HandTopBusy=false;
+
+function v42Sleep(ms){return new Promise(r=>setTimeout(r,ms));}
+function v42JapaneseText(s){return /[ぁ-んァ-ヶ一-龠々ー]/.test(String(s||""));}
+function v42SafeJsonParse(s,fallback){try{return JSON.parse(s);}catch(_){return fallback;}}
+function v42Cache(){try{const x=v42SafeJsonParse(localStorage.getItem(V42_CACHE_KEY)||"{}",{});return x&&typeof x==="object"&&!Array.isArray(x)?x:{};}catch(_){return{};}}
+function v42CacheGet(q){const k=normalizeCardName(q),c=v42Cache(),x=c[k];if(!x||Date.now()-Number(x.at||0)>7*86400000)return null;return x.value||null;}
+function v42CachePut(q,value){try{const k=normalizeCardName(q),c=v42Cache();c[k]={at:Date.now(),value};const ks=Object.keys(c).sort((a,b)=>(c[b].at||0)-(c[a].at||0));for(const z of ks.slice(80))delete c[z];localStorage.setItem(V42_CACHE_KEY,JSON.stringify(c));}catch(_){}}
+async function v42FetchJson(url){
+  if(!String(url).startsWith(V42_API_ORIGIN+"/"))throw new Error("許可されていない取得先です");
+  const wait=Math.max(0,120-(Date.now()-_v42LastRequestAt));if(wait)await v42Sleep(wait);_v42LastRequestAt=Date.now();
+  const ctl=new AbortController(),tm=setTimeout(()=>ctl.abort(),12000);
+  try{
+    const r=await fetch(url,{headers:{Accept:"application/json;q=0.9,*/*;q=0.8"},signal:ctl.signal});
+    let j=null;try{j=await r.json();}catch(_){}
+    if(!r.ok)throw new Error(j&&j.details?j.details:`カード情報の取得に失敗しました（HTTP ${r.status}）`);
+    return j;
+  }catch(e){if(e&&e.name==="AbortError")throw new Error("カード情報の取得がタイムアウトしました");throw e;}finally{clearTimeout(tm);}
+}
+async function v42FindJapanesePrint(base){
+  if(!base)return null;if(base.lang==="ja")return base;
+  const queries=[];
+  if(base.oracle_id)queries.push(`oracleid:${base.oracle_id} lang:ja`);
+  if(base.name)queries.push(`!\"${String(base.name).replace(/\"/g,"\\\"")}\" lang:ja`);
+  for(const q of queries){try{const j=await v42FetchJson(`${V42_API_ORIGIN}/cards/search?q=${encodeURIComponent(q)}&unique=prints&order=released&dir=desc`);const a=Array.isArray(j&&j.data)?j.data:[];const hit=a.find(x=>x.printed_name||x.printed_text||(x.card_faces||[]).some(f=>f.printed_name||f.printed_text));if(hit)return hit;}catch(_){}}
+  return null;
+}
+async function v42LookupCard(query){
+  query=String(query||"").trim();if(!query)throw new Error("カード名を入力してください");
+  const cached=v42CacheGet(query);if(cached)return cached;
+  let base=null;
+  try{base=await v42FetchJson(`${V42_API_ORIGIN}/cards/named?fuzzy=${encodeURIComponent(query)}`);}catch(first){
+    try{const q=v42JapaneseText(query)?`lang:ja \"${query.replace(/\"/g,"\\\"")}\"`:`\"${query.replace(/\"/g,"\\\"")}\"`;const j=await v42FetchJson(`${V42_API_ORIGIN}/cards/search?q=${encodeURIComponent(q)}&unique=prints&order=released&dir=desc&include_multilingual=true`);base=Array.isArray(j&&j.data)?j.data[0]:null;}catch(_){throw first;}
+  }
+  if(!base||!base.name)throw new Error("カードが見つかりませんでした");
+  const localized=await v42FindJapanesePrint(base);
+  const result={query,base,localized};v42CachePut(query,result);return result;
+}
+function v42Face(card,i){const a=card&&Array.isArray(card.card_faces)?card.card_faces:[];return a[i]||null;}
+function v42MainFace(card){return v42Face(card,0)||card||{};}
+function v42ImageOf(card,i){const f=i==null?v42MainFace(card):v42Face(card,i);return (f&&f.image_uris&&(f.image_uris.normal||f.image_uris.large||f.image_uris.png))||(card&&card.image_uris&&(card.image_uris.normal||card.image_uris.large||card.image_uris.png))||"";}
+function v42ManaText(s){return String(s||"").replace(/\{([^}]+)\}/g,"$1").replace(/\/\//g," / ").replace(/\s+/g,"").trim();}
+function v42TypeInfo(card){
+  const f=v42MainFace(card),line=String(f.type_line||card.type_line||"");
+  const types=DICT_TYPES.filter(t=>t!=="Other"&&t!=="Unknown"&&new RegExp(`(^|\\s)${t}(?=\\s|$|—|-)`,`i`).test(line));
+  if(!types.length)types.push("Other");
+  const dash=line.split(/\s+[—-]\s+/),subtype=dash.length>1?dash.slice(1).join(" — ").trim():"";
+  const basicLandTypes=["Plains","Island","Swamp","Mountain","Forest"].filter(x=>new RegExp(`(^|\\s)${x}(?=\\s|$)`,`i`).test(line));
+  return{line,types:[...new Set(types)],subtype,basicLandTypes};
+}
+const V42_KEYWORD_MAP={
+  "Flying":"flying","Reach":"reach","First strike":"firstStrike","Double strike":"doubleStrike","Trample":"trample","Deathtouch":"deathtouch","Lifelink":"lifelink","Vigilance":"vigilance","Haste":"haste","Menace":"menace","Defender":"defender","Indestructible":"indestructible","Infect":"infect","Wither":"wither","Shadow":"shadow","Horsemanship":"horsemanship","Fear":"fear","Intimidate":"intimidate","Skulk":"skulk"
+};
+function v42CombatKeywords(card){const a=[];for(const k of card&&card.keywords||[]){const v=V42_KEYWORD_MAP[k];if(v&&COMBAT_KEYWORDS.includes(v))a.push(v);}return[...new Set(a)];}
+function v42PrintedName(base,jp){
+  if(jp&&jp.printed_name)return jp.printed_name;
+  if(jp&&Array.isArray(jp.card_faces)){const a=jp.card_faces.map(f=>f.printed_name).filter(Boolean);if(a.length)return a.join(" // ");}
+  return base&&base.name||"";
+}
+function v42RulesText(base,jp){
+  const pick=c=>{if(!c)return"";if(c.printed_text)return c.printed_text;if(Array.isArray(c.card_faces)){const a=c.card_faces.map(f=>f.printed_text||f.oracle_text||"").filter(Boolean);if(a.length)return a.join("\n");}return c.oracle_text||"";};
+  return pick(jp)||pick(base);
+}
+function v42NormalizeRulesText(t){return String(t||"").replace(/\r/g,"").replace(/\{T\}/gi,"T").replace(/\{Q\}/gi,"Q").replace(/\{([^}]+)\}/g,"$1").replace(/•/g,"・").replace(/[ \t]+\n/g,"\n").trim();}
+function v42NumWord(v){const m={a:1,an:1,one:1,two:2,three:3,four:4,five:5,six:6,seven:7,eight:8,nine:9,ten:10};v=String(v||"").toLowerCase();return /^\d+$/.test(v)?Number(v):(m[v]||1);}
+function v42FreshEnglishAbility(kind,timing,title){const a=eesNewAbility(kind||"spell");a.timing=timing||"resolve";a.title=title||"カード本体の効果";a.effects=[];return a;}
+function v42ParseEnglishRules(text){
+  const src=v42NormalizeRulesText(text),out={version:V42_VERSION,source:src,abilities:[],unparsed:[],notes:[],matched:0};if(!src)return out;
+  const lines=src.split(/\n+/).map(x=>x.trim()).filter(Boolean);let root=null;
+  const getRoot=()=>root||(root=v42FreshEnglishAbility("spell","resolve","カード本体の効果"),out.abilities.push(root),root);
+  for(const line0 of lines){let line=line0,a=null,recognized=0;const lower=line.toLowerCase();
+    if(line.includes(":")){const [left,...rest]=line.split(":");a=v42FreshEnglishAbility("activated","manual","起動型能力");a.costText=left.trim();line=rest.join(":").trim();out.abilities.push(a);recognized++;}
+    else if(/^(when|whenever) .* enters the battlefield/i.test(line)){a=v42FreshEnglishAbility("triggered","enterBattlefield","戦場に出た時");out.abilities.push(a);recognized++;}
+    else if(/^(when|whenever) .* dies/i.test(line)){a=v42FreshEnglishAbility("triggered","dies","死亡した時");out.abilities.push(a);recognized++;}
+    else if(/^at the beginning of (your|each) upkeep/i.test(line)){a=v42FreshEnglishAbility("triggered","upkeep","アップキープ開始時");out.abilities.push(a);recognized++;}
+    else if(/^(when|whenever) .* attacks/i.test(line)){a=v42FreshEnglishAbility("triggered","attack","攻撃した時");out.abilities.push(a);recognized++;}
+    else a=getRoot();
+    const low=line.toLowerCase();
+    if(/target spell/.test(low)){a.targetMode="spell";a.minTargets=1;a.maxTargets=1;recognized++;}
+    else if(/target (creature|creature or planeswalker)/.test(low)){a.targetMode="creature";a.minTargets=1;a.maxTargets=1;recognized++;}
+    else if(/target permanent/.test(low)){a.targetMode="permanent";a.minTargets=1;a.maxTargets=1;recognized++;}
+    else if(/target player/.test(low)){a.targetMode="player";a.minTargets=1;a.maxTargets=1;recognized++;}
+    const add=(id,p={})=>{a.effects.push(eesNormalizeEffect({effectId:id,...p}));recognized++;};let m;
+    m=line.match(/draw (a|an|one|two|three|four|five|six|seven|eight|nine|ten|\d+) cards?/i);if(m)add("draw",{amount:v42NumWord(m[1]),targetUse:"controller"});
+    m=line.match(/put (a|an|one|two|three|four|five|six|seven|eight|nine|ten|\d+) cards? from your hand on top of your library/i);if(m)add("putHandTop",{amount:v42NumWord(m[1]),targetUse:"controller"});
+    m=line.match(/deals? (\d+) damage/i);if(m)add("damage",{amount:Number(m[1])});
+    m=line.match(/you gain (\d+) life/i);if(m)add("lifeGain",{amount:Number(m[1]),targetUse:"controller"});
+    m=line.match(/(?:target player|opponent) loses? (\d+) life/i);if(m)add("lifeLoss",{amount:Number(m[1])});
+    if(/counter target spell/i.test(line))add("counterSpell");
+    if(/destroy target/i.test(line))add("destroy");
+    if(/exile target/i.test(line))add("exile");
+    if(/return target .* to (?:its|their) owner's hand/i.test(line))add("bounce");
+    m=line.match(/target creature gets ([+-]\d+)\/([+-]\d+) until end of turn/i);if(m)add("ptModify",{amount:Number(m[1]),amount2:Number(m[2]),duration:"eot"});
+    m=line.match(/scry (\d+)/i);if(m)add("scry",{amount:Number(m[1]),targetUse:"controller"});
+    m=line.match(/surveil (\d+)/i);if(m)add("surveil",{amount:Number(m[1]),targetUse:"controller"});
+    m=line.match(/mill(?:s)? (\d+) cards?/i);if(m)add("mill",{amount:Number(m[1])});
+    m=line.match(/discard (a|an|one|two|three|four|five|six|seven|eight|nine|ten|\d+) cards?/i);if(m)add("discard",{amount:v42NumWord(m[1])});
+    for(const [en,key] of Object.entries(V42_KEYWORD_MAP)){if(new RegExp(`gains? ${en.replace(/ /g,"\\s+")}`,"i").test(line))add("keywordGrant",{keyword:key,duration:/until end of turn/i.test(line)?"eot":"manual"});}
+    if(/search your library/i.test(line))add("search",{amount:1,note:line});
+    if(!recognized){a.effects.push(eesNormalizeEffect({effectId:"customManual",note:line}));out.unparsed.push(line);}else out.matched+=recognized;
+  }
+  out.abilities=out.abilities.map(eesNormalizeAbility);return out;
+}
+function v42EnhanceHandTop(parsed,text){
+  const t=String(text||""),jp=t.match(/手札(?:にある|から)[^。\n]*?([0-9０-９一二三四五六七八九十]+)枚[^。\n]*?ライブラリーの一番上[^。\n]*(?:好きな順番|任意の順番)/),en=t.match(/put (a|an|one|two|three|four|five|six|seven|eight|nine|ten|\d+) cards? from your hand on top of your library(?: in any order)?/i);
+  if(!jp&&!en)return parsed;let n=en?v42NumWord(en[1]):v28JpNumber(jp[1]);n=Math.max(1,Number(n)||1);
+  let a=(parsed.abilities||[]).find(x=>x.kind==="spell")||(parsed.abilities||[])[0];if(!a){a=v42FreshEnglishAbility("spell","resolve","カード本体の効果");parsed.abilities.push(a);}
+  /* 「好きな順番」が含まれる文は旧解析が全文を手動扱いにするため、同じ文のドローをここで安全に復元する。 */
+  const jd=t.match(/カードを\s*([0-9０-９一二三四五六七八九十]+)枚引/),ed=t.match(/draw (a|an|one|two|three|four|five|six|seven|eight|nine|ten|\d+) cards?/i);
+  if((jd||ed)&&!a.effects.some(e=>e.effectId==="draw")){const dn=ed?v42NumWord(ed[1]):v28JpNumber(jd[1]);a.effects.push(eesNormalizeEffect({effectId:"draw",amount:Math.max(1,Number(dn)||1),targetUse:"controller"}));parsed.matched=(parsed.matched||0)+1;}
+  if(!a.effects.some(e=>e.effectId==="putHandTop"))a.effects.push(eesNormalizeEffect({effectId:"putHandTop",amount:n,targetUse:"controller"}));
+  a.effects=a.effects.filter(e=>!(e.effectId==="customManual"&&/(手札.*ライブラリーの一番上|put .*cards? from your hand on top)/i.test(String(e.note||""))));
+  parsed.matched=(parsed.matched||0)+1;return parsed;
+}
+/* カード名取込で頻出する「任意の対象」と自己処理を、既存EESへ安全に追加 */
+if(!EES_TARGET_JP.anyTarget){const pos=Math.max(0,EES_TARGETS.findIndex(x=>x[0]==="player")+1);EES_TARGETS.splice(pos,0,["anyTarget","クリーチャー／PW／バトル／プレイヤー"]);EES_TARGET_JP.anyTarget="クリーチャー／PW／バトル／プレイヤー";}
+const _v42EesTargetProfileBase=eesTargetProfile;
+eesTargetProfile=function(a){if(a&&a.targetMode==="anyTarget")return normalizeTargetProfile({enabled:true,minTargets:a.minTargets||1,maxTargets:a.maxTargets||1,relation:a.targetRelation||"any",playerRelation:a.targetRelation||"any",allowPlayers:true,allowCards:true,allowSelf:false,zones:["battlefield"],types:["Creature","Planeswalker","Battle"],colors:a.targetColors||[],note:a.targetNote||"任意の対象"});return _v42EesTargetProfileBase(a);};
+const _v42EesTargetKindsBase=eesTargetKinds;
+eesTargetKinds=function(a){return a&&a.targetMode==="anyTarget"?["Creature","Planeswalker","Battle","Player"]:_v42EesTargetKindsBase(a);};
+const _v42EesAutoTargetModeBase=eesAutoTargetMode;
+eesAutoTargetMode=function(a){return a&&a.targetMode==="anyTarget"?"targets":_v42EesAutoTargetModeBase(a);};
+const _v42V29TargetCountBase=v29TargetCount;
+v29TargetCount=function(a,sc){return a&&a.targetMode==="anyTarget"?(Number(sc.creatures)||0)+(Number(sc.playerTargets)||0):_v42V29TargetCountBase(a,sc);};
+function v42EnhanceSemantics(parsed,text){
+  const t=String(text||""),abilities=parsed.abilities||[];
+  for(const a of abilities){
+    const clauses=(t.match(/[^。\n]*(?:対象とする|対象にする)[^。\n]*/g)||[]).concat(t.match(/[^.\n]*target[^.\n]*/gi)||[]);
+    const targetClause=clauses.find(x=>/(クリーチャー|プレインズウォーカー|バトル|プレイヤー|呪文|能力|any target|target creature|target spell|target player|target permanent)/i.test(x))||"";
+    if(/any target/i.test(targetClause)||(/クリーチャー/.test(targetClause)&&/(プレイヤー|対戦相手)/.test(targetClause))){a.targetMode="anyTarget";a.minTargets=/最大|up to/i.test(targetClause)?0:1;a.maxTargets=1;a.targetTypes=["Creature","Planeswalker","Battle"];a.targetNote=targetClause.trim();}
+    else if(/(?:呪文[^。\n]*対象|target spell)/i.test(targetClause)){a.targetMode="spell";a.minTargets=1;a.maxTargets=1;}
+    else if(/(?:クリーチャー[^。\n]*対象|target creature)/i.test(targetClause)){a.targetMode="creature";a.minTargets=/最大|up to/i.test(targetClause)?0:1;a.maxTargets=1;}
+    else if(/(?:プレイヤー[^。\n]*対象|target player)/i.test(targetClause)){a.targetMode="player";a.minTargets=/最大|up to/i.test(targetClause)?0:1;a.maxTargets=1;}
+    else if(/(?:パーマネント[^。\n]*対象|target permanent)/i.test(targetClause)){a.targetMode="permanent";a.minTargets=/最大|up to/i.test(targetClause)?0:1;a.maxTargets=1;}
+    for(const e of a.effects||[]){
+      if(["draw","scry","surveil","token"].includes(e.effectId)&&["none","controller"].includes(a.targetMode))e.targetUse="controller";
+      if(e.effectId==="lifeGain"&&/(あなたは|you gain)/i.test(t))e.targetUse="controller";
+    }
+    const ptRef=/(?:X|Ｘ)は[^。\n]*(?:そのクリーチャー|対象[^。\n]*クリーチャー|それ)[^。\n]*パワー[^。\n]*(?:等しい|である)|where X is (?:that creature's|its) power/i.test(t);
+    if(ptRef){for(const e of a.effects||[]){if(e.effectId==="ptModify"&&/X/i.test(String(e.amount||""))){e.ptValueSource="targetPower";e.amount="1";e.amount2="0";if(/ターン終了時まで|until end of turn/i.test(t))e.duration="eot";}}
+      a.effects=(a.effects||[]).filter(e=>!(e.effectId==="customManual"&&/(?:X|Ｘ)は[^。\n]*パワー|where X is (?:that creature's|its) power/i.test(String(e.note||""))));
+      parsed.unparsed=(parsed.unparsed||[]).filter(x=>!/(?:X|Ｘ)は[^。\n]*パワー|where X is (?:that creature's|its) power/i.test(String(x||"")));
+    }
+  }
+  parsed.abilities=abilities.map(eesNormalizeAbility);return parsed;
+}
+function v42ParseRules(text){const clean=v42NormalizeRulesText(text);let out=v42JapaneseText(clean)?v28ParseJapaneseRules(clean):v42ParseEnglishRules(clean);out=v42EnhanceHandTop(out,clean);return v42EnhanceSemantics(out,clean);}
+function v42AlignParsedToCardType(parsed,types){
+  if(!(types||[]).some(x=>x==="Instant"||x==="Sorcery"))return parsed;
+  const list=parsed.abilities||[];let root=list.find(x=>x.kind==="spell");
+  if(!root&&list.length){root=list[0];root.kind="spell";root.timing="resolve";root.title="カード本体の効果";}
+  parsed.abilities=list.map(eesNormalizeAbility);return parsed;
+}
+function v42BuildImportData(result){
+  const base=result.base||{},jp=result.localized||null,f=v42MainFace(base),jf=v42MainFace(jp||{}),ti=v42TypeInfo(base),rules=v42RulesText(base,jp),parsed=v42AlignParsedToCardType(v42ParseRules(rules),ti.types);
+  const colors=(base.colors||f.colors||[]).slice();if(!colors.length)colors.push("C");
+  return{canonicalName:base.name||result.query||"",displayName:v42PrintedName(base,jp),aliases:[result.query,base.name,v42PrintedName(base,jp)].filter(Boolean),types:ti.types,subtype:ti.subtype,basicLandTypes:ti.basicLandTypes,manaCost:v42ManaText(f.mana_cost||base.mana_cost),manaValue:base.cmc==null?"":String(base.cmc),colors,power:f.power==null?"":String(f.power),toughness:f.toughness==null?"":String(f.toughness),loyalty:f.loyalty==null?"":String(f.loyalty),defense:f.defense==null?"":String(f.defense),rules,parsed,imageUrl:v42ImageOf(jp||base),producedMana:(base.produced_mana||[]).filter(x=>["W","U","B","R","G","C"].includes(x)),combatKeywords:v42CombatKeywords(base),layout:base.layout||"normal",base,jp};
+}
+function v42SetField(id,value,change){const el=document.getElementById(id);if(!el)return;value=value==null?"":String(value);if(el.tagName==="SELECT"&&value&&!Array.from(el.options).some(o=>o.value===value)){const o=document.createElement("option");o.value=value;o.textContent=value;el.appendChild(o);}el.value=value;el.dispatchEvent(new Event("input",{bubbles:true}));if(change!==false)el.dispatchEvent(new Event("change",{bubbles:true}));}
+function v42AddAlias(alias){alias=String(alias||"").trim();if(!alias)return;const ta=document.getElementById("deAlias"),inp=document.getElementById("deAliasNew"),btn=document.getElementById("deAliasAdd");if(!ta||!inp||!btn)return;const arr=ta.value.split(/\r?\n/).map(x=>x.trim()).filter(Boolean);if(arr.some(x=>normalizeCardName(x)===normalizeCardName(alias)))return;inp.value=alias;btn.click();}
+function v42ApplyTypeData(data){document.querySelectorAll(".deTypeChk").forEach(x=>x.checked=data.types.includes(x.value));v42SetField("deType",data.types[0]||"Unknown");document.querySelectorAll(".deBasicLandType").forEach(x=>x.checked=data.basicLandTypes.includes(x.value));v42SetField("deSub",data.subtype);}
+function v42ApplyFaces(data){const base=data.base||{},jp=data.jp||null,faces=Array.isArray(base.card_faces)?base.card_faces:[],jfaces=jp&&Array.isArray(jp.card_faces)?jp.card_faces:[];let fmt="normal";if(base.layout==="split")fmt="split";else if(["transform","modal_dfc","double_faced_token","reversible_card"].includes(base.layout))fmt="doubleFaced";v42SetField("deFormat",fmt);
+  if(fmt==="doubleFaced"&&faces.length>1){const b=faces[1],jb=jfaces[1]||{};v42SetField("deBackName",b.name||"");v42SetField("deBackDispName",jb.printed_name||b.name||"");v42SetField("deBackType",b.type_line||"");v42SetField("deBackMemo",jb.printed_text||b.oracle_text||"");v42SetField("deBackImgUrl",v42ImageOf(jp||base,1));}
+  if(fmt==="split"&&faces.length>1){const l=faces[0],r=faces[1],jl=jfaces[0]||{},jr=jfaces[1]||{};v42SetField("deSpLName",l.name||"");v42SetField("deSpRName",r.name||"");v42SetField("deSpLDisp",jl.printed_name||l.name||"");v42SetField("deSpRDisp",jr.printed_name||r.name||"");v42SetField("deSpLCost",v42ManaText(l.mana_cost));v42SetField("deSpRCost",v42ManaText(r.mana_cost));v42SetField("deSpLType",l.type_line||"");v42SetField("deSpRType",r.type_line||"");v42SetField("deSpLText",jl.printed_text||l.oracle_text||"");v42SetField("deSpRText",jr.printed_text||r.oracle_text||"");}}
+function v42StudioHasRealEffects(){return _eesUI&&!v28StudioIsPristinePlaceholder(_eesUI.studio);}
+function v42ApplyImportData(data,opts){opts=opts||{};const nameEl=document.getElementById("deName"),existing=!!(nameEl&&nameEl.readOnly);if(!existing)v42SetField("deName",data.canonicalName);v42SetField("deDispName",data.displayName&&data.displayName!==data.canonicalName?data.displayName:"");data.aliases.forEach(v42AddAlias);v42ApplyTypeData(data);v42SetField("deMC",data.manaCost);v42SetField("deMV",data.manaValue);document.querySelectorAll(".deColor").forEach(x=>x.checked=data.colors.includes(x.value));document.querySelectorAll(".deProd").forEach(x=>x.checked=data.producedMana.includes(x.value));v42SetField("dePow",data.power);v42SetField("deTou",data.toughness);v42SetField("deMemo",data.rules);v42SetField("deImgUrl",data.imageUrl);document.querySelectorAll(".deCombatKeyword").forEach(x=>x.checked=data.combatKeywords.includes(x.value));v42ApplyFaces(data);
+  let effectsApplied=false,effectsSkipped=false;if(opts.effects!==false&&_eesUI&&data.parsed&&data.parsed.abilities.length){if(!v42StudioHasRealEffects()||opts.replaceEffects){_eesUI.studio=eesNormalizeStudio({applyToAutomation:true,replaceExisting:!!opts.replaceAutomation,abilities:data.parsed.abilities});_eesUI.ai=0;_eesUI.ei=0;eesRenderAll();effectsApplied=true;}else effectsSkipped=true;}
+  return{existing,effectsApplied,effectsSkipped};}
+function v42CoverageText(parsed){const c=v28CoverageOfAbilities(parsed&&parsed.abilities||[]);return`能力${(parsed&&parsed.abilities||[]).length}件 / 自動${c.auto} / 選択後自動${c.choice} / 手動確認${c.manual} / 未解析${(parsed&&parsed.unparsed||[]).length}`;}
+function v42LookupPanelHTML(existing){return`<div id="v42CardLookup" class="dict-section-card v42-lookup"><div class="dict-section-title">カード名から自動入力</div><div class="note">日本語名または英語名で検索します。公開カードデータをオンライン参照し、取得しただけでは保存しません。</div><div class="v42-lookup-row"><input id="v42LookupName" value="${esc((document.getElementById("deName")||{}).value||"")}" placeholder="例: 渦巻く知識 / Brainstorm"><button type="button" class="btn primary" id="v42LookupGo">取得して反映</button></div><div class="v42-options"><label><input type="checkbox" id="v42LookupEffects" checked> ルール文章から効果候補も作る</label><label><input type="checkbox" id="v42LookupReplace"> 既存のかんたん効果を置き換える</label></div>${existing?'<div class="note">既存カード編集中のため識別名は変更せず、表示名・コスト・本文・効果候補などを更新します。</div>':""}<div id="v42LookupStatus" class="v42-status">カード名を入力して取得してください。</div><div id="v42LookupPreview"></div></div>`;}
+function v42RenderLookupResult(data,applied){const el=document.getElementById("v42LookupPreview");if(!el)return;const p=data.parsed||{},manual=(p.unparsed||[]).slice(0,5);el.innerHTML=`<div class="v42-result"><div><b>${esc(data.displayName||data.canonicalName)}</b><small>${esc(data.canonicalName)}</small></div><div>${esc(data.types.map(x=>TYP(x)).join(" / "))}${data.subtype?` — ${esc(data.subtype)}`:""} ／ ${esc(data.manaCost||"コストなし")} ／ ${esc(data.colors.join(""))}</div><div>${esc(v42CoverageText(p))}</div>${applied.effectsSkipped?'<div class="oh-warn">既存のかんたん効果があるため、効果候補は置き換えませんでした。「既存のかんたん効果を置き換える」をONにすると更新できます。</div>':""}${manual.length?`<details><summary>手動確認として残った文章</summary>${manual.map(x=>`<div class="note">${esc(x)}</div>`).join("")}</details>`:""}<div class="note">データ参照: Scryfall公開API。日本語印刷データがないカードは英語Oracle文章を使用します。</div></div>`;}
+function v42InjectLookupPanel(){const root=document.querySelector('[data-depanel="basic"]');if(!root||root.querySelector("#v42CardLookup"))return;const existing=!!((document.getElementById("deName")||{}).readOnly);root.insertAdjacentHTML("afterbegin",v42LookupPanelHTML(existing));const go=document.getElementById("v42LookupGo"),inp=document.getElementById("v42LookupName"),st=document.getElementById("v42LookupStatus");const run=async()=>{const q=String(inp.value||"").trim();if(!q){toast("カード名を入力してください");return;}const serial=++_v42LookupSerial;go.disabled=true;st.textContent="カード情報を取得中…";try{const res=await v42LookupCard(q);if(serial!==_v42LookupSerial)return;const data=v42BuildImportData(res),applied=v42ApplyImportData(data,{effects:document.getElementById("v42LookupEffects").checked,replaceEffects:document.getElementById("v42LookupReplace").checked});st.textContent=`反映しました：${data.displayName||data.canonicalName}（保存ボタンで確定）`;v42RenderLookupResult(data,applied);toast("カード情報を反映しました。内容を確認して保存してください");}catch(e){st.innerHTML=`<span class="oh-warn">${esc(e.message||String(e))}</span><br><span class="note">通信できない場合も、従来どおり手動登録できます。</span>`;}finally{go.disabled=false;}};go.onclick=run;inp.onkeydown=e=>{if(e.key==="Enter"){e.preventDefault();run();}};}
+const _v42OpenDictEditorBase=openDictEditor;
+openDictEditor=function(name){const r=_v42OpenDictEditorBase(name);setTimeout(v42InjectLookupPanel,0);return r;};
+
+/* EESへ「手札から山札上へ戻す」を追加 */
+if(!AUTO_EFFECT_KINDS.includes("handTop"))AUTO_EFFECT_KINDS.push("handTop");
+AUTO_EFFECT_KIND_JP.handTop="手札から山札上へ戻す";
+const _v42NormalizeAutoEffectBase=normalizeAutoEffect;
+normalizeAutoEffect=function(e){if(e&&e.kind==="handTop"){const r=_v42NormalizeAutoEffectBase({...e,kind:"note"});r.kind="handTop";r.targetMode=AUTO_EFFECT_TARGETS.includes(e.targetMode)?e.targetMode:"controller";r.amountFixed=Math.max(0,_aeNum(e.amountFixed==null?1:e.amountFixed));r.amountX=Math.max(0,_aeNum(e.amountX));return r;}return _v42NormalizeAutoEffectBase(e);};
+const _v42AutoEffectLineBase=autoEffectLine;
+autoEffectLine=function(e,x){if(e&&e.kind==="handTop")return`${AUTO_EFFECT_TARGET_JP[e.targetMode]||"自分"}の手札から${_aeAmount(e,x)}枚を順番指定してライブラリーの一番上へ`;return _v42AutoEffectLineBase(e,x);};
+if(!EES_CATALOG_MAP.putHandTop){const c=_eesC("putHandTop","cards","手札から山札上へ戻す","choice","手札から指定枚数を選び、一番上からの順番を指定",["amount"],"handTop");const at=Math.max(0,EES_CATALOG.findIndex(x=>x.id==="discard")+1);EES_CATALOG.splice(at,0,c);EES_CATALOG_MAP.putHandTop=c;}
+const _v42EesAutoEffectBase=eesAutoEffect;
+eesAutoEffect=function(e,a){
+  const c=eesCatalog(e.effectId);
+  if(c&&c.map==="handTop")return normalizeAutoEffect({id:`ees:${e.id}`,label:c.label,kind:"handTop",enabled:true,optional:e.optional,targetMode:"controller",amountFixed:Math.max(1,eesNum(e.amount,1)),note:e.note||""});
+  const r=_v42EesAutoEffectBase(e,a);
+  /* 対象を取らない「あなたは～する」を対象カード扱いにしない。 */
+  if(r&&a&&!a.modalEnabled&&["controller","opponent","source"].includes(e.targetUse))return normalizeAutoEffect({...r,targetMode:e.targetUse});
+  return r;
+};
+const _v42V25AutoEffectsChoiceBase=v25AutoEffectsChoice;
+v25AutoEffectsChoice=function(src){if(_sourceAutoEffects(src).some(e=>e.kind==="handTop"))return null;return _v42V25AutoEffectsChoiceBase(src);};
+function v42QueueHandTop(src,e,x){const p=_aeController(src),n=Math.max(0,_aeAmount(e,x));if(n)_v42HandTopQueue.push({player:p,amount:n,label:e.label||"手札をライブラリー上へ",sourceName:src.name||"カード効果"});}
+const _v42ApplySourceAutoEffectsBase=_applySourceAutoEffects;
+_applySourceAutoEffects=function(src,x,choice){const fx=_sourceAutoEffects(src),selected=new Set(choice&&choice.stepIds||fx.map(e=>e.id)),ops=fx.filter(e=>e.kind==="handTop"&&selected.has(e.id)),ids=fx.filter(e=>e.kind!=="handTop"&&selected.has(e.id)).map(e=>e.id),ch={...(choice||{}),stepIds:ids};const logs=_v42ApplySourceAutoEffectsBase(src,x,ch);for(const e of ops)v42QueueHandTop(src,e,x);if(ops.length)setTimeout(v42ProcessHandTopQueue,0);return logs;};
+function v42ProcessHandTopQueue(){if(_v42HandTopBusy||!_v42HandTopQueue.length)return;_v42HandTopBusy=true;const op=_v42HandTopQueue[0],hand=state.players[op.player].hand||[],need=Math.min(op.amount,hand.length),order=[];const render=()=>{const list=document.getElementById("v42HandTopList"),cnt=document.getElementById("v42HandTopCount");if(!list)return;list.innerHTML=hand.map(c=>{const i=order.indexOf(c.id);return`<button type="button" class="v42-hand-card${i>=0?" selected":""}" data-v42hand="${esc(c.id)}"><span>${i>=0?`${i+1}. `:""}${esc(getCardDisplayInfo(c).name)}</span><small>${esc(typeText(c,true))}</small></button>`;}).join("")||'<div class="note">手札がありません</div>';if(cnt)cnt.textContent=`${order.length}/${need}（1番がライブラリーの一番上）`;};
+  openModal(`${esc(op.sourceName)} — 手札を山札上へ`, `<div class="note">手札から${need}枚を、ライブラリーの一番上に置く順番で選んでください。<b>最初に選んだカードが一番上</b>です。</div><div id="v42HandTopCount" class="v42-order-count"></div><div id="v42HandTopList" class="v42-hand-list"></div>`, `<button class="btn" data-v42ht="manual">手動処理済み</button><button class="btn primary" data-v42ht="ok">選択した順で確定</button>`,"lg");render();setModalHandler(e=>{const c=e.target.closest("[data-v42hand]");if(c){const id=c.dataset.v42hand,i=order.indexOf(id);if(i>=0)order.splice(i,1);else if(order.length<need)order.push(id);else toast(`${need}枚までです`);render();return;}const b=e.target.closest("[data-v42ht]");if(!b)return;if(b.dataset.v42ht==="ok"){if(order.length!==need){toast(`${need}枚選んでください`);return;}for(const id of order.slice().reverse()){const f=findCard(id);if(f&&f.player===op.player&&f.zone==="hand")moveCard(id,op.player,"library","top",true);}addLog(`${op.sourceName}: ${pname(op.player)} は手札${need}枚をライブラリー上へ（上から ${order.map(id=>{const f=findCard(id);return f?f.card.name:id;}).join(" → ")}）`);saveState(true);render();}else addLog(`${op.sourceName}: 手札からライブラリー上へ置く処理を手動確認`);closeModal();_v42HandTopQueue.shift();_v42HandTopBusy=false;setTimeout(v42ProcessHandTopQueue,0);});}
+
+function v42Diagnose(){
+  const sample={query:"渦巻く知識",base:{name:"Brainstorm",oracle_id:"x",type_line:"Instant",mana_cost:"{U}",cmc:1,colors:["U"],oracle_text:"Draw three cards, then put two cards from your hand on top of your library in any order.",keywords:[],image_uris:{normal:"https://cards.scryfall.io/test.jpg"}},localized:{name:"Brainstorm",printed_name:"渦巻く知識",printed_text:"カードを3枚引き、その後あなたの手札にあるカード2枚をライブラリーの一番上に好きな順番で置く。",lang:"ja"}};
+  const d=v42BuildImportData(sample),compiled=eesCompile({name:"Brainstorm"},{},eesNormalizeStudio({applyToAutomation:true,abilities:d.parsed.abilities})),fx=normalizeAutoEffects(compiled.autoEffects||[]);
+  const force=v42BuildImportData({query:"意志の力",base:{name:"Force of Will",type_line:"Instant",mana_cost:"{3}{U}{U}",cmc:5,colors:["U"],oracle_text:"You may pay 1 life and exile a blue card from your hand rather than pay this spell's mana cost. Counter target spell."},localized:{printed_name:"意志の力",printed_text:"あなたは、この呪文のマナ・コストを支払うのではなく、1点のライフを支払い、あなたの手札にある青のカード1枚を追放してもよい。\n呪文1つを対象とする。それを打ち消す。"}}).parsed.abilities[0];
+  const bolt=v42ParseRules("クリーチャーやプレインズウォーカーやプレイヤーのうち1つを対象とする。それに3点のダメージを与える。").abilities[0];
+  const berserk=v42BuildImportData({query:"狂暴化",base:{name:"Berserk",type_line:"Instant",mana_cost:"{G}",cmc:1,colors:["G"],oracle_text:"Target creature gains trample and gets +X/+0 until end of turn, where X is its power."},localized:{printed_name:"狂暴化",printed_text:"クリーチャー1体を対象とする。ターン終了時まで、それはトランプルを得るとともに+X/+0の修整を受ける。Xはそのクリーチャーのパワーに等しい。"}}).parsed.abilities[0];
+  return{version:V42_VERSION,name:d.canonicalName,displayName:d.displayName,mana:d.manaCost,types:d.types,effects:d.parsed.abilities.reduce((n,a)=>n+a.effects.length,0),drawTarget:fx.find(e=>e.kind==="draw")?.targetMode||"",hasHandTop:fx.some(e=>e.kind==="handTop"),forcePitch:force.costMode==="pitch"&&force.targetMode==="spell"&&force.effects.some(e=>e.effectId==="counterSpell"),boltAnyTarget:bolt.targetMode==="anyTarget"&&bolt.effects.some(e=>e.effectId==="damage"),berserkReference:berserk.targetMode==="creature"&&berserk.effects.some(e=>e.effectId==="ptModify"&&e.ptValueSource==="targetPower")&&berserk.effects.some(e=>e.effectId==="keywordGrant"&&e.keyword==="trample"),catalog:EES_CATALOG.length};
+}
+(function(){const st=document.createElement("style");st.id="v42CardImportStyle";st.textContent=`
+.v42-lookup{border-color:color-mix(in srgb,var(--accent) 55%,var(--line))}.v42-lookup-row{display:grid;grid-template-columns:1fr auto;gap:7px;margin-top:8px}.v42-options{display:flex;flex-wrap:wrap;gap:12px;margin:7px 0;font-size:11px}.v42-status{padding:7px;border:1px solid var(--line);border-radius:7px;background:var(--panel2);margin-top:7px}.v42-result{display:grid;gap:5px;margin-top:7px;padding:8px;border:1px solid var(--line);border-radius:8px}.v42-result>div:first-child{display:flex;gap:8px;align-items:baseline}.v42-result small{color:var(--muted)}.v42-hand-list{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:6px;max-height:55vh;overflow:auto;margin-top:8px}.v42-hand-card{display:grid;gap:2px;text-align:left;border:1px solid var(--line);border-radius:8px;padding:8px;background:var(--panel2);color:var(--text);cursor:pointer}.v42-hand-card.selected{border-color:var(--accent);background:color-mix(in srgb,var(--accent) 17%,var(--panel2))}.v42-hand-card small{color:var(--muted)}.v42-order-count{font-weight:700;margin-top:6px}@media(max-width:720px){.v42-lookup-row{grid-template-columns:1fr}.v42-lookup-row .btn{width:100%}.v42-hand-list{grid-template-columns:1fr}}
+`;document.head.appendChild(st);})();
+
 
 window.addEventListener("error",function(ev){ showErr(ev.message||"不明なエラー"); });
 window.addEventListener("DOMContentLoaded",init);
