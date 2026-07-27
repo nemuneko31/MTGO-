@@ -14175,7 +14175,7 @@ function cardAbilityMenuHTML(c){
     const badge=`<span class="abil-badge k-${ab.kind}">${ABILITY_KIND_JP[ab.kind]||"能力"}</span>`;
     const hints=[ab.costText?esc(ab.costText):"", _abilityHasMana(ab)?manaCostToText(ab.manaCost):"", ab.targetRequired?"対象必須":"", ab.memo?("📝"+esc(ab.memo).slice(0,18)):""].filter(Boolean).join(" / ");
     return `<div class="abil-row">${badge}<b class="abil-name">${esc(ab.name||"能力")}</b>${hints?`<span class="note">${hints}</span>`:""}
-      <button class="btn tiny primary" data-cm="abil:${ab.id}">スタックに乗せる</button></div>`;
+      <button class="btn tiny primary" data-cm="abil:${ab.id}">${typeof v7923AbilityActionLabel==="function"?v7923AbilityActionLabel(c,ab):"スタックに乗せる"}</button></div>`;
   }).join("");
   return `<div class="note" style="grid-column:1/-1">能力（手動補助・効果は手動処理 / Undo対象）</div><div class="abil-list" style="grid-column:1/-1">${rows}</div>`;
 }
@@ -14188,7 +14188,7 @@ function _pvAbilitiesHTML(c){
   const rows=list.map(ab=>{
     const badge=`<span class="abil-badge k-${ab.kind}">${ABILITY_KIND_JP[ab.kind]||"能力"}</span>`;
     const meta=[ABILITY_TIMING_JP[ab.timing]||ab.timing, ab.costText?("コスト:"+esc(ab.costText)):"", _abilityHasMana(ab)?("マナ:"+manaCostToText(ab.manaCost)):"", ab.targetRequired?"対象必須":""].filter(Boolean).join(" / ");
-    return `<div class="pv-abil">${badge}<b>${esc(ab.name||"能力")}</b>${meta?`<div class="note">${meta}</div>`:""}${ab.memo?`<div class="note">📝${esc(ab.memo)}</div>`:""}${ab.resolveNote?`<div class="note">解決:${esc(ab.resolveNote)}</div>`:""}${(ab.resolveChecklist&&ab.resolveChecklist.length)?`<div class="note">解決チェックリスト ${ab.resolveChecklist.length}件: ${ab.resolveChecklist.map(it=>esc(it.label)+(it.required?"*":"")).join(" / ")}</div>`:""}${onField?`<button class="btn tiny primary" data-pvabil="${c.id}:${ab.id}">スタックに乗せる</button>`:""}</div>`;
+    return `<div class="pv-abil">${badge}<b>${esc(ab.name||"能力")}</b>${meta?`<div class="note">${meta}</div>`:""}${ab.memo?`<div class="note">📝${esc(ab.memo)}</div>`:""}${ab.resolveNote?`<div class="note">解決:${esc(ab.resolveNote)}</div>`:""}${(ab.resolveChecklist&&ab.resolveChecklist.length)?`<div class="note">解決チェックリスト ${ab.resolveChecklist.length}件: ${ab.resolveChecklist.map(it=>esc(it.label)+(it.required?"*":"")).join(" / ")}</div>`:""}${onField?`<button class="btn tiny primary" data-pvabil="${c.id}:${ab.id}">${typeof v7923AbilityActionLabel==="function"?v7923AbilityActionLabel(c,ab):"スタックに乗せる"}</button>`:""}</div>`;
   }).join("");
   return `<div class="pvrow"><b>能力テンプレ</b>（手動補助・効果は手動）</div><div class="pv-abils">${rows}</div>`;
 }
@@ -23778,5 +23778,137 @@ try{document.title="カードゲーム練習卓 v7.9.22 自動・手動表示";}
 })();
 
 </script>
+
+<script>
+/* ===== v7.9.23 Mana Ability Rules Fix ===== */
+(function(){
+"use strict";
+const V7923_VERSION="7.9.23";
+const _v7923PendingOutput=new Map();
+function v7923Key(c,ab){return `${c&&c.id||""}|${ab&&ab.id||""}`;}
+function v7923IsLoyaltyAbility(card,ab){
+  if(!ab)return false;
+  if(ab.isLoyaltyAbility===true||ab.loyaltyAbility===true||ab.kind==="loyalty")return true;
+  const t=String(ab.costText||"").trim();
+  if(/^[\[{(]?\s*[+\-−]\s*\d+/.test(t))return true;
+  return false;
+}
+function v7923ExplicitManaOutput(ab){
+  return !!(ab&&(ab.manaOutputs!=null||ab.manaOutput!=null||ab.outputs!=null||ab.produces!=null));
+}
+function v7923ManaOutputs(card,ab){
+  if(!ab)return [];
+  try{
+    if(v7923ExplicitManaOutput(ab)&&typeof outputs8==="function")return outputs8(card,ab);
+    if(ab.kind==="mana"&&typeof outputs8==="function")return outputs8(card,ab);
+  }catch(_){}
+  return [];
+}
+function v7923HasTarget(ab){
+  if(!ab)return false;
+  if(ab.targetRequired===true)return true;
+  const tp=ab.targetProfile||{};
+  return tp.required===true||Number(tp.minTargets||0)>0;
+}
+function v7923IsRulesManaAbility(card,ab){
+  if(!ab)return false;
+  if(!["mana","activated"].includes(String(ab.kind||"")))return false;
+  if(v7923HasTarget(ab)||v7923IsLoyaltyAbility(card,ab))return false;
+  return v7923ManaOutputs(card,ab).some(o=>o&&Object.values(o).some(n=>Number(n)>0));
+}
+function v7923AbilityUsesStack(card,ab){
+  if(v7923IsRulesManaAbility(card,ab))return false;
+  // 「マナ能力」と誤登録されていても、対象付き・忠誠度・出力なしなら通常能力として扱う。
+  if(ab&&ab.kind==="mana")return true;
+  return !(ab&&ab.createsStackObject===false);
+}
+function v7923AbilityActionLabel(card,ab){
+  return v7923IsRulesManaAbility(card,ab)?"即時起動":"スタックに乗せる";
+}
+function v7923ChooseOutput(card,ab,cb){
+  const opts=v7923ManaOutputs(card,ab);
+  if(opts.length<=1){cb(opts[0]||{});return;}
+  openModal(`生み出すマナ — ${esc(card.name||"カード")}`,
+    `<div class="note">マナ能力はスタックを使わず、選んだマナを直ちに加えます。</div><div class="mana-pick">${opts.map((o,i)=>`<button class="btn mana-pick-btn" data-v7923out="${i}">${Object.entries(o).map(([k,n])=>`${k}×${n}`).join(" ")}</button>`).join("")}</div>`,
+    `<button class="btn" data-app="closem">キャンセル</button>`);
+  setModalHandler(function(e){const b=e.target.closest("[data-v7923out]");if(!b)return;const i=Number(b.dataset.v7923out);closeModal();cb(opts[i]||{});});
+}
+function v7923ApplyManaOutput(card,ab,owner){
+  const key=v7923Key(card,ab),out=_v7923PendingOutput.get(key)||v7923ManaOutputs(card,ab)[0]||{};
+  _v7923PendingOutput.delete(key);
+  if(!v7923IsRulesManaAbility(card,ab))return false;
+  if(typeof online!=="undefined"&&online.connected&&online.roomCode)return false; // online is server-authoritative
+  let total=0;for(const [k,n0] of Object.entries(out)){const n=Math.max(0,Math.floor(Number(n0)||0));if(n&&typeof _addMana==="function"){_addMana(owner,k,n);total+=n;}}
+  if(total){addLog(`${pname(owner)} は [${card.name}] のマナ能力を即時解決: ${Object.entries(out).filter(([,n])=>Number(n)>0).map(([k,n])=>`${k}×${n}`).join(" ")}`);saveState(true);render();renderPreview();}
+  return total>0;
+}
+
+// Output selection occurs before the existing cost/payment flow.
+const _v7923PutAbilityBase=putAbilityOnStack;
+putAbilityOnStack=function(cardId,abilityId){
+  const f=findCard(cardId),ab=f&&getCardAbilities(f.card).find(x=>x.id===abilityId);
+  if(!f||!ab)return _v7923PutAbilityBase.apply(this,arguments);
+  const outs=v7923ManaOutputs(f.card,ab);
+  if(outs.length&&["mana","activated"].includes(ab.kind)){
+    return v7923ChooseOutput(f.card,ab,out=>{_v7923PendingOutput.set(v7923Key(f.card,ab),out);_v7923PutAbilityBase(cardId,abilityId);});
+  }
+  return _v7923PutAbilityBase.apply(this,arguments);
+};
+
+// Force true mana abilities off the stack. Misclassified target/loyalty abilities stay on the stack.
+const _v7923CommitBase=_commitAbility;
+_commitAbility=function(c,ab,owner,doTap,pay){
+  const adjusted={...ab,createsStackObject:v7923AbilityUsesStack(c,ab)};
+  const r=_v7923CommitBase.call(this,c,adjusted,owner,doTap,pay);
+  if(v7923IsRulesManaAbility(c,ab))v7923ApplyManaOutput(c,ab,owner);
+  return r;
+};
+const _v7923StructuredBase=autoCommitStructuredAbility;
+autoCommitStructuredAbility=function(c,ab,owner,cp,sel,pay){
+  const adjusted={...ab,createsStackObject:v7923AbilityUsesStack(c,ab)};
+  const r=_v7923StructuredBase.call(this,c,adjusted,owner,cp,sel,pay);
+  if(v7923IsRulesManaAbility(c,ab))v7923ApplyManaOutput(c,ab,owner);
+  return r;
+};
+
+// Online proposal must send the rule-correct stack classification.
+if(typeof v53AbilityProposal==="function"){
+  const _v7923V53ProposalBase=v53AbilityProposal;
+  v53AbilityProposal=function(ctx,targets,manaOutput){
+    const p=_v7923V53ProposalBase.apply(this,arguments);
+    if(p&&p.ability)p.ability.createsStackObject=v7923AbilityUsesStack(ctx&&ctx.c,ctx&&ctx.ab);
+    return p;
+  };
+  if(globalThis.CPT_V53)globalThis.CPT_V53.proposal=v53AbilityProposal;
+}
+
+// Dictionary normalization: a correctly registered mana ability cannot be forced onto the stack.
+const _v7923NormalizeAbilityBase=normalizeAbility;
+normalizeAbility=function(a){
+  const n=_v7923NormalizeAbilityBase.apply(this,arguments);
+  if(n.kind==="mana"&&!v7923HasTarget(n)&&!v7923IsLoyaltyAbility(null,n))n.createsStackObject=false;
+  if(n.kind==="mana"&&(v7923HasTarget(n)||v7923IsLoyaltyAbility(null,n)))n.createsStackObject=true;
+  return n;
+};
+
+function v7923Diagnose(){
+  const land={id:"m1",name:"森",produces:["G"],owner:"A",controller:"A"};
+  const mana={id:"a1",kind:"mana",costText:"T",targetRequired:false,createsStackObject:true};
+  const targeted={id:"a2",kind:"mana",costText:"T",targetRequired:true,produces:["G"]};
+  const loyalty={id:"a3",kind:"mana",costText:"+1",targetRequired:false,produces:["G"]};
+  const tests=[
+    {name:"true mana ability immediate",ok:v7923IsRulesManaAbility(land,mana)&&!v7923AbilityUsesStack(land,mana)},
+    {name:"targeted mana producer uses stack",ok:!v7923IsRulesManaAbility(land,targeted)&&v7923AbilityUsesStack(land,targeted)},
+    {name:"loyalty mana producer uses stack",ok:!v7923IsRulesManaAbility(land,loyalty)&&v7923AbilityUsesStack(land,loyalty)},
+    {name:"button label immediate",ok:v7923AbilityActionLabel(land,mana)==="即時起動"},
+    {name:"button label stack",ok:v7923AbilityActionLabel(land,targeted)==="スタックに乗せる"}
+  ];
+  return{version:V7923_VERSION,ok:tests.every(x=>x.ok),tests};
+}
+globalThis.CPT_V7923_MANA_RULES={version:V7923_VERSION,isManaAbility:v7923IsRulesManaAbility,usesStack:v7923AbilityUsesStack,actionLabel:v7923AbilityActionLabel,diagnose:v7923Diagnose};
+try{document.title="カードゲーム練習卓 v7.9.23 マナ能力ルール修正版";}catch(_){}
+})();
+</script>
+
 </body>
 </html>

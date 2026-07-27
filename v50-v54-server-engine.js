@@ -54,7 +54,7 @@ const MAX_DRAW = 20;
 const MAX_LIBRARY_COUNT = 30;
 const MAX_SEARCH_RESULTS = 1000;
 const MANA_SYMBOLS = ["W", "U", "B", "R", "G", "C"];
-const SUPPORTED_EFFECTS = new Set(["life", "damage", "draw", "counter", "tap", "untap", "move", "token", "pt", "keyword", "type"]);
+const SUPPORTED_EFFECTS = new Set(["life", "damage", "draw", "counter", "tap", "untap", "move", "token", "pt", "keyword", "type", "mana"]);
 
 function clone(value) { return value == null ? value : JSON.parse(JSON.stringify(value)); }
 function now() { return Date.now(); }
@@ -736,6 +736,20 @@ function createEngine(deps = {}) {
       costProfile: clone(a.costProfile || {}), targetProfile: clone(a.targetProfile || {}),
     };
   }
+  function manaOutputOf(proposal) {
+    const raw = proposal?.manaOutput && typeof proposal.manaOutput === "object" ? proposal.manaOutput : {};
+    const out = {}; for (const k of MANA_SYMBOLS) { const n = int(raw[k]); if (n) out[k] = n; } return out;
+  }
+  function isLoyaltyAbility(card, ability) {
+    if (ability?.isLoyaltyAbility === true || ability?.loyaltyAbility === true || ability?.kind === "loyalty") return true;
+    const cost = text(ability?.costText, 160).trim();
+    return /^[\[{(]?\s*[+\-−]\s*\d+/.test(cost);
+  }
+  function isActivatedManaAbility(card, ability, proposal) {
+    const output = manaOutputOf(proposal), couldAdd = Object.values(output).some(n => n > 0);
+    const hasTarget = !!ability?.targetRequired || targetCount(proposal?.targets || {}) > 0 || int(ability?.targetProfile?.min, 0, 100) > 0;
+    return couldAdd && !hasTarget && !isLoyaltyAbility(card, ability);
+  }
   function validateAbilityCosts(room, role, source, cost = {}, payment = {}) {
     const p = publicPlayer(room, role);
     if (cost.tapSource && source.card.tapped) throw new Error("sourceAlreadyTapped");
@@ -801,12 +815,18 @@ function createEngine(deps = {}) {
       try {
         applyAbilityCosts(room, tx.actorRole, source, tx.proposal.cost || {}, tx.proposal.payment || {}, tx.checkedCosts);
         let stackObject = null, resolvedMana = null;
-        const output = tx.proposal.manaOutput || {}, isMana = tx.ability.kind === "mana" || tx.ability.createsStackObject === false || Object.keys(output).some(k => MANA_SYMBOLS.includes(k) && int(output[k]) > 0);
+        const output = manaOutputOf(tx.proposal), isMana = isActivatedManaAbility(source.card, tx.ability, tx.proposal);
         if (isMana) {
           const pool = normalizeManaPool(publicPlayer(room, tx.actorRole)); resolvedMana = {};
           for (const k of MANA_SYMBOLS) { const n = int(output[k]); if (n) { pool[k] += n; resolvedMana[k] = n; } }
         } else {
-          stackObject = abilityObject(room, source, tx.actorRole, tx.ability, tx.proposal); room.state.stack = Array.isArray(room.state.stack) ? room.state.stack : []; room.state.stack.push(stackObject);
+          stackObject = abilityObject(room, source, tx.actorRole, tx.ability, tx.proposal);
+          if (Object.values(output).some(n => n > 0)) {
+            stackObject.v54 = stackObject.v54 || { effects: [] };
+            stackObject.v54.effects = Array.isArray(stackObject.v54.effects) ? stackObject.v54.effects : [];
+            stackObject.v54.effects.push({ id: uid("mana-effect"), kind: "mana", player: tx.actorRole, manaOutput: clone(output), label: "マナを加える" });
+          }
+          room.state.stack = Array.isArray(room.state.stack) ? room.state.stack : []; room.state.stack.push(stackObject);
         }
         finalize(room, [tx.actorRole], "ability");
         const proof = makeProof(room, "ability", { txId: tx.id, role: tx.actorRole, sourceCardId: tx.sourceCardId, abilityId: tx.ability.id, stackObjectId: stackObject?.id || null, resolvedMana });
@@ -859,6 +879,7 @@ function createEngine(deps = {}) {
     if (step.kind === "life") { for (const role of playerTargets.length ? playerTargets : [actor]) if (isSeat(role)) { const p = publicPlayer(room, role); p.life = int(p.life) + (String(e.mode || e.operation) === "lose" ? -amount : amount); logs.push(`life:${role}:${amount}`); } }
     else if (step.kind === "damage") { for (const role of playerTargets) if (isSeat(role)) { publicPlayer(room, role).life -= amount; logs.push(`damage:${role}:${amount}`); } for (const id of targets) { const f = findPublicCard(room, id); if (f) { f.card.damage = int(f.card.damage) + amount; logs.push(`damage:${id}:${amount}`); } } }
     else if (step.kind === "draw") { const role = isSeat(e.player) ? e.player : actor, z = privateZones(room, role); for (let i = 0; i < amount; i++) { const c = z.library.shift(); if (!c) break; c.zone = "hand"; z.hand.push(c); } affectedPrivate.add(role); logs.push(`draw:${role}:${amount}`); }
+    else if (step.kind === "mana") { const role = isSeat(e.player) ? e.player : actor, pool = normalizeManaPool(publicPlayer(room, role)), output = e.manaOutput && typeof e.manaOutput === "object" ? e.manaOutput : {}; for (const k of MANA_SYMBOLS) { const n = int(output[k]); if (n) { pool[k] += n; logs.push(`mana:${role}:${k}:${n}`); } } }
     else if (step.kind === "counter") { const name = text(e.counterName || e.name || "+1/+1", 60); for (const id of targets) { const f = findPublicCard(room, id); if (f) { f.card.counters = f.card.counters || {}; f.card.counters[name] = int(f.card.counters[name]) + amount; logs.push(`counter:${id}:${name}:${amount}`); } } }
     else if (step.kind === "tap" || step.kind === "untap") { for (const id of targets) { const f = findPublicCard(room, id); if (f) { f.card.tapped = step.kind === "tap"; logs.push(`${step.kind}:${id}`); } } }
     else if (step.kind === "move") { const dest = text(e.destination || "graveyard", 30); for (const id of targets) { const f = findPublicCard(room, id); if (!f) continue; const [c] = f.arr.splice(f.index, 1); if (PRIVATE_ZONES.has(dest)) { privateZones(room, f.ownerRole)[dest].push(c); affectedPrivate.add(f.ownerRole); } else movePublicCard(room, f.ownerRole, c, dest); logs.push(`move:${id}:${dest}`); } }
