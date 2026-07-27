@@ -1,17 +1,12 @@
 {
-  "name": "card-practice-table-server",
-  "version": "0.1.0",
+  "name": "mtgo-style-v7-9-22-automation-status-badges",
+  "version": "7.9.22",
   "private": true,
-  "description": "ローカル/同一LAN/常設サーバー向けの練習用WebSocketルームサーバー＋任意の共有ストア（DATABASE_URLがある時だけ有効）。秘匿・認証・不正防止は簡易。",
-  "type": "commonjs",
+  "description": "v7.9.21 bulk registration plus unobtrusive automatic/manual effect-processing badges on cards and dictionary rows.",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
-    "check": "node --check server.js"
-  },
-  "dependencies": {
-    "ws": "^8.18.0",
-    "pg": "^8.13.0",
-    "@aws-sdk/client-s3": "^3.600.0"
+    "check": "node --check server.js && node --check server-v7.9.20.js && node --check mini-ws.js && node --check v7912-server-engine.js && node --check v50-v54-server-engine.js && node --check v55-v59-server-engine.js && node --check v60-v64-server-engine.js && node --check v65-v69-server-engine.js && node --check v70-v74-server-engine.js && node --check v75-v79-server-engine.js && node --check test-v7912-server-engine.js && node --check test-v49-regression-stage2.js && node --check test-stage2-v50-v54.js && node --check test-stage3-v55-v59.js && node --check test-stage3-boundaries.js && node --check test-stage3-stress.js && node --check test-stage4-v60-v64.js && node --check test-stage4-boundaries.js && node --check test-stage4-stress.js && node --check test-stage5-v65-v69.js && node --check test-stage5-boundaries.js && node --check test-stage5-stress.js && node --check test-stage6-v70-v74.js && node --check test-stage6-boundaries.js && node --check test-stage6-stress.js && node --check test-stage7-v75-v79.js && node --check test-stage7-boundaries.js && node --check test-stage7-stress.js && node --check v7921-bulk-card-registration.js && node --check test-v7921-bulk-registration.js && node --check v7922-automation-status.js && node --check test-v7922-automation-status.js",
+    "test": "node test-v7912-server-engine.js && node test-v49-regression-stage2.js && node test-stage2-v50-v54.js && node test-stage3-v55-v59.js && node test-stage3-boundaries.js && node test-stage3-stress.js && node test-stage4-v60-v64.js && node test-stage4-boundaries.js && node test-stage4-stress.js && node test-stage5-v65-v69.js && node test-stage5-boundaries.js && node test-stage5-stress.js && node test-stage6-v70-v74.js && node test-stage6-boundaries.js && node test-stage6-stress.js && node test-stage7-v75-v79.js && node test-stage7-boundaries.js && node test-stage7-stress.js && node test-v7921-bulk-registration.js && node test-v7922-automation-status.js"
   }
 }
