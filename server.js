@@ -1,10 +1,19 @@
 /* ============================================================
-   card-practice-table 用 最小WebSocketルームサーバー（オンラインMVP第1段階の土台）
-   - ローカル / 同一LAN での「練習用の盤面同期」専用
-   - host authoritative + state丸ごと同期 + rev 方式（ONLINE_PLAN.md E参照）
-   - 秘密情報管理・認証・不正防止・永続化・公式ルール処理は実装しない
-     （state には手札等の全情報が載る前提。手札マスクはHTML側の表示補助）
-   - card-practice-table.html は一切変更しない（静的配信のみ）
+   card-practice-table v7.9.19 段階統合サーバー — Stage 7 (v7.5～v7.9共同レビュー/通知権限)
+   - アップロードされたオンラインMVP版を土台に直接拡張
+   - v4.9公開state提案をサーバー側で厳密検証
+   - 公開ハッシュ、nonce、匿名化、秘密枚数、変更マニフェスト、席境界を検査
+   - 席別秘密stateのハッシュ、構造、role、public revを検査
+   - 旧stateUpdateは既定停止（ALLOW_LEGACY_STATE_UPDATE=1 の時だけ許可）
+   - v5.0～v5.4: 安全シャッフル/ドロー、ライブラリー取引、唱える、能力、スタック、構造化効果/護法
+   - v5.5～v5.9: 誘発/遅延/置換、戦闘、優先権/ターン、状況起因/勝敗、レイヤー/コピー
+   - v6.0～v6.4: オブジェクト世代/両面/合体、装着/支配、位相/LKI、同時領域移動/置換連鎖
+   - v6.5～v6.9: 同時誘発チェーン/介在if、誘発ループ監視、任意/選択/分岐ループ、応答予約
+   - v7.0～v7.4: 行動履歴、合意巻き戻し、秘密state復元、差分修復、リプレイ、レポート、チャプター/ハイライト
+   - v7.5～v7.9: 注釈、スレッド、共同レビュー、通知、メンション、ミュート、重要度、匿名比較レポート
+   - v7.9.12効果権限: 裏向き化/表向き化、予示/偽装、順次選択、
+     二段階確定、rev/nonce/席検証、複数操作の原子的ロールバック
+   - 身内向け練習サーバー。TLS・アカウント認証・管理者への暗号学的秘匿は別途必要
    起動: npm install && npm start  （既定ポート 8787 / 環境変数 PORT で変更可）
    ============================================================ */
 "use strict";
@@ -12,12 +21,71 @@
 const http = require("http");
 const fs = require("fs");
 const path = require("path");
-const { WebSocketServer } = require("ws");
+let WebSocketServer;
+try { ({ WebSocketServer } = require("ws")); }
+catch (_) { ({ WebSocketServer } = require("./mini-ws.js")); }
 const crypto = require("crypto");
+const V7912_ENGINE = require("./v7912-server-engine.js");
+const V50V54_MODULE = require("./v50-v54-server-engine.js");
+const V55V59_MODULE = require("./v55-v59-server-engine.js");
+const V60V64_MODULE = require("./v60-v64-server-engine.js");
+const V65V69_MODULE = require("./v65-v69-server-engine.js");
+const V70V74_MODULE = require("./v70-v74-server-engine.js");
+const V75V79_MODULE = require("./v75-v79-server-engine.js");
 
 const PORT = Number(process.env.PORT) || 8787;
 const HOST = process.env.HOST || "0.0.0.0"; // クラウドで外部公開するため全インターフェースにbind（localhostからも到達可）。固定したい場合は環境変数HOSTで指定
 const ROOT = __dirname;
+
+const SERVER_VERSION = "7.9.20-integrated-play";
+const V49_PROTOCOL = "cpt-v4.9";
+const EFFECT_PROTOCOL = V7912_ENGINE.PROTOCOL;
+const AUTHORITY = Object.freeze({
+  protocol: V49_PROTOCOL,
+  protocolVersion: V49_PROTOCOL,
+  version: "4.9.0",
+  serverVersion: SERVER_VERSION,
+  serverName: "card-practice-table-server",
+  serverAuthoritative: true,
+  publicEnvelopeRequired: true,
+  mutationManifestRequired: true,
+  seatPrivateState: true,
+  strictV49Validation: true,
+  stateProposalV49: true,
+  seatPrivateStateV49: true,
+  publicHashAlgorithm: "fnv1a32",
+  privateHashAlgorithm: "fnv1a32",
+  legacyStateAllowed: process.env.ALLOW_LEGACY_STATE_UPDATE === "1",
+  effectAutomationProtocol: EFFECT_PROTOCOL,
+  serverEffectTransactionsV7912: true,
+  serverSequentialChoicesV7912: true,
+  serverFaceDownAuthorityV7912: true,
+  serverManifestCloakV7912: true,
+  serverAtomicEffectRollbackV7912: true,
+  compatibilityBase: "uploaded-online-mvp",
+  fullCanonicalV79Foundation: false,
+  stage2V50V54Integrated: true,
+  stage3V55V59Integrated: true,
+  stage4V60V64Integrated: true,
+  stage5V65V69Integrated: true,
+  stage6V70V74Integrated: true,
+  stage7V75V79Integrated: true,
+  ...V50V54_MODULE.AUTHORITY_FLAGS,
+  ...V55V59_MODULE.AUTHORITY_FLAGS,
+  ...V60V64_MODULE.AUTHORITY_FLAGS,
+  ...V65V69_MODULE.AUTHORITY_FLAGS,
+  ...V70V74_MODULE.AUTHORITY_FLAGS,
+  ...V75V79_MODULE.AUTHORITY_FLAGS
+});
+const MAX_PRIVATE_STATE_BYTES = 6 * 1024 * 1024;
+const MAX_EFFECT_NONCES = 1024;
+const ALLOW_LEGACY_STATE_UPDATE = process.env.ALLOW_LEGACY_STATE_UPDATE === "1";
+const MAX_PUBLIC_STATE_BYTES = 8 * 1024 * 1024;
+const MAX_V49_NONCES = 300;
+const V49_LOCAL_KEYS = Object.freeze(["decks","cardDictionary","snapshots","sideboardPlans","matchHistory","openingHandHistory","keepRules","tokenTemplates","handActionHistory","damageActionHistory","playtest","integrityLog","v44","v48"]);
+const V49_PRIVATE_ZONES = Object.freeze(["hand","library","sideboard"]);
+const V49_RATE_LIMITS = Object.freeze({ proposal: { count: 18, windowMs: 5000 }, private: { count: 30, windowMs: 10000 } });
+
 
 /* ---------- 定数（第1段階の方針） ---------- */
 const ALLOW_NON_HOST_STATE_UPDATE = false; // 非hostのstateUpdateは拒否（ONLINE_PLAN.md G）
@@ -205,6 +273,14 @@ const MIME = {
 const httpServer = http.createServer((req, res) => {
   try {
     let urlPath = decodeURIComponent((req.url || "/").split("?")[0]);
+    if (urlPath === "/health" || urlPath === "/api/health") {
+      sendJson(res, 200, {
+        ok: true, server: "card-practice-table-server", version: SERVER_VERSION,
+        authority: AUTHORITY, rooms: rooms.size, clients: clientsById.size,
+        sharedStore: shared.enabled, imageStore: imageStore.enabled
+      });
+      return;
+    }
     if (urlPath === "/api/shared-images-status") {
       if (imageStore.enabled) sendJson(res, 200, { enabled: true, provider: "R2", maxBytes: IMG_MAX_BYTES, allowedTypes: Object.keys(IMG_ALLOWED_TYPES) });
       else sendJson(res, 200, { enabled: false, reason: imageStore.reason || "environment variables are not configured" });
@@ -258,6 +334,18 @@ function roomSummary(room) {
     createdAt: room.createdAt, updatedAt: room.updatedAt, hasState: room.state != null,
     passwordProtected: !!room.passwordHash, locked: !!room.locked, collaborativeMode: !!room.collaborativeMode, maxClients: MAX_ROOM_CLIENTS,
     clientCount: room.clients.size,
+    privateReady: {
+      A: !!(room.privateByRole && room.privateByRole.A && room.privateByRole.A.state),
+      B: !!(room.privateByRole && room.privateByRole.B && room.privateByRole.B.state)
+    },
+    effectAuthority: V7912_ENGINE.publicRuntime(room),
+    ruleAuthority: V50V54_ENGINE ? V50V54_ENGINE.authoritySummary(room) : null,
+    stage3Authority: V55V59_ENGINE ? V55V59_ENGINE.authoritySummary(room) : null,
+    stage4Authority: V60V64_ENGINE ? V60V64_ENGINE.authoritySummary(room) : null,
+    stage5Authority: V65V69_ENGINE ? V65V69_ENGINE.authoritySummary(room) : null,
+    stage6Authority: V70V74_ENGINE ? V70V74_ENGINE.authoritySummary(room) : null,
+    stage7Authority: V75V79_ENGINE ? V75V79_ENGINE.authoritySummary(room) : null,
+    v49: { strict: true, publicHash: room.stateHash || "", seenNonces: room.seenV49Nonces?.size || 0, privateRevByRole: room.privateRevByRole || { A:0, B:0 } },
     clients: [...room.clients.values()].map(c => ({ clientId: c.clientId, role: c.role, name: c.name, isHost: c.clientId === room.hostId }))
   };
 }
@@ -307,17 +395,456 @@ function checkRoomPassword(room, pw) {
 const wss = new WebSocketServer({ server: httpServer, maxPayload: MAX_MESSAGE_BYTES });
 const clientsById = new Map();
 
-function send(ws, obj) { try { if (ws && ws.readyState === 1) ws.send(JSON.stringify(obj)); } catch (_) {} }
+function sanitizeOutgoingState(value) {
+  if (value == null || typeof value !== "object" || Array.isArray(value)) return value;
+  // Before the first v4.9 public proposal, room.state may contain only server-owned
+  // history/authority scaffolding. It is not a client game state and must not be sent.
+  if (!value.__cptOnlineV48) {
+    // Before the first v4.9 proposal, Stage 2-7 engines may create an internal
+    // players/stack scaffold. Modern clients must never mistake that internal
+    // object for a game state. Raw states are exposed only in explicitly enabled
+    // legacy compatibility/test mode.
+    if (ALLOW_LEGACY_STATE_UPDATE && value.players && typeof value.players === "object" && Array.isArray(value.stack)) return v49StripServerAuthority(value);
+    return null;
+  }
+  const out = v49StripServerAuthority(value);
+  if (out.__cptOnlineV48) {
+    out.__cptOnlineV48.publicHash = "";
+    out.__cptOnlineV48.publicHash = v49EnvelopeHash(out);
+  }
+  return out;
+}
+function sanitizeOutgoingMessage(obj) {
+  if (!obj || typeof obj !== "object" || Array.isArray(obj) || !("state" in obj)) return obj;
+  const out = Object.assign({}, obj);
+  out.state = sanitizeOutgoingState(obj.state);
+  if (out.state?.__cptOnlineV48) {
+    out.serverHash = out.state.__cptOnlineV48.publicHash;
+    out.serverSha256 = sha256Json(out.state);
+  }
+  return out;
+}
+function send(ws, obj) { try { if (ws && ws.readyState === 1) ws.send(JSON.stringify(sanitizeOutgoingMessage(obj))); } catch (_) {} }
 function sendError(ws, message) { send(ws, { type: "error", message: String(message) }); }
 function broadcast(room, obj, exceptId) {
   for (const c of room.clients.values()) { if (c.clientId !== exceptId) send(c.ws, obj); }
 }
 function getRoomOf(client) { return client && client.roomCode ? rooms.get(client.roomCode) : null; }
 
+function sha256Json(value) {
+  return crypto.createHash("sha256").update(JSON.stringify(value == null ? null : value)).digest("hex");
+}
+function v49Clone(value) { return value == null ? value : JSON.parse(JSON.stringify(value)); }
+function v49FNV1a(text) {
+  let h = 0x811c9dc5;
+  text = String(text == null ? "" : text);
+  for (let i = 0; i < text.length; i++) { h ^= text.charCodeAt(i); h = Math.imul(h, 0x01000193) >>> 0; }
+  return (`00000000${h.toString(16)}`).slice(-8);
+}
+function v49EnvelopeHash(state) {
+  const x = v49Clone(state);
+  if (x?.__cptOnlineV48) x.__cptOnlineV48.publicHash = "";
+  return v49FNV1a(JSON.stringify(x));
+}
+function v49PrivateHash(value) {
+  const x = v49Clone(value);
+  if (x?.__cptPrivateV49) x.__cptPrivateV49.privateHash = "";
+  return v49FNV1a(JSON.stringify(x));
+}
+function v49Comparable(value) {
+  const x = v49Clone(value || {}), m = x?.__cptOnlineV48;
+  if (m) { m.sentAt = ""; m.nonce = ""; m.publicHash = ""; m.senderClientId = ""; m.baseRev = 0; }
+  return x;
+}
+function v49DiffPaths(a, b, limit = 1200) {
+  const out = [];
+  function walk(x, y, pathName, depth) {
+    if (out.length >= limit || x === y) return;
+    if (depth > 10) { out.push(pathName || "$"); return; }
+    const ax = Array.isArray(x), ay = Array.isArray(y);
+    if (ax || ay) {
+      if (!(ax && ay)) { out.push(pathName || "$"); return; }
+      if (x.length !== y.length) out.push(`${pathName || "$"}.length`);
+      const n = Math.min(Math.max(x.length, y.length), 250);
+      for (let i = 0; i < n && out.length < limit; i++) walk(x[i], y[i], `${pathName || "$"}[${i}]`, depth + 1);
+      return;
+    }
+    const ox = x && typeof x === "object", oy = y && typeof y === "object";
+    if (ox || oy) {
+      if (!(ox && oy)) { out.push(pathName || "$"); return; }
+      const keys = [...new Set([...Object.keys(x), ...Object.keys(y)])].sort();
+      for (const key of keys) { if (out.length >= limit) break; walk(x[key], y[key], pathName ? `${pathName}.${key}` : `$.${key}`, depth + 1); }
+      return;
+    }
+    out.push(pathName || "$");
+  }
+  walk(v49Comparable(a), v49Comparable(b), "$", 0);
+  return [...new Set(out)].sort();
+}
+function v49HiddenCounts(state) {
+  const out = { A: {}, B: {} };
+  for (const role of ["A", "B"]) {
+    const pl = state?.players?.[role] || {};
+    for (const zone of V49_PRIVATE_ZONES) out[role][zone] = Array.isArray(pl[zone]) ? pl[zone].length : 0;
+    out[role].faceDownExile = (pl.exile || []).filter(c => c?.v48Redacted === true && c?.faceDown === true).length;
+    out[role].faceDownBattlefield = [...(pl.creatures || []), ...(pl.lands || []), ...(pl.others || [])].filter(c => c?.v48Redacted === true && c?.faceDown === true).length;
+  }
+  return out;
+}
+function v49ValidateRedactedCard(card, zone, role) {
+  if (!card || typeof card !== "object" || Array.isArray(card)) return false;
+  if (card.v48Redacted !== true || card.faceDown !== true || card.name !== "非公開カード") return false;
+  if (card.imageId != null || card.imageUrl != null) return false;
+  if (card.owner !== role) return false;
+  if (zone !== "stack" && card.zone && card.zone !== zone) return false;
+  if (card.memo && String(card.memo).trim()) return false;
+  return true;
+}
+function v49SameCounts(a, b) {
+  for (const role of ["A", "B"]) for (const key of ["hand","library","sideboard","faceDownExile","faceDownBattlefield"])
+    if (Number(a?.[role]?.[key] || 0) !== Number(b?.[role]?.[key] || 0)) return false;
+  return true;
+}
+function v49ContainsLocalOnlyData(state) {
+  return V49_LOCAL_KEYS.find(key => Object.prototype.hasOwnProperty.call(state || {}, key)) || "";
+}
+function v49ValidatePublicRedaction(state) {
+  for (const role of ["A", "B"]) {
+    const pl = state?.players?.[role];
+    if (!pl || typeof pl !== "object") return { ok: false, reason: `playerMissing:${role}` };
+    for (const zone of V49_PRIVATE_ZONES) {
+      if (!Array.isArray(pl[zone])) return { ok: false, reason: `privateZoneInvalid:${role}:${zone}` };
+      for (const card of pl[zone]) if (!v49ValidateRedactedCard(card, zone, role)) return { ok: false, reason: `privateCardNotRedacted:${role}:${zone}` };
+    }
+    for (const zone of ["creatures","lands","others","exile"]) {
+      if (pl[zone] != null && !Array.isArray(pl[zone])) return { ok: false, reason: `zoneInvalid:${role}:${zone}` };
+      for (const card of pl[zone] || []) if (card?.faceDown && !v49ValidateRedactedCard(card, zone, role)) return { ok: false, reason: `faceDownNotRedacted:${role}:${zone}` };
+    }
+  }
+  if (state.stack != null && !Array.isArray(state.stack)) return { ok: false, reason: "stackInvalid" };
+  for (const card of state.stack || []) {
+    const role = card?.owner === "B" ? "B" : "A";
+    if (card?.faceDown && !v49ValidateRedactedCard(card, "stack", role)) return { ok: false, reason: "faceDownNotRedacted:stack" };
+  }
+  return { ok: true };
+}
+function v49RateOk(room, client, kind) {
+  const spec = V49_RATE_LIMITS[kind]; if (!spec) return true;
+  if (!room.v49Rate) room.v49Rate = new Map();
+  const key = `${client.clientId}:${kind}`, t = now();
+  const arr = (room.v49Rate.get(key) || []).filter(x => t - x < spec.windowMs);
+  if (arr.length >= spec.count) { room.v49Rate.set(key, arr); return false; }
+  arr.push(t); room.v49Rate.set(key, arr); return true;
+}
+function v49ValidatePublicEnvelope(state, client, room) {
+  if (!state || typeof state !== "object" || Array.isArray(state)) return { ok: false, reason: "stateInvalid" };
+  if (Buffer.byteLength(JSON.stringify(state), "utf8") > MAX_PUBLIC_STATE_BYTES) return { ok: false, reason: "stateTooLarge" };
+  const m = state.__cptOnlineV48;
+  if (!m || m.schema !== 1 || m.kind !== "publicState" || m.privacy !== "safe") return { ok: false, reason: "publicEnvelopeRequired" };
+  if (client.role !== "A" && client.role !== "B") return { ok: false, reason: "seatRequired" };
+  if (m.senderRole !== client.role) return { ok: false, reason: "senderRoleMismatch" };
+  if (String(m.senderClientId || "") !== String(client.clientId)) return { ok: false, reason: "senderClientMismatch" };
+  if (Number(m.baseRev) !== Number(room.rev)) return { ok: false, reason: "envelopeBaseRevMismatch" };
+  const nonce = String(m.nonce || "");
+  if (!nonce || nonce.length > 200) return { ok: false, reason: "nonceInvalid" };
+  if (room.seenV49Nonces?.has(nonce)) return { ok: false, reason: "duplicateNonce" };
+  const expectedHash = v49EnvelopeHash(state);
+  if (String(m.publicHash || "") !== expectedHash) return { ok: false, reason: "publicHashMismatch", expectedHash };
+  const localKey = v49ContainsLocalOnlyData(state);
+  if (localKey) return { ok: false, reason: "localOnlyData", detail: localKey };
+  const redaction = v49ValidatePublicRedaction(state);
+  if (!redaction.ok) return redaction;
+  const actualHidden = v49HiddenCounts(state);
+  if (!v49SameCounts(m.hidden, actualHidden)) return { ok: false, reason: "hiddenCountMismatch", actualHidden };
+  return { ok: true, meta: m, nonce, publicHash: expectedHash };
+}
+function v49StripServerAuthority(value) {
+  const x = v49Clone(value && typeof value === "object" ? value : {});
+  // v7.0-v7.4 contains server-only history/snapshot data and is never sent.
+  for (const key of ["v70", "v71", "v72", "v73", "v74"]) delete x[key];
+  return x;
+}
+const V49_PROPOSAL_AUTHORITY_KEYS = Object.freeze([
+  "v34", "v55", "v58", "v59", "v60", "v61", "v62", "v63", "v64",
+  "v65", "v66", "v67", "v68", "v69", "v70", "v71", "v72", "v73", "v74"
+]);
+function v49StripProposalAuthority(value) {
+  const x = v49Clone(value && typeof value === "object" ? value : {});
+  for (const key of V49_PROPOSAL_AUTHORITY_KEYS) delete x[key];
+  return x;
+}
+function v49CaptureProposalAuthority(room) {
+  const out = {};
+  const src = room?.state && typeof room.state === "object" ? room.state : {};
+  for (const key of V49_PROPOSAL_AUTHORITY_KEYS) if (src[key] !== undefined) out[key] = v49Clone(src[key]);
+  return out;
+}
+function v49RestoreProposalAuthority(room, saved) {
+  if (!room.state || typeof room.state !== "object") room.state = {};
+  for (const key of V49_PROPOSAL_AUTHORITY_KEYS) {
+    if (saved && saved[key] !== undefined) room.state[key] = v49Clone(saved[key]);
+    else delete room.state[key];
+  }
+}
+function v49ValidateManifest(proposal, room, state) {
+  const m = proposal?.mutationManifest;
+  if (!m || m.schema !== 1 || !Array.isArray(m.paths)) return { ok: false, reason: "manifestRequired" };
+  if (m.paths.length > 1200) return { ok: false, reason: "manifestTooLarge" };
+  const supplied = [...new Set(m.paths.map(String))].sort();
+  if (supplied.length !== m.paths.length || supplied.some((x, i) => x !== m.paths[i])) return { ok: false, reason: "manifestNotCanonical" };
+  if (Number(m.count) !== supplied.length) return { ok: false, reason: "manifestCountMismatch" };
+  const suppliedHash = v49FNV1a(JSON.stringify(supplied));
+  if (String(m.hash || "") !== suppliedHash) return { ok: false, reason: "manifestSelfMismatch", expectedHash: suppliedHash };
+  const expectedPaths = room.v49HasPublicState !== true ? ["$init"] : v49DiffPaths(v49StripProposalAuthority(room.state), v49StripProposalAuthority(state));
+  const expectedHash = v49FNV1a(JSON.stringify(expectedPaths));
+  if (JSON.stringify(supplied) !== JSON.stringify(expectedPaths)) return { ok: false, reason: "manifestMismatch", expectedPaths, expectedHash };
+  return { ok: true, paths: expectedPaths, hash: expectedHash };
+}
+function v49ValidateSeatBoundaries(paths, role) {
+  const other = role === "A" ? "B" : "A";
+  const rx = new RegExp(`^\\$\\.players\\.${other}\\.(hand|library|sideboard)(?:\\.|\\[|$)`);
+  const bad = (paths || []).find(p => rx.test(p));
+  return bad ? { ok: false, reason: "foreignPrivateMutation", path: bad } : { ok: true };
+}
+function v49RememberNonce(set, nonce, limit = MAX_V49_NONCES) {
+  set.add(nonce); while (set.size > limit) set.delete(set.values().next().value);
+}
+function v49ValidatePrivateState(value, client, room, msg) {
+  if (msg.protocol !== V49_PROTOCOL) return { ok: false, reason: "protocolMismatch" };
+  if (client.role !== "A" && client.role !== "B") return { ok: false, reason: "seatRequired" };
+  if (!value || typeof value !== "object" || Array.isArray(value)) return { ok: false, reason: "privateStateInvalid" };
+  if (Buffer.byteLength(JSON.stringify(value), "utf8") > MAX_PRIVATE_STATE_BYTES) return { ok: false, reason: "privateTooLarge" };
+  const m = value.__cptPrivateV49;
+  if (!m || m.schema !== 1 || m.kind !== "seatPrivateState") return { ok: false, reason: "privateEnvelopeRequired" };
+  if (m.role !== client.role) return { ok: false, reason: "privateRoleMismatch" };
+  if (String(m.privateHash || "") !== v49PrivateHash(value)) return { ok: false, reason: "privateHashMismatch" };
+  if (Number(m.basePublicRev) > Number(room.rev)) return { ok: false, reason: "futurePublicRev" };
+  if (msg.publicRev != null && Number(msg.publicRev) > Number(room.rev)) return { ok: false, reason: "futurePublicRev" };
+  if (!value.zones || !Array.isArray(value.zones.hand) || !Array.isArray(value.zones.library) || !Array.isArray(value.zones.sideboard)) return { ok: false, reason: "privateZonesInvalid" };
+  for (const zone of V49_PRIVATE_ZONES) if (value.zones[zone].length > 1000) return { ok: false, reason: `privateZoneTooLarge:${zone}` };
+  const nonce = String(m.nonce || "");
+  if (!nonce || nonce.length > 200) return { ok: false, reason: "privateNonceInvalid" };
+  const set = room.privateSeenNonces?.[client.role];
+  if (set?.has(nonce)) return { ok: false, reason: "duplicatePrivateNonce" };
+  return { ok: true, meta: m, nonce };
+}
+function rolePrivate(room, role) {
+  return role === "A" || role === "B" ? room.privateByRole?.[role] || null : null;
+}
+function effectPrivateFor(room, role) {
+  return role === "A" || role === "B" ? V7912_ENGINE.privatePayload(room, role) : null;
+}
+function privateStateFor(room, role) {
+  return rolePrivate(room, role)?.state || null;
+}
+function rememberNonce(room, nonce) {
+  nonce = String(nonce || "").slice(0, 160);
+  if (!nonce) return false;
+  if (!room.effectNonces) room.effectNonces = new Map();
+  if (room.effectNonces.has(nonce)) return false;
+  room.effectNonces.set(nonce, now());
+  while (room.effectNonces.size > MAX_EFFECT_NONCES) room.effectNonces.delete(room.effectNonces.keys().next().value);
+  return true;
+}
+function hasPendingEffectWork(room) {
+  const r = V7912_ENGINE.ensureRoom(room);
+  return !!(r.txByRole.A || r.txByRole.B || r.choices.some(x => x && x.status === "pending"));
+}
+function hasPendingStage2Work(room) {
+  return !!(V50V54_ENGINE && V50V54_ENGINE.anyActive(room));
+}
+function hasPendingStage3Work(room) {
+  return !!(V55V59_ENGINE && V55V59_ENGINE.anyActive(room));
+}
+function hasPendingStage4Work(room) {
+  return !!(room?.v60v64 && V60V64_ENGINE && V60V64_ENGINE.anyActive(room));
+}
+function hasPendingStage5Work(room) {
+  return !!(V65V69_ENGINE && V65V69_ENGINE.anyActive(room));
+}
+function hasPendingStage6Work(room) {
+  return !!(V70V74_ENGINE && V70V74_ENGINE.anyActive(room));
+}
+function clientCanMutateRoom(room, client) {
+  if (client.clientId === room.hostId) return true;
+  if (!room.collaborativeMode) return false;
+  return client.role === "A" || client.role === "B";
+}
+function refreshRoomHash(room) {
+  const publicState = sanitizeOutgoingState(room.state);
+  if (publicState?.__cptOnlineV48) room.stateHash = publicState.__cptOnlineV48.publicHash;
+  else room.stateHash = sha256Json(publicState);
+  room.stateSha256 = sha256Json(publicState);
+  return room.stateHash;
+}
+function authorityEnvelope(room, client) {
+  return {
+    authority: AUTHORITY,
+    effectAuthority: room ? V7912_ENGINE.publicRuntime(room) : null,
+    effectPrivate: room ? effectPrivateFor(room, client?.role) : null
+  };
+}
+function sendSeatPrivateSync(room, client, type = "seatPrivateSync") {
+  if (!room || !client || (client.role !== "A" && client.role !== "B")) return;
+  const entry = rolePrivate(room, client.role);
+  send(client.ws, {
+    type, protocol: V49_PROTOCOL, roomCode: room.roomCode,
+    privateRev: Number(entry?.rev) || 0, privateState: entry?.state || null,
+    publicRev: room.rev, authority: AUTHORITY
+  });
+}
+function broadcastState(room, from, extra = {}) {
+  for (const c of room.clients.values()) {
+    send(c.ws, Object.assign({
+      type: "stateSync", state: room.state, rev: room.rev, from,
+      serverHash: room.stateHash || refreshRoomHash(room), serverSha256: room.stateSha256 || sha256Json(room.state),
+      authority: AUTHORITY,
+      effectAuthority: V7912_ENGINE.publicRuntime(room),
+      effectPrivate: effectPrivateFor(room, c.role)
+    }, extra));
+  }
+}
+function sendEffectSync(room, type, extra = {}) {
+  for (const c of room.clients.values()) {
+    send(c.ws, Object.assign({
+      type, protocol: EFFECT_PROTOCOL, rev: room.rev, state: room.state,
+      privateState: privateStateFor(room, c.role),
+      effectPrivate: effectPrivateFor(room, c.role),
+      effectAuthority: V7912_ENGINE.publicRuntime(room),
+      authority: AUTHORITY
+    }, extra));
+  }
+}
+function effectReject(client, room, msg, reason, detail) {
+  send(client.ws, {
+    type: "effectAuthorityRejected", protocol: EFFECT_PROTOCOL,
+    actionNonce: String(msg?.actionNonce || ""), txId: String(msg?.txId || ""),
+    reason: String(reason || "rejected"), detail: String(detail || ""),
+    rev: Number(room?.rev) || 0,
+    effectAuthority: room ? V7912_ENGINE.publicRuntime(room) : null,
+    authority: AUTHORITY
+  });
+}
+function normalizePrivateState(client, msg) {
+  const room = getRoomOf(client);
+  const v = v49ValidatePrivateState(msg.privateState, client, room, msg);
+  if (!v.ok) { const e = new Error(v.reason); e.v49 = v; throw e; }
+  return { state: v49Clone(msg.privateState), validation: v };
+}
+
+
+let V65V69_ENGINE = null;
+let V70V74_ENGINE = null;
+let V75V79_ENGINE = null;
+function stageActionMeta(room, label, detail) {
+  const last = Array.isArray(room?.log) && room.log.length ? room.log[room.log.length - 1] : null;
+  return {
+    label: String(label || last?.label || last?.line || last?.kind || "ゲーム操作").slice(0, 160),
+    action: String(last?.kind || "serverAction").slice(0, 100),
+    detail: String(detail || last?.line || "").slice(0, 240)
+  };
+}
+function finalizeRoomWithHistory(room, affectedRoles, label) {
+  room.rev = Number(room.rev || 0) + 1;
+  room.updatedAt = now();
+  if (V70V74_ENGINE) V70V74_ENGINE.recordSnapshot(room, stageActionMeta(room, label, affectedRoles ? `affected: ${[].concat(affectedRoles).join(",")}` : ""));
+}
+
+const V50V54_ENGINE = V50V54_MODULE.createEngine({
+  send(target, value) { send(target, value); },
+  broadcast(room, value, exceptId) { broadcast(room, value, exceptId); },
+  pushLog(room, entry) { pushRoomLog(room, entry); },
+  refreshRoomHash(room) { return refreshRoomHash(room); },
+  privateStateFor(room, role) { return privateStateFor(room, role); },
+  rolePrivate(room, role) { return rolePrivate(room, role); },
+  validatePrivateState(client, room, msg) {
+    const v = v49ValidatePrivateState(msg.privateState, client, room, msg);
+    if (!v.ok) { const e = new Error(v.reason); e.v49 = v; throw e; }
+    return v49Clone(msg.privateState);
+  },
+  finalizeRoom(room, affectedRoles, label) { finalizeRoomWithHistory(room, affectedRoles, label); },
+  authority() { return AUTHORITY; },
+  effectAuthority(room) { return V7912_ENGINE.publicRuntime(room); },
+  preResolveStackObject(room, top) { return V65V69_ENGINE ? V65V69_ENGINE.preResolveStackObject(room, top) : { apply: true }; }
+});
+
+const V55V59_ENGINE = V55V59_MODULE.createEngine({
+  send(target, value) { send(target && target.ws ? target.ws : target, value); },
+  broadcast(room, value, exceptId) { broadcast(room, value, exceptId); },
+  pushLog(room, entry) { pushRoomLog(room, entry); },
+  refreshRoomHash(room) { return refreshRoomHash(room); },
+  privateStateFor(room, role) { return privateStateFor(room, role); },
+  rolePrivate(room, role) { return privateStateFor(room, role); },
+  finalizeRoom(room, affectedRoles, label) { finalizeRoomWithHistory(room, affectedRoles, label); },
+  authority() { return AUTHORITY; },
+  resolveTopStack(room, role) { return V50V54_ENGINE.resolveTopForTurn(room, role); }
+});
+
+const V60V64_ENGINE = V60V64_MODULE.createEngine({
+  send(target, value) { send(target && target.ws ? target.ws : target, value); },
+  broadcast(room, value, exceptId) { broadcast(room, value, exceptId); },
+  pushLog(room, entry) { pushRoomLog(room, entry); },
+  refreshRoomHash(room) { return refreshRoomHash(room); },
+  finalizeRoom(room, affectedRoles, label) { finalizeRoomWithHistory(room, affectedRoles, label); },
+  authority() { return AUTHORITY; },
+  recomputeLayers(room) { return V55V59_ENGINE.recomputeLayers(room); },
+  runSba(room) { return V55V59_ENGINE.runSba(room, { reason: "v60v64" }); },
+  startTriggerEvent(room, event, client, nonce) { return V55V59_ENGINE.startExternalTriggerEvent(room, event, client, nonce); }
+});
+
+V65V69_ENGINE = V65V69_MODULE.createEngine({
+  send(target, value) { send(target && target.ws ? target.ws : target, value); },
+  broadcast(room, value, exceptId) { broadcast(room, value, exceptId); },
+  pushLog(room, entry) { pushRoomLog(room, entry); },
+  refreshRoomHash(room) { return refreshRoomHash(room); },
+  finalizeRoom(room, affectedRoles, label) { finalizeRoomWithHistory(room, affectedRoles, label); },
+  authority() { return AUTHORITY; },
+  recomputeLayers(room) { return V55V59_ENGINE.recomputeLayers(room); },
+  runSba(room) { return V55V59_ENGINE.runSba(room, { reason: "v65v69" }); },
+  resolveTopStack(room, role) { return V50V54_ENGINE.resolveTopForTurn(room, role); }
+});
+
+V70V74_ENGINE = V70V74_MODULE.createEngine({
+  send(target, value) { send(target && target.ws ? target.ws : target, value); },
+  broadcast(room, value, exceptId) { broadcast(room, value, exceptId); },
+  pushLog(room, entry) { pushRoomLog(room, entry); },
+  refreshRoomHash(room) { return refreshRoomHash(room); },
+  privateStateFor(room, role) { return privateStateFor(room, role); },
+  cancelAllTransactions(room) {
+    V7912_ENGINE.cancelClientTransactions(room, "__rollback__");
+    V50V54_ENGINE.cancelClientTransactions(room, "__rollback__");
+    V55V59_ENGINE.cancelClientTransactions(room, "__rollback__");
+    V60V64_ENGINE.cancelClientTransactions(room, "__rollback__");
+    V65V69_ENGINE.cancelClientTransactions(room, "__rollback__");
+    if (room.v7912) { room.v7912.txByRole = { A: null, B: null }; room.v7912.choices = []; }
+    if (room.v50v54) for (const k of Object.keys(room.v50v54)) if (/Tx$|tx$/i.test(k)) room.v50v54[k] = null;
+    if (room.v55v59) for (const k of Object.keys(room.v55v59)) if (/Tx$|tx$/i.test(k)) room.v55v59[k] = null;
+    if (room.v60v64) for (const k of Object.keys(room.v60v64)) if (/Tx$|tx$/i.test(k)) room.v60v64[k] = null;
+    if (room.v65v69) for (const k of ["triggerTx","loopTx","choiceTx","branchTx"]) room.v65v69[k] = null;
+  }
+});
+
+V75V79_ENGINE = V75V79_MODULE.createEngine({
+  send(target, value) { send(target && target.ws ? target.ws : target, value); },
+  broadcast(room, value, exceptId) { broadcast(room, value, exceptId); },
+  pushLog(room, entry) { pushRoomLog(room, entry); },
+  authority() { return AUTHORITY; },
+  chapterAnalysis(room, categories, threshold) { return V70V74_ENGINE.chapterAnalysis(room, categories, threshold); },
+  reportContent(room, categories) { return V70V74_ENGINE.reportContent(room, categories); }
+});
+
+
 function leaveCurrentRoom(client, silent, preserveReconnect) {
   const room = getRoomOf(client);
   if (!room) { client.roomCode = null; return; }
   const wasHost = room.hostId === client.clientId;
+  V7912_ENGINE.cancelClientTransactions(room, client.id || client.clientId);
+  V50V54_ENGINE.cancelClientTransactions(room, client.id || client.clientId);
+  V55V59_ENGINE.cancelClientTransactions(room, client.id || client.clientId);
+  V60V64_ENGINE.cancelClientTransactions(room, client.id || client.clientId);
+  V65V69_ENGINE.cancelClientTransactions(room, client.id || client.clientId);
+  V70V74_ENGINE.cancelClientTransactions(room, client.id || client.clientId);
+  V75V79_ENGINE.cancelClientTransactions(room, client.id || client.clientId);
   room.clients.delete(client.clientId); client.roomCode = null;
   if (preserveReconnect && client.reconnectToken) {
     if (!room.reconnectSlots) room.reconnectSlots = new Map();
@@ -332,7 +859,7 @@ function leaveCurrentRoom(client, silent, preserveReconnect) {
       room.hostId = next.clientId; pushRoomLog(room, { kind: "hostChanged", clientId: next.clientId });
       log(`room ${room.roomCode} host -> ${next.clientId}`);
     }
-    if (!silent) broadcast(room, { type: "roomUpdate", roomSummary: roomSummary(room) });
+    if (!silent) broadcast(room, { type: "roomUpdate", roomSummary: roomSummary(room), authority: AUTHORITY, effectAuthority: V7912_ENGINE.publicRuntime(room) });
   }
 }
 
@@ -345,7 +872,10 @@ const handlers = {
     const room = {
       roomCode: genRoomCode(), createdAt: now(), updatedAt: now(),
       hostId: client.clientId, clients: new Map(), reconnectSlots: new Map(), state: null, rev: 0, log: [], _deleteTimer: null,
-      passwordSalt: null, passwordHash: null, locked: false, collaborativeMode: false
+      passwordSalt: null, passwordHash: null, locked: false, collaborativeMode: false,
+      privateByRole: { A: null, B: null }, privateRevByRole: { A: 0, B: 0 },
+      seenV49Nonces: new Set(), privateSeenNonces: { A: new Set(), B: new Set() }, v49Rate: new Map(), v49HasPublicState: false,
+      effectNonces: new Map(), stateHash: sha256Json(null), stateSha256: sha256Json(null), v7912: null, v50v54: null, v55v59: null, v60v64: null, v65v69: null, v70v74: null, v75v79: null
     };
     setRoomPassword(room, msg.password); // 空なら鍵なし。ハッシュのみ保持しクライアントへは配信しない
     client.name = sanitizeName(msg.name != null ? msg.name : client.name);
@@ -356,7 +886,18 @@ const handlers = {
     pushRoomLog(room, { kind: "create", clientId: client.clientId, name: client.name });
     log(`room ${room.roomCode} created by ${client.clientId} (${client.name})`);
     log(`room ${room.roomCode} password=${room.passwordHash ? "on" : "off"}`);
-    send(client.ws, { type: "roomCreated", roomCode: room.roomCode, clientId: client.clientId, role: client.role, reconnectToken: client.reconnectToken, roomSummary: roomSummary(room) });
+    V7912_ENGINE.ensureRoom(room);
+    V50V54_ENGINE.ensureRoom(room);
+    V55V59_ENGINE.ensureRoom(room);
+    V60V64_ENGINE.ensureRuntime(room); V65V69_ENGINE.ensureRoom(room); V70V74_ENGINE.ensureRoom(room); V75V79_ENGINE.ensureRoom(room);
+    send(client.ws, {
+      type: "roomCreated", roomCode: room.roomCode, clientId: client.clientId, role: client.role,
+      reconnectToken: client.reconnectToken, roomSummary: roomSummary(room), rev: room.rev,
+      state: room.state, privateState: privateStateFor(room, client.role),
+      authority: AUTHORITY, effectAuthority: V7912_ENGINE.publicRuntime(room),
+      ruleAuthority: V50V54_ENGINE.authoritySummary(room), stage3Authority: V55V59_ENGINE.authoritySummary(room), stage4Authority: V60V64_ENGINE.authoritySummary(room), stage5Authority: V65V69_ENGINE.authoritySummary(room), stage6Authority: V70V74_ENGINE.authoritySummary(room), stage7Authority: V75V79_ENGINE.authoritySummary(room),
+      effectPrivate: effectPrivateFor(room, client.role)
+    });
   },
 
   joinRoom(client, msg) {
@@ -380,14 +921,17 @@ const handlers = {
     client.role = assignRole(room, isReconnect ? slot.role : msg.role);
     client.roomCode = room.roomCode; client.joinedAt = now(); room.clients.set(client.clientId, client);
     if (isReconnect) { room.reconnectSlots.delete(token); if (slot.wasHost) room.hostId = client.clientId; }
+    V55V59_ENGINE.ensureRoom(room); V60V64_ENGINE.ensureRuntime(room); V65V69_ENGINE.ensureRoom(room); V70V74_ENGINE.ensureRoom(room); V75V79_ENGINE.ensureRoom(room);
     pushRoomLog(room, { kind: "join", clientId: client.clientId, name: client.name, role: client.role });
     log(`room ${room.roomCode} join ${client.clientId} (${client.name}/${client.role})`);
     // 再接続/途中参加でも現在の state/rev をそのまま返す（再同期）
     send(client.ws, {
       type: "roomJoined", roomCode: room.roomCode, clientId: client.clientId, role: client.role,
-      roomSummary: roomSummary(room), state: room.state, rev: room.rev, log: room.log.slice(-20), reconnected: isReconnect, reconnectToken: client.reconnectToken
+      roomSummary: roomSummary(room), state: room.state, rev: room.rev, log: room.log.slice(-20), reconnected: isReconnect, reconnectToken: client.reconnectToken,
+      privateState: privateStateFor(room, client.role), authority: AUTHORITY,
+      effectAuthority: V7912_ENGINE.publicRuntime(room), ruleAuthority: V50V54_ENGINE.authoritySummary(room), stage3Authority: V55V59_ENGINE.authoritySummary(room), stage4Authority: V60V64_ENGINE.authoritySummary(room), stage5Authority: V65V69_ENGINE.authoritySummary(room), stage6Authority: V70V74_ENGINE.authoritySummary(room), stage7Authority: V75V79_ENGINE.authoritySummary(room), effectPrivate: effectPrivateFor(room, client.role)
     });
-    broadcast(room, { type: "roomUpdate", roomSummary: roomSummary(room) }, client.clientId);
+    broadcast(room, { type: "roomUpdate", roomSummary: roomSummary(room), authority: AUTHORITY, effectAuthority: V7912_ENGINE.publicRuntime(room) }, client.clientId);
   },
 
   leaveRoom(client) { leaveCurrentRoom(client); send(client.ws, { type: "roomUpdate", roomSummary: null }); },
@@ -399,8 +943,8 @@ const handlers = {
     room.locked = !!msg.locked;
     pushRoomLog(room, { kind: "setLock", locked: room.locked });
     log(`room ${room.roomCode} locked=${room.locked}`);
-    broadcast(room, { type: "roomUpdate", roomSummary: roomSummary(room) });
-    send(client.ws, { type: "roomUpdate", roomSummary: roomSummary(room) });
+    broadcast(room, { type: "roomUpdate", roomSummary: roomSummary(room), authority: AUTHORITY, effectAuthority: V7912_ENGINE.publicRuntime(room) });
+    send(client.ws, { type: "roomUpdate", roomSummary: roomSummary(room), authority: AUTHORITY, effectAuthority: V7912_ENGINE.publicRuntime(room) });
   },
 
   setCollaborativeMode(client, msg) {
@@ -410,8 +954,8 @@ const handlers = {
     room.collaborativeMode = !!msg.collaborativeMode;
     pushRoomLog(room, { kind: "setCollaborativeMode", on: room.collaborativeMode });
     log(`room ${room.roomCode} collaborativeMode=${room.collaborativeMode}`);
-    broadcast(room, { type: "roomUpdate", roomSummary: roomSummary(room) });
-    send(client.ws, { type: "roomUpdate", roomSummary: roomSummary(room) });
+    broadcast(room, { type: "roomUpdate", roomSummary: roomSummary(room), authority: AUTHORITY, effectAuthority: V7912_ENGINE.publicRuntime(room) });
+    send(client.ws, { type: "roomUpdate", roomSummary: roomSummary(room), authority: AUTHORITY, effectAuthority: V7912_ENGINE.publicRuntime(room) });
   },
 
   setPassword(client, msg) {
@@ -421,8 +965,8 @@ const handlers = {
     setRoomPassword(room, msg.password);
     pushRoomLog(room, { kind: "setPassword", protected: !!room.passwordHash }); // 値は残さない
     log(`room ${room.roomCode} password ${room.passwordHash ? "set" : "cleared"}`);
-    broadcast(room, { type: "roomUpdate", roomSummary: roomSummary(room) });
-    send(client.ws, { type: "roomUpdate", roomSummary: roomSummary(room) });
+    broadcast(room, { type: "roomUpdate", roomSummary: roomSummary(room), authority: AUTHORITY, effectAuthority: V7912_ENGINE.publicRuntime(room) });
+    send(client.ws, { type: "roomUpdate", roomSummary: roomSummary(room), authority: AUTHORITY, effectAuthority: V7912_ENGINE.publicRuntime(room) });
   },
 
   setRole(client, msg) {
@@ -432,47 +976,222 @@ const handlers = {
     if (!wanted) { sendError(client.ws, "role は A / B / spectator です"); return; }
     client.role = (wanted === "spectator") ? "spectator" : assignRole(room, wanted);
     pushRoomLog(room, { kind: "setRole", clientId: client.clientId, role: client.role });
-    broadcast(room, { type: "roomUpdate", roomSummary: roomSummary(room) });
-    send(client.ws, { type: "roomUpdate", roomSummary: roomSummary(room) });
+    broadcast(room, { type: "roomUpdate", roomSummary: roomSummary(room), authority: AUTHORITY, effectAuthority: V7912_ENGINE.publicRuntime(room) });
+    send(client.ws, { type: "roomUpdate", roomSummary: roomSummary(room), authority: AUTHORITY, effectAuthority: V7912_ENGINE.publicRuntime(room) });
   },
 
   stateUpdate(client, msg) {
-    const room = getRoomOf(client);
-    if (!room || (msg.roomCode && String(msg.roomCode).toUpperCase() !== room.roomCode)) {
-      sendError(client.ws, "roomに参加していません / roomCode不一致"); return;
-    }
-    // host authoritative が既定。ただし collaborativeMode ON のときは role A/B の非hostも受け付ける（spectator不可）
-    if (client.clientId !== room.hostId) {
-      if (!ALLOW_NON_HOST_STATE_UPDATE && !room.collaborativeMode) {
-        send(client.ws, { type: "stateRejected", reason: "nonHost", serverRev: room.rev, state: room.state });
-        return;
-      }
-      if (room.collaborativeMode && client.role !== "A" && client.role !== "B") { // spectatorは送信不可
-        send(client.ws, { type: "stateRejected", reason: "spectator", serverRev: room.rev, state: room.state });
-        return;
-      }
-    }
-    // rev 検証: クライアントは「自分が知っている現在の rev」を送る。古い/不正なら拒否＋現状を返す
-    if (typeof msg.rev !== "number" || msg.rev !== room.rev) {
-      send(client.ws, { type: "stateRejected", reason: "staleRev", serverRev: room.rev, state: room.state });
+    if (!ALLOW_LEGACY_STATE_UPDATE) {
+      const room = getRoomOf(client);
+      send(client.ws, { type: "stateRejected", reason: "legacyStateDisabled", serverRev: room?.rev || 0, state: room?.state || null, authority: AUTHORITY });
       return;
     }
-    if (msg.state == null || typeof msg.state !== "object") { sendError(client.ws, "state がありません"); return; }
-    room.state = msg.state;
-    room.rev += 1;
-    room.updatedAt = now();
-    if (Array.isArray(msg.logDelta)) {
-      for (const l of msg.logDelta.slice(0, 50)) pushRoomLog(room, { kind: "game", line: String(l).slice(0, 300) });
+    return handlers._acceptState(client, msg, false);
+  },
+
+  stateProposal(client, msg) {
+    if (msg.protocol !== V49_PROTOCOL) {
+      send(client.ws, { type: "stateRejected", reason: "protocolMismatch", serverRev: getRoomOf(client)?.rev || 0, authority: AUTHORITY });
+      return;
     }
-    // 全員（送信者含む）へ stateSync — 送信者は rev 確定通知として受け取る
-    broadcast(room, { type: "stateSync", state: room.state, rev: room.rev, from: client.clientId });
-    send(client.ws, { type: "stateSync", state: null, rev: room.rev, from: client.clientId }); // 送信者へは rev のみ（帯域節約）
+    return handlers._acceptState(client, msg, true);
+  },
+
+  _acceptState(client, msg, proposalMode) {
+    const room = getRoomOf(client);
+    if (!room || (msg.roomCode && String(msg.roomCode).toUpperCase() !== room.roomCode)) { sendError(client.ws, "roomに参加していません / roomCode不一致"); return; }
+    if (!clientCanMutateRoom(room, client)) { send(client.ws, { type: "stateRejected", reason: client.role === "spectator" ? "spectatorState" : "nonHostState", serverRev: room.rev, state: room.state, authority: AUTHORITY }); return; }
+    if (hasPendingEffectWork(room)) { send(client.ws, { type: "stateRejected", reason: "effectTransactionActive", serverRev: room.rev, state: room.state, authority: AUTHORITY }); return; }
+    if (hasPendingStage2Work(room)) { send(client.ws, { type: "stateRejected", reason: V50V54_ENGINE.activeKind(room), serverRev: room.rev, state: room.state, authority: AUTHORITY }); return; }
+    if (hasPendingStage3Work(room)) { send(client.ws, { type: "stateRejected", reason: V55V59_ENGINE.activeKind(room), serverRev: room.rev, state: room.state, authority: AUTHORITY }); return; }
+    if (hasPendingStage4Work(room)) { send(client.ws, { type: "stateRejected", reason: V60V64_ENGINE.activeKind(room), serverRev: room.rev, state: room.state, authority: AUTHORITY }); return; }
+    if (hasPendingStage5Work(room)) { send(client.ws, { type: "stateRejected", reason: V65V69_ENGINE.activeKind(room), serverRev: room.rev, state: room.state, authority: AUTHORITY }); return; }
+    if (hasPendingStage6Work(room)) { send(client.ws, { type: "stateRejected", reason: V70V74_ENGINE.activeKind(room), serverRev: room.rev, state: room.state, authority: AUTHORITY }); return; }
+    if (!v49RateOk(room, client, "proposal")) { send(client.ws, { type: "stateRejected", reason: "rateLimited", serverRev: room.rev, state: room.state, authority: AUTHORITY }); return; }
+    if (typeof msg.rev !== "number" || msg.rev !== room.rev) { send(client.ws, { type: "stateRejected", reason: "staleRev", serverRev: room.rev, state: room.state, authority: AUTHORITY }); return; }
+    if (!proposalMode) {
+      if (msg.state == null || typeof msg.state !== "object" || Array.isArray(msg.state)) { sendError(client.ws, "state がありません"); return; }
+      // 明示的に有効化された旧形式互換モードでは、従来どおり完全stateを受理する。
+      // 通常運用では ALLOW_LEGACY_STATE_UPDATE=false のため、この経路は使用されない。
+      room.state = v49Clone(msg.state); room.v49HasPublicState = true; room.rev += 1; room.updatedAt = now(); refreshRoomHash(room); V7912_ENGINE.ensureRoom(room); V50V54_ENGINE.ensureRoom(room); V55V59_ENGINE.ensureRoom(room); V60V64_ENGINE.ensureRuntime(room); V65V69_ENGINE.ensureRoom(room); V75V79_ENGINE.ensureRoom(room);
+      V70V74_ENGINE.recordSnapshot(room, { label: "旧形式state更新", category: "system", force: true });
+      pushRoomLog(room, { kind: "legacyStateUpdate", clientId: client.clientId, rev: room.rev });
+      broadcastState(room, client.clientId, { legacy: true }); return;
+    }
+    const envelope = v49ValidatePublicEnvelope(msg.state, client, room);
+    if (!envelope.ok) { send(client.ws, { type: "stateRejected", reason: envelope.reason, detail: envelope.detail || envelope.expectedHash || "", serverRev: room.rev, state: room.state, authority: AUTHORITY }); return; }
+    const manifest = v49ValidateManifest(msg, room, msg.state);
+    if (!manifest.ok) { send(client.ws, { type: "stateRejected", reason: manifest.reason, detail: manifest.expectedHash || "", expectedPaths: manifest.expectedPaths || [], serverRev: room.rev, state: room.state, authority: AUTHORITY }); return; }
+    const boundary = v49ValidateSeatBoundaries(manifest.paths, client.role);
+    if (!boundary.ok) { send(client.ws, { type: "stateRejected", reason: boundary.reason, detail: boundary.path, serverRev: room.rev, state: room.state, authority: AUTHORITY }); return; }
+    v49RememberNonce(room.seenV49Nonces, envelope.nonce);
+    const savedAuthority = v49CaptureProposalAuthority(room);
+    room.state = v49Clone(msg.state); v49RestoreProposalAuthority(room, savedAuthority); room.v49HasPublicState = true; room.rev += 1; room.updatedAt = now(); room.stateHash = envelope.publicHash; room.stateSha256 = sha256Json(room.state); V7912_ENGINE.ensureRoom(room); V50V54_ENGINE.ensureRoom(room); V55V59_ENGINE.ensureRoom(room); V60V64_ENGINE.ensureRuntime(room); V65V69_ENGINE.ensureRoom(room); V75V79_ENGINE.ensureRoom(room);
+    if (Array.isArray(msg.logDelta)) for (const line of msg.logDelta.slice(0, 50)) pushRoomLog(room, { kind: "game", line: String(line).slice(0, 300) });
+    const proposalId = String(msg.proposalId || "").slice(0, 120);
+    const authority = { protocol: V49_PROTOCOL, proposalId, acceptedAt: new Date().toISOString(), serverHash: room.stateHash, serverSha256: room.stateSha256, manifestHash: manifest.hash, changedScopes: manifest.paths.slice(0, 80) };
+    pushRoomLog(room, { kind: "stateProposal", clientId: client.clientId, rev: room.rev, proposalId, changes: manifest.paths.length });
+    V70V74_ENGINE.recordSnapshot(room, { label: msg.label || "盤面state提案", action: "stateProposal", detail: `${manifest.paths.length}変更`, force: true });
+    refreshRoomHash(room);
+    broadcastState(room, client.clientId, { proposalId, serverHash: envelope.publicHash, acceptedPublicHash: envelope.publicHash, proposalReceipt: authority, mutationManifest: { schema: 1, paths: manifest.paths, count: manifest.paths.length, hash: manifest.hash } });
+  },
+
+  seatPrivateUpdate(client, msg) {
+    const room = getRoomOf(client);
+    if (!room) { sendError(client.ws, "roomに参加していません"); return; }
+    if (hasPendingStage2Work(room)) { send(client.ws, { type: "privateStateRejected", protocol: V49_PROTOCOL, reason: V50V54_ENGINE.activeKind(room), publicRev: room.rev, authority: AUTHORITY }); return; }
+    if (hasPendingStage3Work(room)) { send(client.ws, { type: "privateStateRejected", protocol: V49_PROTOCOL, reason: V55V59_ENGINE.activeKind(room), publicRev: room.rev, authority: AUTHORITY }); return; }
+    if (hasPendingStage4Work(room)) { send(client.ws, { type: "privateStateRejected", protocol: V49_PROTOCOL, reason: V60V64_ENGINE.activeKind(room), publicRev: room.rev, authority: AUTHORITY }); return; }
+    if (hasPendingStage5Work(room)) { send(client.ws, { type: "privateStateRejected", protocol: V49_PROTOCOL, reason: V65V69_ENGINE.activeKind(room), publicRev: room.rev, authority: AUTHORITY }); return; }
+    if (hasPendingStage6Work(room)) { send(client.ws, { type: "privateStateRejected", protocol: V49_PROTOCOL, reason: V70V74_ENGINE.activeKind(room), publicRev: room.rev, authority: AUTHORITY }); return; }
+    if (!v49RateOk(room, client, "private")) { send(client.ws, { type: "privateStateRejected", protocol: V49_PROTOCOL, reason: "rateLimited", publicRev: room.rev, authority: AUTHORITY }); return; }
+    try {
+      const normalized = normalizePrivateState(client, msg), state = normalized.state, validation = normalized.validation;
+      const rev = (Number(room.privateRevByRole[client.role]) || 0) + 1;
+      state.__cptPrivateV49.privateRev = rev;
+      state.__cptPrivateV49.storedAt = new Date().toISOString();
+      state.__cptPrivateV49.privateHash = "";
+      state.__cptPrivateV49.privateHash = v49PrivateHash(state);
+      room.privateRevByRole[client.role] = rev;
+      room.privateByRole[client.role] = { state, rev, updatedAt: now(), clientId: client.clientId, hash: state.__cptPrivateV49.privateHash, sha256: sha256Json(state) };
+      v49RememberNonce(room.privateSeenNonces[client.role], validation.nonce);
+      pushRoomLog(room, { kind: "privateStateUpdate", role: client.role, privateRev: rev });
+      V70V74_ENGINE.recordSnapshot(room, { label: `${client.role}の秘密state更新`, category: "zone", detail: `private rev ${rev}`, force: true });
+      refreshRoomHash(room);
+      send(client.ws, { type: "privateStateAck", protocol: V49_PROTOCOL, privateRev: rev, publicRev: room.rev, privateHash: room.privateByRole[client.role].hash, authority: AUTHORITY });
+    } catch (e) {
+      send(client.ws, { type: "privateStateRejected", protocol: V49_PROTOCOL, reason: String(e.message || e), detail: e.v49?.detail || "", publicRev: room.rev, authority: AUTHORITY });
+    }
+  },
+
+  requestPrivateState(client) {
+    const room = getRoomOf(client);
+    if (!room) { sendError(client.ws, "roomに参加していません"); return; }
+    sendSeatPrivateSync(room, client);
+  },
+
+  authorityInfo(client) {
+    const room = getRoomOf(client);
+    send(client.ws, {
+      type: "authorityInfo", authority: AUTHORITY,
+      roomSummary: room ? roomSummary(room) : null,
+      effectAuthority: room ? V7912_ENGINE.publicRuntime(room) : null,
+      ruleAuthority: room ? V50V54_ENGINE.authoritySummary(room) : null,
+      stage3Authority: room ? V55V59_ENGINE.authoritySummary(room) : null,
+      stage4Authority: room ? V60V64_ENGINE.authoritySummary(room) : null,
+      stage5Authority: room ? V65V69_ENGINE.authoritySummary(room) : null,
+      stage6Authority: room ? V70V74_ENGINE.authoritySummary(room) : null,
+      stage7Authority: room ? V75V79_ENGINE.authoritySummary(room) : null
+    });
+  },
+
+  effectAuthoritySyncRequest(client) {
+    const room = getRoomOf(client);
+    if (!room) { sendError(client.ws, "roomに参加していません"); return; }
+    send(client.ws, {
+      type: "effectAuthoritySync", protocol: EFFECT_PROTOCOL, rev: room.rev, state: room.state,
+      privateState: privateStateFor(room, client.role),
+      effectPrivate: effectPrivateFor(room, client.role),
+      effectAuthority: V7912_ENGINE.publicRuntime(room), authority: AUTHORITY
+    });
+  },
+
+  effectTxStart(client, msg) {
+    const room = getRoomOf(client);
+    if (!room) { sendError(client.ws, "roomに参加していません"); return; }
+    if (hasPendingStage2Work(room)) { effectReject(client, room, msg, V50V54_ENGINE.activeKind(room)); return; }
+    if (hasPendingStage3Work(room)) { effectReject(client, room, msg, V55V59_ENGINE.activeKind(room)); return; }
+    if (hasPendingStage4Work(room)) { effectReject(client, room, msg, V60V64_ENGINE.activeKind(room)); return; }
+    if (hasPendingStage5Work(room)) { effectReject(client, room, msg, V65V69_ENGINE.activeKind(room)); return; }
+    if (hasPendingStage6Work(room)) { effectReject(client, room, msg, V70V74_ENGINE.activeKind(room)); return; }
+    try {
+      if (!rememberNonce(room, msg.actionNonce)) throw new Error("duplicateNonce");
+      const tx = V7912_ENGINE.stage(room, client, msg);
+      send(client.ws, {
+        type: "effectTxStarted", protocol: EFFECT_PROTOCOL, actionNonce: tx.actionNonce,
+        txId: tx.id, baseRev: tx.baseRev, planCommitment: tx.planCommitment,
+        summary: { label: tx.plan.label, operationCount: tx.plan.operations.length },
+        effectAuthority: V7912_ENGINE.publicRuntime(room), authority: AUTHORITY
+      });
+    } catch (e) { effectReject(client, room, msg, e.message || e); }
+  },
+
+  effectTxCommit(client, msg) {
+    const room = getRoomOf(client);
+    if (!room) { sendError(client.ws, "roomに参加していません"); return; }
+    try {
+      const beforePrivate = {
+        A: sha256Json(privateStateFor(room, "A")),
+        B: sha256Json(privateStateFor(room, "B"))
+      };
+      const out = V7912_ENGINE.commit(room, client, msg, {
+        finalize(r) {
+          r.rev = Number(r.rev || 0) + 1;
+          r.updatedAt = now();
+          V70V74_ENGINE.recordSnapshot(r, { label: "効果トランザクション", category: "ability", force: true });
+          refreshRoomHash(r);
+        }
+      });
+      for (const p of ["A", "B"]) {
+        const entry = rolePrivate(room, p);
+        if (entry && beforePrivate[p] !== sha256Json(entry.state)) {
+          entry.rev = (Number(entry.rev) || 0) + 1;
+          room.privateRevByRole[p] = entry.rev;
+          entry.updatedAt = now();
+          entry.hash = sha256Json(entry.state);
+        }
+      }
+      pushRoomLog(room, { kind: "effectTxCommit", role: client.role, txId: out.txId, rev: room.rev });
+      sendEffectSync(room, "effectTxCommitted", {
+        actionNonce: out.actionNonce, txId: out.txId,
+        summary: { operations: out.summaries, proof: out.proof }
+      });
+    } catch (e) {
+      try { V7912_ENGINE.cancel(room, client, msg); } catch (_) {}
+      effectReject(client, room, msg, e.message || e);
+    }
+  },
+
+  effectTxCancel(client, msg) {
+    const room = getRoomOf(client);
+    if (!room) { sendError(client.ws, "roomに参加していません"); return; }
+    try {
+      const tx = V7912_ENGINE.cancel(room, client, msg);
+      send(client.ws, {
+        type: "effectTxCancelled", protocol: EFFECT_PROTOCOL,
+        actionNonce: String(msg.actionNonce || ""), txId: tx?.id || String(msg.txId || ""),
+        effectAuthority: V7912_ENGINE.publicRuntime(room), authority: AUTHORITY
+      });
+    } catch (e) { effectReject(client, room, msg, e.message || e); }
+  },
+
+  effectChoiceRespond(client, msg) {
+    const room = getRoomOf(client);
+    if (!room) { sendError(client.ws, "roomに参加していません"); return; }
+    try {
+      if (msg.protocol !== EFFECT_PROTOCOL) throw new Error("protocolMismatch");
+      if (Number(msg.baseRev) !== Number(room.rev)) throw new Error("staleRev");
+      if (!rememberNonce(room, msg.actionNonce)) throw new Error("duplicateNonce");
+      const before = V7912_ENGINE.cloneRoomMutable(room);
+      try {
+        const seq = V7912_ENGINE.respondChoice(room, client, msg);
+        room.rev += 1;
+        room.updatedAt = now();
+        V70V74_ENGINE.recordSnapshot(room, { label: "順次選択", category: "ability", force: true });
+        refreshRoomHash(room);
+        pushRoomLog(room, { kind: "effectChoice", role: client.role, choiceId: seq.id, rev: room.rev });
+        sendEffectSync(room, "effectChoiceSync", { choice: V7912_ENGINE.publicChoice(seq) });
+      } catch (e) {
+        V7912_ENGINE.restoreRoomMutable(room, before);
+        throw e;
+      }
+    } catch (e) { effectReject(client, room, msg, e.message || e); }
   },
 
   requestState(client, msg) {
     const room = getRoomOf(client);
     if (!room) { sendError(client.ws, "roomに参加していません"); return; }
-    send(client.ws, { type: "stateSync", state: room.state, rev: room.rev, from: "server" });
+    send(client.ws, { type: "stateSync", state: room.state, rev: room.rev, from: "server", serverHash: room.stateHash || refreshRoomHash(room), serverSha256: room.stateSha256 || sha256Json(room.state), authority: AUTHORITY, ruleAuthority: V50V54_ENGINE.authoritySummary(room), stage3Authority: V55V59_ENGINE.authoritySummary(room), stage4Authority: V60V64_ENGINE.authoritySummary(room), stage5Authority: V65V69_ENGINE.authoritySummary(room), stage6Authority: V70V74_ENGINE.authoritySummary(room), stage7Authority: V75V79_ENGINE.authoritySummary(room), effectAuthority: V7912_ENGINE.publicRuntime(room), effectPrivate: effectPrivateFor(room, client.role) });
   },
 
   chat(client, msg) {
@@ -487,13 +1206,133 @@ const handlers = {
   }
 };
 
+for (const type of V50V54_MODULE.MESSAGE_TYPES) {
+  handlers[type] = function stage2Handler(client, msg) {
+    const room = getRoomOf(client);
+    if (!room) { sendError(client.ws, "roomに参加していません"); return; }
+    if (type !== "requestRuleAuthority" && hasPendingEffectWork(room)) {
+      const rejectType = type.startsWith("library") ? "libraryTxRejected" : type.startsWith("cast") ? "castTxRejected" : type.startsWith("ability") ? "abilityTxRejected" : type.startsWith("stack") ? "stackTxRejected" : "ruleActionRejected";
+      send(client.ws, { type: rejectType, protocol: msg.protocol || "", actionNonce: String(msg.actionNonce || ""), txId: String(msg.txId || ""), reason: "effectTransactionActive", rev: room.rev, authority: AUTHORITY, authoritySummary: V50V54_ENGINE.authoritySummary(room) });
+      return;
+    }
+    if (type !== "requestRuleAuthority" && hasPendingStage3Work(room)) {
+      const rejectType = type.startsWith("library") ? "libraryTxRejected" : type.startsWith("cast") ? "castTxRejected" : type.startsWith("ability") ? "abilityTxRejected" : type.startsWith("stack") ? "stackTxRejected" : "ruleActionRejected";
+      send(client.ws, { type: rejectType, protocol: msg.protocol || "", actionNonce: String(msg.actionNonce || ""), txId: String(msg.txId || ""), reason: V55V59_ENGINE.activeKind(room), rev: room.rev, authority: AUTHORITY, authoritySummary: V50V54_ENGINE.authoritySummary(room) });
+      return;
+    }
+    if (type !== "requestRuleAuthority" && hasPendingStage4Work(room)) {
+      const rejectType = type.startsWith("library") ? "libraryTxRejected" : type.startsWith("cast") ? "castTxRejected" : type.startsWith("ability") ? "abilityTxRejected" : type.startsWith("stack") ? "stackTxRejected" : "ruleActionRejected";
+      send(client.ws, { type: rejectType, protocol: msg.protocol || "", actionNonce: String(msg.actionNonce || ""), txId: String(msg.txId || ""), reason: V60V64_ENGINE.activeKind(room), rev: room.rev, authority: AUTHORITY, authoritySummary: V50V54_ENGINE.authoritySummary(room) });
+      return;
+    }
+    if (type !== "requestRuleAuthority" && hasPendingStage5Work(room)) {
+      const rejectType = type.startsWith("library") ? "libraryTxRejected" : type.startsWith("cast") ? "castTxRejected" : type.startsWith("ability") ? "abilityTxRejected" : type.startsWith("stack") ? "stackTxRejected" : "ruleActionRejected";
+      send(client.ws, { type: rejectType, protocol: msg.protocol || "", actionNonce: String(msg.actionNonce || ""), txId: String(msg.txId || ""), reason: V65V69_ENGINE.activeKind(room), rev: room.rev, authority: AUTHORITY, authoritySummary: V50V54_ENGINE.authoritySummary(room) });
+      return;
+    }
+    if (type !== "requestRuleAuthority" && hasPendingStage6Work(room)) {
+      const rejectType = type.startsWith("library") ? "libraryTxRejected" : type.startsWith("cast") ? "castTxRejected" : type.startsWith("ability") ? "abilityTxRejected" : type.startsWith("stack") ? "stackTxRejected" : "ruleActionRejected";
+      send(client.ws, { type: rejectType, protocol: msg.protocol || "", actionNonce: String(msg.actionNonce || ""), txId: String(msg.txId || ""), reason: V70V74_ENGINE.activeKind(room), rev: room.rev, authority: AUTHORITY, authoritySummary: V50V54_ENGINE.authoritySummary(room) });
+      return;
+    }
+    V50V54_ENGINE.handle(client, room, msg);
+  };
+}
+
+for (const type of V55V59_MODULE.MESSAGE_TYPES) {
+  handlers[type] = function stage3Handler(client, msg) {
+    const room = getRoomOf(client);
+    if (!room) { sendError(client.ws, "roomに参加していません"); return; }
+    if (hasPendingEffectWork(room)) {
+      const rejectType = type.startsWith("trigger") ? "triggerBatchRejected" : type.startsWith("replacement") ? "replacementTxRejected" : type.startsWith("combat") ? "combatTxRejected" : type === "turnAction" ? "turnActionRejected" : type === "stateAction" ? "stateActionRejected" : "layerActionRejected";
+      send(client.ws, { type: rejectType, protocol: msg.protocol || "", actionNonce: String(msg.actionNonce || ""), txId: String(msg.txId || ""), reason: "effectTransactionActive", rev: room.rev, authority: AUTHORITY, authoritySummary: V55V59_ENGINE.authoritySummary(room) });
+      return;
+    }
+    if (hasPendingStage2Work(room)) {
+      const rejectType = type.startsWith("trigger") ? "triggerBatchRejected" : type.startsWith("replacement") ? "replacementTxRejected" : type.startsWith("combat") ? "combatTxRejected" : type === "turnAction" ? "turnActionRejected" : type === "stateAction" ? "stateActionRejected" : "layerActionRejected";
+      send(client.ws, { type: rejectType, protocol: msg.protocol || "", actionNonce: String(msg.actionNonce || ""), txId: String(msg.txId || ""), reason: V50V54_ENGINE.activeKind(room), rev: room.rev, authority: AUTHORITY, authoritySummary: V55V59_ENGINE.authoritySummary(room) });
+      return;
+    }
+    if (hasPendingStage4Work(room)) {
+      const rejectType = type.startsWith("trigger") ? "triggerBatchRejected" : type.startsWith("replacement") ? "replacementTxRejected" : type.startsWith("combat") ? "combatTxRejected" : type === "turnAction" ? "turnActionRejected" : type === "stateAction" ? "stateActionRejected" : "layerActionRejected";
+      send(client.ws, { type: rejectType, protocol: msg.protocol || "", actionNonce: String(msg.actionNonce || ""), txId: String(msg.txId || ""), reason: V60V64_ENGINE.activeKind(room), rev: room.rev, authority: AUTHORITY, authoritySummary: V55V59_ENGINE.authoritySummary(room) });
+      return;
+    }
+    if (hasPendingStage5Work(room)) {
+      const rejectType = type.startsWith("trigger") ? "triggerBatchRejected" : type.startsWith("replacement") ? "replacementTxRejected" : type.startsWith("combat") ? "combatTxRejected" : type === "turnAction" ? "turnActionRejected" : type === "stateAction" ? "stateActionRejected" : "layerActionRejected";
+      send(client.ws, { type: rejectType, protocol: msg.protocol || "", actionNonce: String(msg.actionNonce || ""), txId: String(msg.txId || ""), reason: V65V69_ENGINE.activeKind(room), rev: room.rev, authority: AUTHORITY, authoritySummary: V55V59_ENGINE.authoritySummary(room) });
+      return;
+    }
+    if (hasPendingStage6Work(room)) {
+      const rejectType = type.startsWith("trigger") ? "triggerBatchRejected" : type.startsWith("replacement") ? "replacementTxRejected" : type.startsWith("combat") ? "combatTxRejected" : type === "turnAction" ? "turnActionRejected" : type === "stateAction" ? "stateActionRejected" : "layerActionRejected";
+      send(client.ws, { type: rejectType, protocol: msg.protocol || "", actionNonce: String(msg.actionNonce || ""), txId: String(msg.txId || ""), reason: V70V74_ENGINE.activeKind(room), rev: room.rev, authority: AUTHORITY, authoritySummary: V55V59_ENGINE.authoritySummary(room) });
+      return;
+    }
+    V55V59_ENGINE.handle(client, room, msg);
+  };
+}
+
+for (const type of V60V64_MODULE.MESSAGE_TYPES) {
+  handlers[type] = function stage4Handler(client, msg) {
+    const room = getRoomOf(client);
+    if (!room) { sendError(client.ws, "roomに参加していません"); return; }
+    const rejectType = type === "objectAction" ? "objectActionRejected" : type === "attachmentAction" ? "attachmentActionRejected" : type === "phaseAction" ? "phaseActionRejected" : type === "zoneEventAction" ? "zoneEventActionRejected" : type === "simultaneousZoneBatchAction" ? "simultaneousZoneBatchRejected" : "simultaneousZoneTxRejected";
+    const activeReason = hasPendingEffectWork(room) ? "effectTransactionActive" : hasPendingStage2Work(room) ? V50V54_ENGINE.activeKind(room) : hasPendingStage3Work(room) ? V55V59_ENGINE.activeKind(room) : hasPendingStage5Work(room) ? V65V69_ENGINE.activeKind(room) : hasPendingStage6Work(room) ? V70V74_ENGINE.activeKind(room) : "";
+    if (activeReason) {
+      send(client.ws, { type: rejectType, protocol: msg.protocol || "", action: String(msg.action || ""), actionNonce: String(msg.actionNonce || ""), txId: String(msg.txId || ""), reason: activeReason, rev: room.rev, authority: AUTHORITY, authoritySummary: V60V64_ENGINE.authoritySummary(room) });
+      return;
+    }
+    V60V64_ENGINE.handle(client, room, msg);
+  };
+}
+
+
+for (const type of V65V69_MODULE.MESSAGE_TYPES) {
+  handlers[type] = function stage5Handler(client, msg) {
+    const room = getRoomOf(client);
+    if (!room) { sendError(client.ws, "roomに参加していません"); return; }
+    const rejectType = type.startsWith("simultaneousTrigger") ? "simultaneousTriggerChainRejected" : type.startsWith("loopShortcut") ? "loopShortcutRejected" : type.startsWith("choiceLoop") ? "choiceLoopRejected" : "branchLoopRejected";
+    const activeReason = hasPendingEffectWork(room) ? "effectTransactionActive" : hasPendingStage2Work(room) ? V50V54_ENGINE.activeKind(room) : hasPendingStage3Work(room) ? V55V59_ENGINE.activeKind(room) : hasPendingStage4Work(room) ? V60V64_ENGINE.activeKind(room) : hasPendingStage6Work(room) ? V70V74_ENGINE.activeKind(room) : "";
+    if (activeReason) {
+      send(client.ws, { type: rejectType, protocol: msg.protocol || "", actionNonce: String(msg.actionNonce || ""), txId: String(msg.txId || ""), reason: activeReason, rev: room.rev, authority: AUTHORITY, authoritySummary: V65V69_ENGINE.authoritySummary(room) });
+      return;
+    }
+    V65V69_ENGINE.handle(client, room, msg);
+  };
+}
+
+
+for (const type of V70V74_MODULE.MESSAGE_TYPES) {
+  handlers[type] = function stage6Handler(client, msg) {
+    const room = getRoomOf(client);
+    if (!room) { sendError(client.ws, "roomに参加していません"); return; }
+    const readOnly = ["undoHistoryRequest","undoDiffRequest","replayTimelineRequest","replayFrameRequest","replayAuditExport","replayPlaylistRequest","replayReportExport","replayChapterRequest","replayShareSummaryExport"].includes(type);
+    const activeReason = hasPendingEffectWork(room) ? "effectTransactionActive" : hasPendingStage2Work(room) ? V50V54_ENGINE.activeKind(room) : hasPendingStage3Work(room) ? V55V59_ENGINE.activeKind(room) : hasPendingStage4Work(room) ? V60V64_ENGINE.activeKind(room) : hasPendingStage5Work(room) ? V65V69_ENGINE.activeKind(room) : "";
+    if (!readOnly && activeReason) {
+      const rejectType = type.startsWith("repair") ? "repairAgreementRejected" : "undoAgreementRejected";
+      send(client.ws, { type: rejectType, protocol: msg.protocol || "", actionNonce: String(msg.actionNonce || ""), txId: String(msg.txId || ""), reason: activeReason, rev: room.rev, authority: AUTHORITY, authoritySummary: V70V74_ENGINE.authoritySummary(room) });
+      return;
+    }
+    V70V74_ENGINE.handle(client, room, msg);
+  };
+}
+
+for (const type of V75V79_MODULE.MESSAGE_TYPES) {
+  handlers[type] = function stage7Handler(client, msg) {
+    const room = getRoomOf(client);
+    if (!room) { sendError(client.ws, "roomに参加していません"); return; }
+    V75V79_ENGINE.handle(client, room, msg);
+  };
+}
+
 wss.on("connection", (ws) => {
-  const client = { clientId: uid("c"), reconnectToken: newReconnectToken(), ws, roomCode: null, role: "spectator", name: "guest", joinedAt: now(), lastSeen: now() };
+  const clientId = uid("c");
+  const client = { id: clientId, clientId, reconnectToken: newReconnectToken(), ws, roomCode: null, role: "spectator", name: "guest", joinedAt: now(), lastSeen: now() };
   clientsById.set(client.clientId, client);
   ws.isAlive = true;
   ws.on("pong", () => { ws.isAlive = true; client.lastSeen = now(); });
   log(`connect ${client.clientId} (total ${clientsById.size})`);
-  send(ws, { type: "hello", clientId: client.clientId, reconnectToken: client.reconnectToken, server: "card-practice-table-server", note: "練習用同期サーバー: 秘密情報は保護されません" });
+  send(ws, { type: "hello", clientId: client.clientId, reconnectToken: client.reconnectToken, server: "card-practice-table-server", serverVersion: SERVER_VERSION, authority: AUTHORITY, note: "v4.9厳密同期、v5.0～v7.9ルール進行・履歴・共同レビュー・通知、v7.9.12効果権限に対応。TLS・アカウント認証は別途必要です" });
 
   ws.on("message", (data) => {
     try {
@@ -538,5 +1377,6 @@ initImageStore();
 httpServer.listen(PORT, HOST, () => {
   const shown = (HOST === "0.0.0.0" || HOST === "::") ? "localhost" : HOST;
   log(`listening on http://${shown}:${PORT}/ (bind ${HOST} / WebSocket 同ポート)`);
+  log(`server version ${SERVER_VERSION} / rule ${V50V54_MODULE.PROTOCOLS.RULE} / library ${V50V54_MODULE.PROTOCOLS.LIBRARY} / effect ${V50V54_MODULE.PROTOCOLS.EFFECT} / review ${V75V79_MODULE.PROTOCOLS.RULE} / advanced ${EFFECT_PROTOCOL}`);
   log(`serving ${path.join(ROOT, "card-practice-table.html")}`);
 });
