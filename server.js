@@ -11,6 +11,7 @@
    - v7.9.31: 順番付き複数行き先、サーバー無作為選択、束分け後の指定席選択を追加
    - v7.9.33: 辞書とデッキの一括共有保存、保存後照合、起動時自動復元、APIキャッシュ禁止を追加
    - v7.9.34: localStorage容量超過・保存制限時も共有サーバー保存と起動時復元を継続
+   - v7.9.37: 関連遅延誘発のオブジェクト世代・最終情報スキーマと血清の粉末初手練習を追加
    - v6.0～v6.4: オブジェクト世代/両面/合体、装着/支配、位相/LKI、同時領域移動/置換連鎖
    - v6.5～v6.9: 同時誘発チェーン/介在if、誘発ループ監視、任意/選択/分岐ループ、応答予約
    - v7.0～v7.4: 行動履歴、合意巻き戻し、秘密state復元、差分修復、リプレイ、レポート、チャプター/ハイライト
@@ -42,6 +43,7 @@ const HOST = process.env.HOST || "0.0.0.0"; // クラウドで外部公開する
 const ROOT = __dirname;
 
 const SERVER_VERSION = "7.9.20-integrated-play";
+const APP_RELEASE = "7.9.37-linked-delayed-serum";
 const V49_PROTOCOL = "cpt-v4.9";
 const EFFECT_PROTOCOL = V7912_ENGINE.PROTOCOL;
 const AUTHORITY = Object.freeze({
@@ -49,6 +51,7 @@ const AUTHORITY = Object.freeze({
   protocolVersion: V49_PROTOCOL,
   version: "4.9.0",
   serverVersion: SERVER_VERSION,
+  appRelease: APP_RELEASE,
   serverName: "card-practice-table-server",
   serverAuthoritative: true,
   publicEnvelopeRequired: true,
@@ -283,7 +286,7 @@ const httpServer = http.createServer((req, res) => {
     let urlPath = decodeURIComponent((req.url || "/").split("?")[0]);
     if (urlPath === "/health" || urlPath === "/api/health") {
       sendJson(res, 200, {
-        ok: true, server: "card-practice-table-server", version: SERVER_VERSION,
+        ok: true, server: "card-practice-table-server", version: SERVER_VERSION, release: APP_RELEASE,
         authority: AUTHORITY, rooms: rooms.size, clients: clientsById.size,
         sharedStore: shared.enabled, imageStore: imageStore.enabled
       });
@@ -1340,7 +1343,7 @@ wss.on("connection", (ws) => {
   ws.isAlive = true;
   ws.on("pong", () => { ws.isAlive = true; client.lastSeen = now(); });
   log(`connect ${client.clientId} (total ${clientsById.size})`);
-  send(ws, { type: "hello", clientId: client.clientId, reconnectToken: client.reconnectToken, server: "card-practice-table-server", serverVersion: SERVER_VERSION, authority: AUTHORITY, note: "v4.9厳密同期、v5.0～v7.9ルール進行・履歴・共同レビュー・通知、v7.9.31ライブラリーワークフローに対応。TLS・アカウント認証は別途必要です" });
+  send(ws, { type: "hello", clientId: client.clientId, reconnectToken: client.reconnectToken, server: "card-practice-table-server", serverVersion: SERVER_VERSION, appRelease: APP_RELEASE, authority: AUTHORITY, note: "v4.9厳密同期、v5.0～v7.9ルール進行・履歴・共同レビュー・通知、v7.9.36公開情報変数・ソーサリータイミング制御に対応。TLS・アカウント認証は別途必要です" });
 
   ws.on("message", (data) => {
     try {
@@ -1385,6 +1388,6 @@ initImageStore();
 httpServer.listen(PORT, HOST, () => {
   const shown = (HOST === "0.0.0.0" || HOST === "::") ? "localhost" : HOST;
   log(`listening on http://${shown}:${PORT}/ (bind ${HOST} / WebSocket 同ポート)`);
-  log(`server version ${SERVER_VERSION} / rule ${V50V54_MODULE.PROTOCOLS.RULE} / library ${V50V54_MODULE.PROTOCOLS.LIBRARY} / effect ${V50V54_MODULE.PROTOCOLS.EFFECT} / review ${V75V79_MODULE.PROTOCOLS.RULE} / advanced ${EFFECT_PROTOCOL}`);
+  log(`server version ${SERVER_VERSION} / app ${APP_RELEASE} / rule ${V50V54_MODULE.PROTOCOLS.RULE} / library ${V50V54_MODULE.PROTOCOLS.LIBRARY} / effect ${V50V54_MODULE.PROTOCOLS.EFFECT} / review ${V75V79_MODULE.PROTOCOLS.RULE} / advanced ${EFFECT_PROTOCOL}`);
   log(`serving ${path.join(ROOT, "card-practice-table.html")}`);
 });

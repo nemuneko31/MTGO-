@@ -8789,17 +8789,23 @@ function openOpeningSetup(){
     <label class="field">マリガン方式<select id="ohMull">
       <option value="simple"${mm==="simple"?" selected":""}>簡易方式（手札枚数を減らして引き直す）</option>
       <option value="precise"${mm==="precise"?" selected":""}>精密方式（毎回7枚→キープ時にマリガン回数分を山下へ）</option>
-      <option value="library"${mm==="library"?" selected":""}>ロンドン厳密方式（実ライブラリー管理・マリガン直後にボトム・血清の粉末対応）</option></select></label>
+      <option value="library"${mm==="library"?" selected":""}>ロンドン厳密方式（毎回7枚・キープ時にボトム・血清の粉末対応）</option></select></label>
     <div class="note" style="font-size:10px" id="ohMullNote"></div>
+    <div class="note" style="font-size:10px" id="ohSerumHint"></div>
     <label class="field">練習メモ<input type="text" id="ohMemo" placeholder="任意"></label>`,
     `<button class="btn" data-app="closem">キャンセル</button>
      <button class="btn" data-app="openhandstats">初手履歴/統計</button>
      <button class="btn primary" id="ohGo">引く</button>`);
-  const noteEl=$("#ohMullNote"), hsEl=$("#ohHS"), mullEl=$("#ohMull");
-  const upd=()=>{ const p=mullEl.value==="precise";
-    noteEl.textContent = p?"精密方式: 常に7枚引き、キープ時にマリガン回数分のカードを選んで山札の下へ戻します。":"簡易方式: マリガンのたびに手札が1枚ずつ減ります。";
-    hsEl.disabled=p; if(p) hsEl.value="7"; };
-  mullEl.onchange=upd; upd();
+  const noteEl=$("#ohMullNote"), serumEl=$("#ohSerumHint"), hsEl=$("#ohHS"), mullEl=$("#ohMull"), deckEl=$("#ohDeck");
+  const upd=()=>{ const p=mullEl.value==="precise", l=mullEl.value==="library";
+    noteEl.textContent = l?"ロンドン厳密方式: マリガンのたびに7枚引き直し、キープを決めた後でマリガン回数分をライブラリーの下へ置きます。血清の粉末はキープ前なら連続して使用できます。":p?"精密方式: 常に7枚引き、キープ時にマリガン回数分のカードを選んで山札の下へ戻します。":"簡易方式: マリガンのたびに手札が1枚ずつ減ります。";
+    hsEl.disabled=p||l; if(p||l) hsEl.value="7"; };
+  const serumSuggest=()=>{ const src=ohSourceEntries(deckEl.value); if(!src){ serumEl.textContent=""; return; }
+    let count=0; try{ count=globalThis.CPT_V7937_RULES?CPT_V7937_RULES.serumPowderCount(src.entries,n=>dictGet(n)):src.entries.reduce((n,e)=>n+(_ohIsSerumPowder(e.name)?Number(e.qty||0):0),0); }catch(_){}
+    if(count>0){ serumEl.innerHTML=`<span class="oh-ok">《血清の粉末》${count}枚を検出しました。ロンドン厳密方式なら粉末マリガンを使用できます。</span>`; if(state.settings.v7937SerumAutoMode!==false&&mullEl.value!=="library"){ mullEl.value="library"; upd(); } }
+    else serumEl.textContent="";
+  };
+  mullEl.onchange=()=>{upd();serumSuggest();}; deckEl.onchange=serumSuggest; upd(); serumSuggest();
   $("#ohGo").onclick=()=>{ const src=ohSourceEntries($("#ohDeck").value); if(!src){ toast("デッキを選べません"); return; }
     let pd=$("#ohPD").value; if(pd==="rand") pd=Math.random()<0.5?"先手":"後手";
     const mode=mullEl.value; state.settings.mulliganMode=mode; saveState(true);
@@ -8810,7 +8816,7 @@ function ohStart(source,deckName,deckId,entries,sideboard,playDraw,handSize,note
   const mode=(mulliganMode==="precise")?"precise":(mulliganMode==="library")?"library":"simple";
   _oh={ source, deckName, deckId, entries:cloneDeckEntries(entries), sideboard:cloneDeckEntries(sideboard||[]),
     player:(source==="BO3-A"?"A":(source==="BO3-B"?"B":null)), playDraw:playDraw||"先手",
-    handSize:(mode==="precise"?7:(handSize||7)), hand:[], notes:notes||"", matchContext:matchContext||null,
+    handSize:((mode==="precise"||mode==="library")?7:(handSize||7)), hand:[], notes:notes||"", matchContext:matchContext||null,
     mulliganMode:mode, mulliganCount:0, currentSevenCards:[], bottomCards:[], keptCards:[],
     bottomStepActive:false, bottomConfirmed:false, bottomSel:new Set(), bottomNotes:"",
     lib:[], exiled:[], bottomList:[], spCount:0, pendingBottom:0, bottomSelOrder:[], histLog:[], libTotal:0, // library方式（ロンドン厳密）用・すべてローカル
@@ -8837,17 +8843,13 @@ function ohShuffleDraw(){
 }
 function ohMulligan(){
   if(_oh.mulliganMode==="library"){
-    if(_oh.pendingBottom>0){ toast(`先に${_oh.pendingBottom}枚をライブラリーの下へ置いてください`); return; }
-    // 正しいロンドン: 現在の手札だけをライブラリーへ戻す（追放は戻さない・デッキ下はライブラリー内に維持）→シャッフル→7枚→回数分をボトムへ
-    _oh.lib=_oh.lib.concat(_oh.hand); _oh.hand=[];
-    shuffle(_oh.lib);
-    _oh.bottomList=[]; // シャッフルで順序が失われるため、今回のマリガンで置く分を新たに記録
+    if(_oh.pendingBottom>0){ toast(`キープを選択済みです。先に${_oh.pendingBottom}枚をライブラリーの下へ置いてください`); return; }
+    // ロンドン・マリガン: 追放領域は戻さず、現在の手札をライブラリーへ戻してシャッフルし、毎回7枚引く。ボトムはキープ決定後に行う。
+    _oh.lib=_oh.lib.concat(_oh.hand); _oh.hand=[]; shuffle(_oh.lib); _oh.bottomList=[]; _oh.bottomSelOrder=[];
     _oh.mulliganCount++;
-    if(_oh.lib.length<7){ toast(`ライブラリーが${_oh.lib.length}枚しかなく7枚引けません（練習を「最初から」でリセットしてください）`); _oh.histLog.push(`エラー: ライブラリー不足（${_oh.lib.length}枚）`); ohRender(); return; }
-    _oh.hand=_oh.lib.splice(0,7);
-    _oh.currentSevenCards=_oh.hand.slice();
-    _oh.pendingBottom=_oh.mulliganCount; _oh.bottomSelOrder=[];
-    _oh.histLog.push(`通常マリガン${_oh.mulliganCount}回目: 手札を戻してシャッフル→7枚引いた（${_oh.mulliganCount}枚を下へ置くまで未完了）`);
+    if(_oh.lib.length<7){ toast(`ライブラリーが${_oh.lib.length}枚しかなく7枚引けません（「最初から」でリセットしてください）`); _oh.histLog.push(`エラー: ライブラリー不足（${_oh.lib.length}枚）`); ohRender(); return; }
+    _oh.hand=_oh.lib.splice(0,7); _oh.currentSevenCards=_oh.hand.slice(); _oh.pendingBottom=0;
+    _oh.histLog.push(`通常マリガン${_oh.mulliganCount}回目: 手札を戻してシャッフル→7枚引いた（キープ時に${_oh.mulliganCount}枚を下へ置く）`);
     ohLibImgs(); ohRender(); return;
   }
   if(_oh.mulliganMode==="precise"){
@@ -8867,8 +8869,8 @@ function ohResultLabel(r){ return {keep:"キープ",mulligan:"マリガン",noLa
 function ohKeepPressed(){
   if(_oh.mulliganMode==="library"){
     if(_oh.pendingBottom>0){ toast(`先に${_oh.pendingBottom}枚をライブラリーの下へ置いてください`); return; }
-    _oh.histLog.push(`キープ（手札${_oh.hand.length}枚 / マリガン${_oh.mulliganCount}回 / 粉末${_oh.spCount}回）`);
-    ohRecord("keep", false); return;
+    if(_oh.mulliganCount>0){ _oh.pendingBottom=_oh.mulliganCount; _oh.bottomSelOrder=[]; _oh.histLog.push(`キープを選択: ${_oh.mulliganCount}枚のボトム選択へ`); ohRender(); return; }
+    _oh.histLog.push(`キープ（手札${_oh.hand.length}枚 / マリガン0回 / 粉末${_oh.spCount}回）`); ohRecord("keep", false); return;
   }
   if(_oh.mulliganMode==="precise" && _oh.mulliganCount>0){
     _oh.bottomStepActive=true; _oh.bottomConfirmed=false; _oh.bottomSel=new Set(); ohRender(); return;
@@ -8893,10 +8895,10 @@ function ohBottomBack(){ _oh.bottomStepActive=false; _oh.bottomConfirmed=false; 
 /* ===== library方式（ロンドン厳密）: 血清の粉末対応 ===== */
 function ohLibImgs(){ const ids=[...new Set(_oh.hand.map(c=>c.imageId).filter(Boolean).filter(id=>!(id in imgCache)))];
   if(ids.length && state.settings.showImages){ Promise.all(ids.map(id=>ensureImg(id))).then(()=>{ if(_oh&&$("#ohHand")) ohRender(); }); } }
-function _ohIsSerumPowder(name){ // canonical name / aliases を正規化して厳密一致（displayNameでは判定しない・部分一致は使わない）
-  try{ const targets=["serum powder","血清の粉末"];
-    const cand=[name]; const e=dictGet(name);
-    if(e){ cand.push(e.name); (e.aliases||[]).forEach(a=>cand.push(a)); }
+function _ohIsSerumPowder(name){ // 日本語名・英語名・表示名・別名を正規化して厳密一致
+  try{ const e=dictGet(name); if(globalThis.CPT_V7937_RULES) return CPT_V7937_RULES.isSerumPowder({name},e);
+    const targets=["serum powder","血清の粉末"],cand=[name];
+    if(e){ for(const k of ["name","displayName","printedName","jaName","jpName","englishName","enName","oracleName","nameJa","nameEn"]) if(e[k])cand.push(e[k]); (e.aliases||[]).forEach(a=>cand.push(a)); }
     return cand.some(x=>targets.includes(normalizeCardName(x||"")));
   }catch(_){ return false; } }
 function ohLibHasSP(){ return (_oh.hand||[]).some(c=>_ohIsSerumPowder(c.name)); }
@@ -8918,9 +8920,9 @@ function ohLibBottomConfirm(){
   picked.forEach(c=>{ _oh.lib.push(c); _oh.bottomList.push(c); }); // 選択順=上から順にライブラリーの一番下へ（最後に選んだカードが最下）
   _oh.pendingBottom=0; _oh.bottomSelOrder=[];
   _oh.currentSevenCards=_oh.currentSevenCards; // 直近ドローの記録は維持
-  _oh.histLog.push(`${need}枚をライブラリーの下へ置いた（${picked.map(c=>c.name).join("、")}）→ 手札${_oh.hand.length}枚を確定`);
+  _oh.histLog.push(`${need}枚をライブラリーの下へ置いた（${picked.map(c=>c.name).join("、")}）→ 手札${_oh.hand.length}枚でキープ確定`);
   if(!ohLibTotalsOk()) toast("警告: カード総数が一致しません（自己診断）");
-  ohRender();
+  ohRecord("keep", false);
 }
 function ohSerumPowder(){
   if(_oh.mulliganMode!=="library") return;
@@ -9035,7 +9037,7 @@ function ohRender(){
       const selN=_oh.bottomSelOrder.length;
       return `
       <div class="oh-counts">通常マリガン <b>${_oh.mulliganCount}</b>回 ／ 手札 <b>${_oh.hand.length}</b>枚 ／ デッキ下 <b>${_oh.bottomList.length}</b>枚 ／ 追放 <b>${_oh.exiled.length}</b>枚 ／ ライブラリー残 <b>${_oh.lib.length}</b>枚 ／ 粉末使用 <b>${_oh.spCount}</b>回${ohLibTotalsOk()?"":' <span class="oh-warn">⚠ 総数不一致</span>'}</div>
-      ${PB>0?`<div class="oh-warn" style="font-size:11px">マリガン${_oh.mulliganCount}回目: 手札の画像をクリックして <b>${PB}枚</b> 選び、ライブラリーの一番下へ置いてください（選択 <b>${selN}/${PB}</b>・選択した順に上から下へ置きます＝最後に選んだカードが一番下）。完了するまで キープ／血清の粉末／次のマリガン は実行できません。</div>
+      ${PB>0?`<div class="oh-warn" style="font-size:11px">キープを選択しました。手札の画像をクリックして <b>${PB}枚</b> 選び、ライブラリーの一番下へ置いてください（選択 <b>${selN}/${PB}</b>・選択順に上から下へ置きます）。確定するとこの初手をキープとして記録します。</div>
       <div class="oh-results"><button class="btn sm primary" data-oh="btmok"${selN!==PB?" disabled":""}>この${PB}枚を山下へ（確定）</button><button class="btn sm" data-oh="btmclear"${selN===0?" disabled":""}>選択解除</button></div>`
       :`<div class="oh-results"><button class="btn sm" data-oh="serum"${spDisabled?" disabled":""} title="${esc(spReason)}">血清の粉末を使用${hasSP&&!spDisabled?`（手札${_oh.hand.length}枚を追放して${_oh.hand.length}枚引く）`:""}</button>${spReason?`<span class="note" style="font-size:10px">${esc(spReason)}</span>`:""}</div>`}
       <details class="oh-fold"><summary>追放（${_oh.exiled.length}枚）・デッキ下（${_oh.bottomList.length}枚）・履歴</summary>
@@ -9046,7 +9048,7 @@ function ohRender(){
     })():""}
     <div class="oh-counts">手札 <b>${tc.total}</b> ／ 土地 <b>${tc.land}</b> ／ クリーチャー <b>${tc.creature}</b> ／ インスタント・ソーサリー <b>${tc.spell}</b> ／ その他 <b>${tc.other}</b> ／ 未分類 <b>${tc.unknown}</b></div>
     <div class="oh-results">
-      <button class="btn sm primary" data-oh="keep"${(LIB&&PB>0)?" disabled":""}>キープ${precise&&_oh.mulliganCount>0?"（ボトム選択へ）":""}</button>
+      <button class="btn sm primary" data-oh="keep"${(LIB&&PB>0)?" disabled":""}>キープ${(precise||LIB)&&_oh.mulliganCount>0?"（ボトム選択へ）":""}</button>
       <button class="btn sm" data-oh="rec:mulligan">マリガン記録</button>
       <button class="btn sm" data-oh="rec:noLand">ノーランド</button>
       <button class="btn sm" data-oh="rec:flood">土地過多</button>
@@ -9147,13 +9149,13 @@ function ohStatsHTML(filter){
   const avgLand=(h.reduce((a,x)=>a+((x.typeCounts&&x.typeCounts.land)||0),0)/n).toFixed(1);
   const avgMull=(h.reduce((a,x)=>a+ohMcOf(x),0)/n).toFixed(2);
   const byPD=(pd)=>{ const g=h.filter(x=>x.playDraw===pd); return g.length?Math.round(g.filter(x=>x.result==="keep").length/g.length*100):"-"; };
-  const nPrec=h.filter(x=>ohModeOf(x)==="precise").length, nSimp=n-nPrec;
+  const nPrec=h.filter(x=>ohModeOf(x)==="precise").length, nLib=h.filter(x=>ohModeOf(x)==="library").length, nSimp=n-nPrec-nLib;
   const keepRateMc=(test)=>{ const g=h.filter(x=>{ const c=ohMcOf(x); return test(c); }); return g.length?Math.round(g.filter(x=>x.result==="keep").length/g.length*100)+`% (${g.length})`:"-"; };
   const finalCount=(test)=>h.filter(x=>test(ohFinalOf(x))).length;
   const decks={}; h.forEach(x=>{ (decks[x.deckName]=decks[x.deckName]||[]).push(x); });
   const deckRows=Object.keys(decks).map(dn=>{ const g=decks[dn]; const kr=Math.round(g.filter(x=>x.result==="keep").length/g.length*100); return `<div>${esc(dn)}: ${kr}% (${g.length})</div>`; }).join("");
   return `<div class="oh-stats">
-    <div>練習回数 <b>${n}</b>（精密 ${nPrec} / 簡易 ${nSimp}）</div>
+    <div>練習回数 <b>${n}</b>（ロンドン厳密 ${nLib} / 精密 ${nPrec} / 簡易 ${nSimp}）</div>
     <div>キープ <b>${keep}</b> (${pct(keep)}%) ／ マリガン <b>${mull}</b> (${pct(mull)}%)</div>
     <div>ノーランド ${pct(noL)}% ／ 土地過多 ${pct(fl)}% ／ 色事故 ${pct(cs)}% ／ 判断保留 ${un}</div>
     <div>平均土地 <b>${avgLand}</b> ／ 平均マリガン回数 <b>${avgMull}</b></div>
@@ -9202,7 +9204,7 @@ function ohHistoryHTML(filter){
   const h=ohFilteredHistory(filter);
   if(!h.length) return "";
   const rows=h.map((x)=>{ const kept=ohKeptOf(x), bottom=ohBottomOf(x);
-    return `<details class="sumitem"><summary>${esc(x.createdAt?new Date(x.createdAt).toLocaleString("ja-JP"):"")} ／ ${esc(x.deckName)} ／ ${esc(x.playDraw)} ／ ${ohModeOf(x)==="precise"?"精密":"簡易"} M${ohMcOf(x)} 最終${ohFinalOf(x)}枚 土地${(x.typeCounts&&x.typeCounts.land)||0} → ${ohResultLabel(x.result)}</summary>
+    return `<details class="sumitem"><summary>${esc(x.createdAt?new Date(x.createdAt).toLocaleString("ja-JP"):"")} ／ ${esc(x.deckName)} ／ ${esc(x.playDraw)} ／ ${ohModeOf(x)==="library"?"ロンドン厳密":ohModeOf(x)==="precise"?"精密":"簡易"} M${ohMcOf(x)} 最終${ohFinalOf(x)}枚 土地${(x.typeCounts&&x.typeCounts.land)||0} → ${ohResultLabel(x.result)}</summary>
     <div style="font-size:11px">${x.missingColors&&x.missingColors.length?`<span class="oh-warn">足り色 ${x.missingColors.join("/")}</span> `:""}${x.producesColors?`出色 ${x.producesColors.join("/")||"-"} `:""}${(x.typeCounts&&x.typeCounts.land!=null)?`土地${x.typeCounts.land} `:""}${ohHistLowMv(x)} ${ohHistMainTags(x)}${x.unknownDictionaryCount?` 未登録${x.unknownDictionaryCount}`:""}</div>
     ${x.keepRuleName?`<div style="font-size:11px">基準: ${esc(x.keepRuleName)} → <span class="kresult k-res-${x.keepRuleResult||"unknown"}">${KEEP_RESULT_JP[x.keepRuleResult]||"判定不能"}</span></div>`:""}
     <div style="font-size:11px">手札: ${(kept||[]).map(c=>esc(c.name)).join("、")||"-"}</div>
@@ -9215,7 +9217,7 @@ function ohHistoryHTML(filter){
 function ohHistText(x){
   const kept=ohKeptOf(x), bottom=ohBottomOf(x);
   return [`日時: ${x.createdAt?new Date(x.createdAt).toLocaleString("ja-JP"):""}`,
-    `デッキ: ${x.deckName} (${x.source||""})`, `${x.playDraw} / ${ohModeOf(x)==="precise"?"精密":"簡易"}方式 / マリガン${ohMcOf(x)}回 / 最終${ohFinalOf(x)}枚`,
+    `デッキ: ${x.deckName} (${x.source||""})`, `${x.playDraw} / ${ohModeOf(x)==="library"?"ロンドン厳密":ohModeOf(x)==="precise"?"精密":"簡易"}方式 / マリガン${ohMcOf(x)}回 / 最終${ohFinalOf(x)}枚`,
     `土地${(x.typeCounts&&x.typeCounts.land)||0} クリーチャー${(x.typeCounts&&x.typeCounts.creature)||0} 呪文${(x.typeCounts&&x.typeCounts.spell)||0}`,
     `結果: ${ohResultLabel(x.result)}`,
     x.producesColors?`出せる色: ${x.producesColors.join("/")||"なし"} / 必要色: ${(x.neededColors||[]).join("/")||"なし"} / 足りない: ${(x.missingColors||[]).join("/")||"なし"}`:"",
@@ -9235,7 +9237,7 @@ function openOpeningStats(){
       <select id="ohfDeck"><option value="">全デッキ</option>${decks.map(d=>`<option value="${esc(d)}"${f.deckName===d?" selected":""}>${esc(d)}</option>`).join("")}</select>
       <select id="ohfPD"><option value="">先後すべて</option><option value="先手"${f.playDraw==="先手"?" selected":""}>先手</option><option value="後手"${f.playDraw==="後手"?" selected":""}>後手</option></select>
       <select id="ohfRes"><option value="">結果すべて</option>${["keep","mulligan","noLand","flood","colorScrew","unsure"].map(r=>`<option value="${r}"${f.result===r?" selected":""}>${ohResultLabel(r)}</option>`).join("")}</select>
-      <select id="ohfMode"><option value="">方式すべて</option><option value="precise"${f.mulliganMode==="precise"?" selected":""}>精密</option><option value="simple"${f.mulliganMode==="simple"?" selected":""}>簡易</option></select>
+      <select id="ohfMode"><option value="">方式すべて</option><option value="library"${f.mulliganMode==="library"?" selected":""}>ロンドン厳密・血清の粉末</option><option value="precise"${f.mulliganMode==="precise"?" selected":""}>精密</option><option value="simple"${f.mulliganMode==="simple"?" selected":""}>簡易</option></select>
       <select id="ohfMc"><option value="">回数すべて</option><option value="0"${f.mulliganCount==="0"?" selected":""}>0回</option><option value="1"${f.mulliganCount==="1"?" selected":""}>1回</option><option value="2"${f.mulliganCount==="2"?" selected":""}>2回</option><option value="3+"${f.mulliganCount==="3+"?" selected":""}>3回以上</option></select>
       <select id="ohfFinal"><option value="">最終枚数すべて</option><option value="7"${f.finalHandSize==="7"?" selected":""}>7枚</option><option value="6"${f.finalHandSize==="6"?" selected":""}>6枚</option><option value="5"${f.finalHandSize==="5"?" selected":""}>5枚</option><option value="4-"${f.finalHandSize==="4-"?" selected":""}>4枚以下</option></select>
       <select id="ohfColor"><option value="">色すべて</option>${OH_COLORS.map(c=>`<option value="${c}"${f.color===c?" selected":""}>${c}</option>`).join("")}</select>
@@ -22414,7 +22416,7 @@ _applySourceAutoEffects=function(src,x,choice){
     if(e.kind==="regenerate"){
       const cards=_aeCardTargets(tmp,e);for(const c of cards){v794AddRegenerationShield(c,{sourceName:e.label||src.name,duration:e.regenerationDuration,note:e.note});const msg=`[${c.name}] に再生の盾を作成`;addLog(`自動効果: ${msg}`);logs.push(msg);applied=true;}
     }else if(e.kind==="delayed"){
-      const ctrl=e.delayedController==="opponent"?_aeOpponent(_aeController(src)):_aeController(src);const item=v794RegisterDelayedTrigger({controller:ctrl,timing:e.delayedTiming,oneShot:e.delayedOneShot,sourceCardId:src.sourceCardId||src.id||"",sourceName:src.sourceCardName||src.name||"カード効果",label:e.label||"遅延誘発",autoEffects:e.delayedEffects,choices:e.delayedChoices,note:e.note,targetMode:e.delayedTargetMode,linkedCardIds:e.delayedTargetMode==="linked"?filter.cardIds:[],linkedPlayerIds:e.delayedTargetMode==="linked"?filter.playerIds:[],targetProfile:{required:e.delayedTargetRequired,minTargets:e.delayedMinTargets,maxTargets:e.delayedMaxTargets,targetTypes:e.delayedTargetTypes,targetColors:e.delayedTargetColors,targetRelation:e.delayedTargetRelation,targetNote:e.delayedTargetNote},payment:e.delayedPayment,payments:e.delayedPayments,linkedZonePolicy:e.delayedLinkedZonePolicy,linkedPolicy:e.delayedLinkedPolicy});const msg=`「${item.label}」を${V794_TIMING_JP[item.timing]}に予約`;logs.push(msg);applied=true;
+      const ctrl=e.delayedController==="opponent"?_aeOpponent(_aeController(src)):_aeController(src);const item=v794RegisterDelayedTrigger({controller:ctrl,timing:e.delayedTiming,oneShot:e.delayedOneShot,sourceCardId:src.sourceCardId||src.id||"",sourceName:src.sourceCardName||src.name||"カード効果",label:e.label||"遅延誘発",autoEffects:e.delayedEffects,choices:e.delayedChoices,note:e.note,targetMode:e.delayedTargetMode,linkedCardIds:e.delayedTargetMode==="linked"?filter.cardIds:[],linkedPlayerIds:e.delayedTargetMode==="linked"?filter.playerIds:[],targetProfile:{required:e.delayedTargetRequired,minTargets:e.delayedMinTargets,maxTargets:e.delayedMaxTargets,targetTypes:e.delayedTargetTypes,targetColors:e.delayedTargetColors,targetRelation:e.delayedTargetRelation,targetNote:e.delayedTargetNote},payment:e.delayedPayment,payments:e.delayedPayments,linkedZonePolicy:e.delayedLinkedZonePolicy,linkedPolicy:e.delayedLinkedPolicy,v7937TriggerKind:e.v7937TriggerKind,v7937EventKind:e.v7937EventKind,v7937MatchTypes:e.v7937MatchTypes,v7937MatchController:e.v7937MatchController});const msg=`「${item.label}」を${V794_TIMING_JP[item.timing]}に予約`;logs.push(msg);applied=true;
     }else if(e.kind==="move"&&e.destination==="graveyard"&&/破壊|destroy/i.test(String(e.label||""))){
       const cards=_aeCardTargets(tmp,e),remain=[];for(const c of cards){if(v794CanRegenerate(c)){v794TryRegenerate(c,e.label||"破壊");logs.push(`[${c.name}] の破壊は再生で置換`);}else remain.push(c.id);}
       if(remain.length){const one=normalizeAutoEffect({...e,flowMode:"independent",conditionType:"always"}),s2={...tmp,targetIds:remain,autoEffects:[one],castAutoEffects:[one]};const part=v794ApplyEffectsBase(s2,x,{...(choice||{}),stepIds:[one.id],stepRepeats:{}})||[];logs.push(...part);applied=part.length>0;}else applied=false;
@@ -25140,6 +25142,654 @@ let restoreStarted=false;function scheduleRestore(){if(restoreStarted)return;res
 window.addEventListener("DOMContentLoaded",scheduleRestore);if(document.readyState!=="loading")scheduleRestore();
 globalThis.CPT_V7934_SHARED={version:API.version,protocol:API.protocol,getBundle,saveAllWithPassword,applyBundle,autoRestore,syncRead,syncWrite,persistLocal,autoRestoreEnabled,diagnose:API.diagnose};
 try{document.body.dataset.v7934="shared-save-fallback";document.title="カードゲーム練習卓 v7.9.34 共有保存フォールバック";}catch(_){}
+})();
+
+</script>
+
+<script>
+/* ============================================================
+   v7.9.35 Atomic Composite Costs & Land Play Guard
+   - preflights structured ability costs before any board mutation
+   - commits discard / graveyard exile / sacrifice / life / counters / mana atomically
+   - restores the complete board snapshot when any commit step fails
+   - hard-blocks normal land plays beyond the current per-turn limit
+   - does not count lands put onto the battlefield by effects or abilities
+   ============================================================ */
+(function(root,factory){
+  const api=factory();
+  if(typeof module==="object"&&module.exports)module.exports=api;
+  root.CPT_V7935_ATOMIC=api;
+})(typeof globalThis!=="undefined"?globalThis:this,function(){
+"use strict";
+const VERSION="7.9.35",PROTOCOL="cpt-v7.9.35-atomic-cost-land-guard";
+const BATTLEFIELD=new Set(["creatures","lands","others"]);
+const asInt=(v,min=0)=>Math.max(min,Math.trunc(Number(v)||0));
+const uniq=a=>[...new Set((Array.isArray(a)?a:[]).map(String))];
+function landPlayDecision(raw={}){
+  const method=String(raw.method||"play"),counts=raw.countsAsLandPlay!==false&&method==="play",used=asInt(raw.used),limit=Math.max(1,asInt(raw.limit,1));
+  if(!counts)return{ok:true,counts:false,used,limit,remaining:Math.max(0,limit-used),reason:"not-a-land-play"};
+  if(used>=limit)return{ok:false,counts:true,used,limit,remaining:0,reason:"land-play-limit"};
+  return{ok:true,counts:true,used,limit,remaining:Math.max(0,limit-used-1),reason:""};
+}
+function cardTypeMatch(card,types){
+  const need=Array.isArray(types)?types.filter(Boolean):[];
+  if(!need.length)return true;
+  const have=new Set([...(Array.isArray(card&&card.types)?card.types:[]),String(card&&card.type||"")].filter(Boolean).map(String));
+  return need.some(t=>have.has(String(t))||String(t)==="Permanent");
+}
+function preflightStructured(raw={}){
+  const source=raw.source||null,owner=raw.owner==="B"?"B":"A",profile=raw.profile||{},sel=raw.selections||{},cards=Array.isArray(raw.cards)?raw.cards:[],life=Number(raw.life),pool=raw.manaPool||{},pay=raw.payment||null,errors=[];
+  const byId=new Map(cards.map(c=>[String(c.id),c]));
+  if(!source||!source.id)errors.push("sourceMissing");
+  else{
+    if(!BATTLEFIELD.has(String(source.zone)))errors.push("sourceNotOnBattlefield");
+    if(String(source.controller||source.ownerRole||owner)!==owner)errors.push("sourceControllerMismatch");
+    if(profile.tapSource&&source.tapped)errors.push("sourceAlreadyTapped");
+    if(profile.removeCounterCount&&asInt(source.counters&&source.counters[profile.removeCounterName])<asInt(profile.removeCounterCount))errors.push("counterShortage");
+  }
+  if(asInt(profile.payLife)>0&&(!Number.isFinite(life)||life<asInt(profile.payLife)))errors.push("lifeShortage");
+  const groups={discard:uniq(sel.discard),exile:uniq(sel.exile),sacrifice:uniq(sel.sacrifice||sel.sac)};
+  if(groups.discard.length!==asInt(profile.discardCount))errors.push("discardCountMismatch");
+  if(groups.exile.length!==asInt(profile.exileGraveCount))errors.push("graveyardExileCountMismatch");
+  if(groups.sacrifice.length!==asInt(profile.sacrificeOtherCount))errors.push("sacrificeCountMismatch");
+  const all=[...groups.discard,...groups.exile,...groups.sacrifice];
+  if(new Set(all).size!==all.length)errors.push("duplicateCostObject");
+  for(const id of groups.discard){const c=byId.get(id);if(!c||c.zone!=="hand"||String(c.ownerRole)!==owner)errors.push(`discardInvalid:${id}`);}
+  for(const id of groups.exile){const c=byId.get(id);if(!c||c.zone!=="graveyard"||String(c.ownerRole)!==owner)errors.push(`graveyardExileInvalid:${id}`);}
+  for(const id of groups.sacrifice){const c=byId.get(id);if(!c||!BATTLEFIELD.has(String(c.zone))||String(c.controller||c.ownerRole)!==owner||String(c.id)===String(source&&source.id)||!cardTypeMatch(c,profile.sacrificeOtherTypes))errors.push(`sacrificeInvalid:${id}`);}
+  if(pay&&pay.status==="paid"){
+    const consumed=pay.consumed||{};
+    for(const k of ["W","U","B","R","G","C"]){const n=asInt(consumed[k]);if(n>asInt(pool[k]))errors.push(`manaShortage:${k}`);}
+    if(pay.shortage&&Object.values(pay.shortage).some(v=>Number(v)>0))errors.push("paymentHasShortage");
+  }
+  return{ok:errors.length===0,errors:[...new Set(errors)],groups,owner};
+}
+function diagnose(){
+  const cards=[{id:"s",zone:"lands",ownerRole:"A",controller:"A",types:["Land"],counters:{charge:1}},{id:"d",zone:"hand",ownerRole:"A",controller:"A",types:["Card"]},{id:"g",zone:"graveyard",ownerRole:"A",controller:"A",types:["Creature"]},{id:"p",zone:"creatures",ownerRole:"A",controller:"A",types:["Creature"]}];
+  const q=preflightStructured({source:cards[0],owner:"A",profile:{tapSource:true,payLife:2,discardCount:1,exileGraveCount:1,sacrificeOtherCount:1,sacrificeOtherTypes:["Creature"],removeCounterName:"charge",removeCounterCount:1},selections:{discard:["d"],exile:["g"],sacrifice:["p"]},cards,life:5,manaPool:{R:1},payment:{status:"paid",consumed:{R:1}}});
+  const tests=[{name:"land first play",ok:landPlayDecision({used:0,limit:1}).ok},{name:"land second blocked",ok:!landPlayDecision({used:1,limit:1}).ok},{name:"effect put ignored",ok:landPlayDecision({used:1,limit:1,method:"put"}).ok},{name:"composite preflight",ok:q.ok}];
+  return{version:VERSION,protocol:PROTOCOL,ok:tests.every(x=>x.ok),tests};
+}
+return{version:VERSION,protocol:PROTOCOL,landPlayDecision,preflightStructured,cardTypeMatch,diagnose};
+});
+
+(function(){
+"use strict";
+if(typeof window==="undefined"||typeof document==="undefined"||!globalThis.CPT_V7935_ATOMIC)return;
+const API=globalThis.CPT_V7935_ATOMIC;
+function clone(v){return v==null?v:JSON.parse(JSON.stringify(v));}
+function runtime(){if(!state.v7935||typeof state.v7935!=="object"||Array.isArray(state.v7935))state.v7935={};const r=state.v7935;if(!Array.isArray(r.atomicCostHistory))r.atomicCostHistory=[];if(!Array.isArray(r.landPlayBlocks))r.landPlayBlocks=[];return r;}
+function record(kind,detail){const r=runtime(),row={at:new Date().toISOString(),kind,...clone(detail||{})};const a=kind==="landPlayBlocked"?r.landPlayBlocks:r.atomicCostHistory;a.unshift(row);if(a.length>160)a.length=160;return row;}
+const baseDefault=defaultState;defaultState=function(){const s=baseDefault();s.v7935={atomicCostHistory:[],landPlayBlocks:[]};s.settings=Object.assign({v7935LandPlayGuard:true,v7935AtomicCosts:true},s.settings||{});return s;};
+state.settings=Object.assign({v7935LandPlayGuard:true,v7935AtomicCosts:true},state.settings||{});runtime();
+function allCards35(){const out=[];for(const p of["A","B"]){const pl=state.players[p]||{};for(const z of["library","hand","creatures","lands","others","graveyard","exile","sideboard"]){for(const c of pl[z]||[])out.push({id:String(c.id),zone:z,ownerRole:p,controller:c.controller||c.owner||p,name:c.name,type:c.type,types:Array.isArray(c.types)?c.types:[],tapped:!!c.tapped,counters:clone(c.counters||{})});}}for(const c of state.stack||[])out.push({id:String(c.id),zone:"stack",ownerRole:c.owner||c.controller||"A",controller:c.controller||c.owner||"A",name:c.name,type:c.type,types:Array.isArray(c.types)?c.types:[],tapped:!!c.tapped,counters:clone(c.counters||{})});return out;}
+function sourceView35(card){const f=card&&findCard(card.id);if(!f)return null;return{id:String(card.id),zone:f.zone,ownerRole:f.player||card.owner,controller:card.controller||f.player||card.owner,tapped:!!card.tapped,counters:clone(card.counters||{}),types:Array.isArray(card.types)?card.types:[],type:card.type};}
+function pool35(p){const q=typeof _ensurePool==="function"?_ensurePool(p):state.players[p]?.manaPool||{};return clone(q||{});}
+function preflight35(c,owner,cp,sel,pay){return API.preflightStructured({source:sourceView35(c),owner,profile:cp,selections:{discard:sel.discard||[],exile:sel.exile||[],sacrifice:sel.sac||sel.sacrifice||[]},cards:allCards35(),life:Number(state.players[owner]?.life),manaPool:pool35(owner),payment:pay});}
+function rollback35(snap,undoLen){try{_boardRestore(snap);}catch(_){const o=JSON.parse(snap);state.players=o.players;state.stack=o.stack||[];state.turn=o.turn;}try{if(typeof undoStack!=="undefined"&&Number.isInteger(undoLen)&&undoStack.length>undoLen)undoStack.length=undoLen;}catch(_){} }
+function costMessage35(errors){const map={sourceMissing:"発生源が見つかりません",sourceNotOnBattlefield:"発生源が戦場にありません",sourceControllerMismatch:"発生源のコントローラーが変わっています",sourceAlreadyTapped:"発生源はすでにタップされています",counterShortage:"取り除くカウンターが足りません",lifeShortage:"支払うライフが足りません",discardCountMismatch:"捨てるカードの枚数が一致しません",graveyardExileCountMismatch:"墓地から追放する枚数が一致しません",sacrificeCountMismatch:"生け贄の数が一致しません",duplicateCostObject:"同じカードを複数のコストに使えません",paymentHasShortage:"マナ不足の支払い案です"};return(errors||[]).map(x=>map[x]||(/manaShortage/.test(x)?"マナ・プールが支払い確定前に変化しました":/discardInvalid/.test(x)?"捨てるカードが手札にありません":/graveyardExileInvalid/.test(x)?"追放するカードが墓地にありません":/sacrificeInvalid/.test(x)?"生け贄にするパーマネントが条件を満たしません":x)).join(" / ");}
+const baseCommit=autoCommitStructuredAbility;
+autoCommitStructuredAbility=function(c,ab,owner,cp,sel,pay){
+  if((state.settings||{}).v7935AtomicCosts===false)return baseCommit.apply(this,arguments);
+  const q=preflight35(c,owner,cp,sel,pay);if(!q.ok){const msg=costMessage35(q.errors);record("atomicCostRejected",{sourceCardId:c&&c.id,abilityId:ab&&ab.id,errors:q.errors});toast(`起動を中止: ${msg}`);return false;}
+  const snap=_boardSnap(),undoLen=(()=>{try{return typeof undoStack!=="undefined"?undoStack.length:null;}catch(_){return null;}})();let objId=null;
+  try{
+    const sourceBefore=findCard(c.id);if(!sourceBefore)throw new Error("source disappeared before commit");
+    const obj=makeAbilityObject(c,ab,owner);
+    act("複合起動コストを原子的に支払い",()=>{
+      const live=findCard(c.id);if(!live)throw new Error("source disappeared during commit");const source=live.card;
+      if(cp.tapSource){if(source.tapped)throw new Error("source became tapped");source.tapped=true;}
+      if(cp.payLife){if(Number(state.players[owner].life)<Number(cp.payLife))throw new Error("life changed before commit");state.players[owner].life-=Number(cp.payLife);}
+      if(cp.removeCounterCount){source.counters=source.counters||{};const cur=Number(source.counters[cp.removeCounterName]||0);if(cur<Number(cp.removeCounterCount))throw new Error("counter changed before commit");source.counters[cp.removeCounterName]=cur-Number(cp.removeCounterCount);if(!source.counters[cp.removeCounterName])delete source.counters[cp.removeCounterName];}
+      const moveChecked=(id,zone)=>{const f=findCard(id);if(!f)throw new Error(`cost object missing: ${id}`);const moved=moveCard(id,f.card.owner,zone,null,true);if(!moved)throw new Error(`cost move failed: ${id}`);};
+      for(const id of sel.discard||[])moveChecked(id,"graveyard");
+      for(const id of sel.exile||[])moveChecked(id,"exile");
+      for(const id of sel.sac||[])moveChecked(id,"graveyard");
+      if(cp.sacrificeSource)moveChecked(c.id,"graveyard");
+      if(pay&&pay.status==="paid"){
+        const consumed=_normConsumed(pay.consumed);for(const k of MANA_COLORS){if(Number((_ensurePool(owner)||{})[k]||0)<Number(consumed[k]||0))throw new Error(`mana changed before commit: ${k}`);}
+        obj.paymentStatus="paid";obj.consumedMana=consumed;obj.paymentShortage=pay.shortage||null;obj.paymentAutoConsumed=true;if(_consumedSum(consumed)>0)_spendMana(owner,consumed);
+      }else if(pay){obj.paymentStatus=pay.status||"pending";obj.paymentNote=pay.note||"";}
+      obj.costPaidSummary={tapSource:!!cp.tapSource,sacrificeSource:!!cp.sacrificeSource,payLife:Number(cp.payLife)||0,discard:(sel.discard||[]).length,exile:(sel.exile||[]).length,sacrificeOther:(sel.sac||[]).length,removeCounter:Number(cp.removeCounterCount)||0,atomic:true};
+      if(ab.createsStackObject!==false){state.stack.push(obj);objId=obj.id;}
+    });
+    addLog(`${pname(owner)} は [${c.name}] の「${ab.name||"能力"}」の複合起動コストを一括で支払った${ab.createsStackObject!==false?"（スタックへ）":""}`);
+    record("atomicCostCommitted",{sourceCardId:c.id,abilityId:ab.id||"",discard:(sel.discard||[]).length,exile:(sel.exile||[]).length,sacrifice:(sel.sac||[]).length,payLife:Number(cp.payLife)||0,mana:pay&&pay.status==="paid"?_normConsumed(pay.consumed):null});
+    saveState(true);render();renderPreview();if(objId&&ab.targetRequired&&abilityPromptTargetAfterStack())setTimeout(()=>startTargetMode(objId),0);return true;
+  }catch(err){rollback35(snap,undoLen);record("atomicCostRolledBack",{sourceCardId:c&&c.id,abilityId:ab&&ab.id,error:String(err&&err.message||err)});try{saveState(true);render();renderPreview();}catch(_){}toast(`複合コストをすべて巻き戻しました: ${String(err&&err.message||err)}`);return false;}
+};
+function blockedLand35(id,player,p){const f=typeof v45Find==="function"?v45Find(id):findCard(id),name=f&&f.card?f.card.name:"土地",used=typeof _landPlayed==="function"?_landPlayed(player):0,limit=typeof v45LandLimit==="function"?v45LandLimit(player):1;record("landPlayBlocked",{cardId:id,name,player,used,limit,permissionId:p&&p.id||""});const body=`<div class="oh-warn"><b>${esc(name)}</b> は通常の土地プレイとしては置けません。</div><div class="pvrow">このターンの土地プレイ: <b>${used}/${limit}</b></div><div class="note">フェッチランドや呪文・能力によって土地を「戦場に出す」処理は土地プレイではないため、この制限には引っかかりません。追加で土地をプレイできる効果がある場合は、v4.5の追加土地プレイ権を登録してください。</div>`;try{openModal("土地プレイ上限",body,`<button class="btn" data-v7935land="grant">追加土地プレイ権を確認</button><button class="btn primary" data-app="closem">閉じる</button>`);setModalHandler(e=>{if(e.target.closest('[data-v7935land="grant"]')){closeModal();globalThis.CPT_V45?.openHub?.();}});}catch(_){toast(`土地はこのターンすでに${used}枚プレイ済みです（上限${limit}枚）`);}return false;}
+const baseLandMove=v45MoveLandToBattlefield;
+v45MoveLandToBattlefield=function(id,player,p,fromHand){if((state.settings||{}).v7935LandPlayGuard!==false){const counts=!p||p.countsAsLandPlay!==false,used=_landPlayed(player),limit=v45LandLimit(player),q=API.landPlayDecision({used,limit,countsAsLandPlay:counts,method:"play"});if(!q.ok)return blockedLand35(id,player,p);}return baseLandMove.apply(this,arguments);};
+const basePanel=playerPanelHTML;playerPanelHTML=function(p){let h=basePanel.apply(this,arguments);try{const used=_landPlayed(p),limit=v45LandLimit(p),tag=`<span class="badge v7935-land${used>=limit?" full":""}" title="通常の土地プレイ回数。能力で戦場に出した土地は数えません">土地 ${used}/${limit}</span>`;h=h.includes('<div class="badges">')?h.replace('<div class="badges">','<div class="badges">'+tag):h;}catch(_){}return h;};
+const baseSettings=openSettings;openSettings=function(){const r=baseSettings.apply(this,arguments);setTimeout(()=>{const body=document.querySelector("#modalRoot .mbody");if(!body||body.querySelector("#v7935Settings"))return;const box=document.createElement("section");box.id="v7935Settings";box.className="spanel";box.innerHTML=`<h3>v7.9.35 土地プレイ・複合コスト</h3><label><input type="checkbox" data-v7935setting="v7935LandPlayGuard"${state.settings.v7935LandPlayGuard!==false?" checked":""}> 通常の土地プレイ上限を超えた操作を禁止</label><label><input type="checkbox" data-v7935setting="v7935AtomicCosts"${state.settings.v7935AtomicCosts!==false?" checked":""}> 複合起動コストを原子的に支払い、失敗時は全巻き戻し</label><div class="note">フェッチや能力による「土地を戦場に出す」は通常の土地プレイ回数に含みません。</div>`;body.appendChild(box);box.onchange=e=>{const x=e.target.closest("[data-v7935setting]");if(!x)return;state.settings[x.dataset.v7935setting]=x.checked;saveState(true);};},0);return r;};
+const style=document.createElement("style");style.textContent='.badge.v7935-land{background:#285b45;color:#d8ffeb}.badge.v7935-land.full{background:#6a3a2d;color:#ffe0d6}#v7935Settings{display:grid;gap:7px}';document.head.appendChild(style);
+globalThis.CPT_V7935_CLIENT={version:API.version,protocol:API.protocol,runtime,preflight:preflight35,diagnose:API.diagnose};
+try{document.body.dataset.v7935="atomic-cost-land-guard";document.title="カードゲーム練習卓 v7.9.35 複合コスト・土地プレイ制御";}catch(_){}
+})();
+
+</script>
+<script>
+"use strict";
+
+(function(root, factory){
+  const api = factory();
+  if (typeof module === "object" && module.exports) module.exports = api;
+  if (root) root.CPT_V7936_RULES = api;
+})(typeof globalThis !== "undefined" ? globalThis : this, function(){
+  const VERSION = "7.9.36";
+  const PROTOCOL = "cpt-v7.9.36-reveal-context-sorcery-timing";
+  const MAIN_PHASES = new Set([3, 9, "3", "9", "Main1", "Main2", "第1メイン", "第2メイン"]);
+
+  const arr = v => Array.isArray(v) ? v : [];
+  const str = v => String(v == null ? "" : v).trim();
+  const lower = v => str(v).toLowerCase();
+  const uniq = xs => [...new Set(arr(xs).map(str).filter(Boolean))];
+  const num = v => Number.isFinite(Number(v)) ? Number(v) : 0;
+  const clone = v => { try { return JSON.parse(JSON.stringify(v)); } catch (_) { return v; } };
+
+  function selectFace(card, faceIndex){
+    const faces = arr(card && card.faces);
+    const i = Number.isInteger(Number(faceIndex)) ? Number(faceIndex) : Number(card && card.activeFaceIndex);
+    return faces[i] || null;
+  }
+  function textOf(card, face){
+    return [face && face.rulesText, face && face.oracleText, face && face.memo, card && card.rulesText,
+      card && card.oracleText, card && card.memo, card && card.text, card && card.typeLine,
+      face && face.typeLine, face && face.type].map(str).filter(Boolean).join("\n");
+  }
+  function typesOf(card, face){
+    const raw = [];
+    for (const source of [face, card]) {
+      if (!source) continue;
+      raw.push(...arr(source.types), source.type, source.typeLine, source.cardType, source.supertype, source.subtype);
+    }
+    const joined = raw.map(str).filter(Boolean).join(" ");
+    const known = ["Land","Creature","Instant","Sorcery","Artifact","Enchantment","Planeswalker","Battle","Tribal","Kindred",
+      "土地","クリーチャー","インスタント","ソーサリー","アーティファクト","エンチャント","プレインズウォーカー","バトル","同族"];
+    const out = [];
+    for (const k of known) if (joined.toLowerCase().includes(k.toLowerCase())) out.push(k);
+    return uniq(out.length ? out : raw.flatMap(x => str(x).split(/[—\-・\/\s]+/)));
+  }
+  function hasType(card, face, en, jp){
+    const t = [typesOf(card, face).join(" "), textOf(card, face)].join(" ").toLowerCase();
+    return t.includes(en.toLowerCase()) || (jp && t.includes(jp));
+  }
+  function keywordText(card, face){
+    const ks = [];
+    for (const source of [face, card]) {
+      if (!source) continue;
+      if (Array.isArray(source.keywords)) ks.push(...source.keywords);
+      else if (source.keywords && typeof source.keywords === "object") ks.push(...Object.keys(source.keywords).filter(k => source.keywords[k]));
+      ks.push(source.keyword, source.abilitiesText);
+    }
+    return ks.map(str).filter(Boolean).join(" ") + " " + textOf(card, face);
+  }
+  function hasFlash(card, face){
+    if ((face && (face.flash === true || face.hasFlash === true)) || (card && (card.flash === true || card.hasFlash === true))) return true;
+    const s = lower(keywordText(card, face));
+    return /(^|[\s,、。・])flash($|[\s,、。・])/.test(s) || s.includes("瞬速");
+  }
+  function explicitlySorcerySpeed(raw){
+    if (!raw) return false;
+    if (raw.sorcerySpeed === true || raw.activateOnlyAsSorcery === true || raw.castOnlyAsSorcery === true || raw.onlyAsSorcery === true) return true;
+    const timing = lower(raw.timing || raw.timingRestriction || raw.speed);
+    if (["sorcery","sorceryspeed","sorcery-speed","mainphase","main-phase"].includes(timing)) return true;
+    const s = lower([raw.rulesText, raw.oracleText, raw.memo, raw.resolveNote, raw.costText, raw.text].map(str).join(" "));
+    return s.includes("activate only as a sorcery") || s.includes("cast only as a sorcery") ||
+      /ソーサリー(?:・|\s*)タイミングでのみ(?:起動|唱)/.test(s) ||
+      /ソーサリーとしてのみ(?:起動|唱)/.test(s) ||
+      /ソーサリーを唱えられるときにのみ(?:起動|唱)/.test(s);
+  }
+  function spellRequiresSorcerySpeed(card, face, opts){
+    if (opts && opts.timingOverride) return false;
+    if (explicitlySorcerySpeed(face) || explicitlySorcerySpeed(card)) return true;
+    if (hasType(card, face, "Instant", "インスタント")) return false;
+    if (hasFlash(card, face)) return false;
+    return true;
+  }
+  function abilityRequiresSorcerySpeed(card, ability){
+    if (!ability) return false;
+    const kind = lower(ability.kind);
+    if (["triggered","static","replacement","continuous","誘発型","常在型","置換"].includes(kind)) return false;
+    return explicitlySorcerySpeed(ability);
+  }
+  function timingSnapshot(raw){
+    const turn = raw && raw.turn || {};
+    return {
+      actorRole: str(raw && (raw.actorRole || raw.actor || raw.role)),
+      active: str(turn.active), phase: turn.phase,
+      priority: str(turn.priority), stackDepth: arr(raw && raw.stack).length,
+      timingOverride: !!(raw && raw.timingOverride),
+    };
+  }
+  function sorceryWindow(raw){
+    const s = timingSnapshot(raw);
+    if (s.timingOverride) return { ok:true, reasons:[], ...s };
+    const reasons = [];
+    if (s.active && s.actorRole && s.active !== s.actorRole) reasons.push("sorceryTimingActivePlayerRequired");
+    if (!MAIN_PHASES.has(s.phase)) reasons.push("sorceryTimingMainPhaseRequired");
+    if (s.stackDepth !== 0) reasons.push("sorceryTimingStackEmptyRequired");
+    if (s.priority && s.actorRole && s.priority !== s.actorRole) reasons.push("priorityRequired");
+    return { ok: reasons.length === 0, reasons, ...s };
+  }
+  function validateSpellTiming(raw){
+    const face = raw && (raw.face || selectFace(raw.card, raw.faceIndex));
+    const override = !!(raw && raw.timingOverride);
+    const priority = timingSnapshot(raw);
+    if (!override && priority.priority && priority.actorRole && priority.priority !== priority.actorRole) {
+      return { ok:false, reasons:["priorityRequired"], requiresSorcerySpeed:spellRequiresSorcerySpeed(raw && raw.card, face, raw), ...priority };
+    }
+    const slow = spellRequiresSorcerySpeed(raw && raw.card, face, raw);
+    if (!slow) return { ok:true, reasons:[], requiresSorcerySpeed:false, ...priority };
+    return { ...sorceryWindow(raw), requiresSorcerySpeed:true };
+  }
+  function validateAbilityTiming(raw){
+    const slow = abilityRequiresSorcerySpeed(raw && raw.card, raw && raw.ability);
+    const snap = timingSnapshot(raw);
+    if (!slow) return { ok:true, reasons:[], requiresSorcerySpeed:false, ...snap };
+    return { ...sorceryWindow(raw), requiresSorcerySpeed:true };
+  }
+
+  function manaValue(card){
+    for (const v of [card && card.manaValue, card && card.cmc, card && card.mv, card && card.convertedManaCost]) {
+      if (Number.isFinite(Number(v))) return Math.max(0, Number(v));
+    }
+    const cost = str(card && (card.manaCostText || card.manaCost));
+    if (!cost) return 0;
+    let total = 0;
+    for (const token of cost.replace(/[{}]/g," ").split(/[\s/]+/).filter(Boolean)) {
+      if (/^\d+$/.test(token)) total += Number(token);
+      else if (/^[WUBRGCXYZ]+$/i.test(token)) total += token.toUpperCase().replace(/[XYZ]/g,"").length;
+      else if (/^[WUBRGCP]\/[WUBRGCP]$/i.test(token)) total += 1;
+    }
+    return total;
+  }
+  function colorsOf(card){
+    const raw = [];
+    if (Array.isArray(card && card.colors)) raw.push(...card.colors);
+    if (Array.isArray(card && card.colorIdentity)) raw.push(...card.colorIdentity);
+    if (card && card.color) raw.push(card.color);
+    const text = raw.map(str).join(" ").toUpperCase();
+    const out = ["W","U","B","R","G"].filter(c => new RegExp(`(^|[^A-Z])${c}([^A-Z]|$)`).test(text) || (text.length <= 5 && text.includes(c)));
+    return uniq(out);
+  }
+  function descriptor(card){
+    const face = selectFace(card, card && card.activeFaceIndex);
+    const types = typesOf(card, face);
+    return {
+      id: str(card && card.id), name: str((face && face.name) || (card && card.name)),
+      manaValue: manaValue(face || card), colors: colorsOf(face || card), types,
+      typeLine: str((face && face.typeLine) || (card && (card.typeLine || card.type))),
+    };
+  }
+  function buildRevealContext(cards, meta){
+    const ds = arr(cards).map(descriptor);
+    const values = ds.map(x => num(x.manaValue));
+    const colors = uniq(ds.flatMap(x => x.colors));
+    const types = uniq(ds.flatMap(x => x.types));
+    const names = ds.map(x => x.name).filter(Boolean);
+    return {
+      version: VERSION, at: new Date().toISOString(), public: meta && meta.public !== false,
+      sourceCardId: str(meta && meta.sourceCardId), cards: ds, count: ds.length,
+      names, uniqueNames: uniq(names), colors, types,
+      maxManaValue: values.length ? Math.max(...values) : 0,
+      minManaValue: values.length ? Math.min(...values) : 0,
+      sumManaValue: values.reduce((a,b)=>a+b,0), distinctNameCount:uniq(names).length,
+      distinctColorCount:colors.length, distinctTypeCount:types.length,
+    };
+  }
+  const METRICS = Object.freeze({
+    revealedCount:"count", count:"count", maxManaValue:"maxManaValue", minManaValue:"minManaValue",
+    sumManaValue:"sumManaValue", distinctNameCount:"distinctNameCount",
+    distinctColorCount:"distinctColorCount", distinctTypeCount:"distinctTypeCount",
+  });
+  function revealMetric(context, variable){
+    const key = METRICS[str(variable)] || str(variable);
+    return Number.isFinite(Number(context && context[key])) ? Number(context[key]) : null;
+  }
+  function materializeEffect(effect, context){
+    const out = clone(effect || {}), variable = out.v7936Variable;
+    if (!variable) return { changed:false, effect:out, value:null };
+    const value = revealMetric(context, variable);
+    if (value == null) return { changed:false, effect:out, value:null, blocked:true, reason:"revealContextUnavailable" };
+    out.amountFixed = value; out.amountMode = "fixed"; out.v7936ResolvedValue = value;
+    return { changed:true, effect:out, value };
+  }
+  function diagnose(){
+    const slow = validateSpellTiming({card:{type:"Sorcery"},actorRole:"A",turn:{active:"A",phase:3,priority:"A"},stack:[]});
+    const blocked = validateAbilityTiming({card:{},ability:{kind:"activated",timing:"sorcery"},actorRole:"A",turn:{active:"A",phase:4,priority:"A"},stack:[]});
+    const ctx = buildRevealContext([{id:"1",name:"A",manaValue:2,colors:["U"],types:["Creature"]},{id:"2",name:"B",manaValue:5,colors:["R"],types:["Sorcery"]}],{public:true});
+    const tests = [slow.ok, !blocked.ok && blocked.reasons.includes("sorceryTimingMainPhaseRequired"), ctx.count===2, ctx.maxManaValue===5, ctx.distinctColorCount===2, materializeEffect({v7936Variable:"maxManaValue"},ctx).value===5];
+    return {ok:tests.every(Boolean), testsPassed:tests.filter(Boolean).length, testsTotal:tests.length, version:VERSION, protocol:PROTOCOL};
+  }
+  return {VERSION,PROTOCOL,MAIN_PHASES,selectFace,textOf,typesOf,hasFlash,explicitlySorcerySpeed,spellRequiresSorcerySpeed,
+    abilityRequiresSorcerySpeed,timingSnapshot,sorceryWindow,validateSpellTiming,validateAbilityTiming,manaValue,colorsOf,
+    descriptor,buildRevealContext,revealMetric,materializeEffect,diagnose};
+});
+
+</script>
+<script>
+/* ============================================================
+   v7.9.36 Public Reveal Context & Sorcery Timing Guard
+   - carries public revealed-card information into later automated steps
+   - hard-blocks sorcery-speed spells and activated abilities outside
+     the active player's main phase, with priority and an empty stack
+   ============================================================ */
+(function(){
+"use strict";
+if(typeof window==="undefined"||typeof document==="undefined"||!globalThis.CPT_V7936_RULES)return;
+const API=globalThis.CPT_V7936_RULES;
+const clone=v=>{try{return v==null?v:JSON.parse(JSON.stringify(v));}catch(_){return v;}};
+const arr=v=>Array.isArray(v)?v:[];
+function runtime(){
+  if(!state.v7936||typeof state.v7936!=="object"||Array.isArray(state.v7936))state.v7936={};
+  const r=state.v7936;if(!Array.isArray(r.revealHistory))r.revealHistory=[];if(!Array.isArray(r.timingBlocks))r.timingBlocks=[];return r;
+}
+function record(kind,detail){const r=runtime(),row={at:new Date().toISOString(),kind,...clone(detail||{})},a=kind==="revealContext"?r.revealHistory:r.timingBlocks;a.unshift(row);if(a.length>180)a.length=180;return row;}
+const baseDefault=defaultState;defaultState=function(){const s=baseDefault();s.v7936={revealHistory:[],timingBlocks:[]};s.settings=Object.assign({v7936SorceryTimingGuard:true,v7936RevealVariables:true},s.settings||{});return s;};
+state.settings=Object.assign({v7936SorceryTimingGuard:true,v7936RevealVariables:true},state.settings||{});runtime();
+function actorOf(card){return String(card&&card.controller||card&&card.owner||online&&online.role||state.turn&&state.turn.active||"A");}
+function spellFace(flow){try{const fs=typeof cardFacesList==="function"?cardFacesList(flow.card):[];return fs[Number(flow.fi)]||API.selectFace(flow.card,flow.fi)||null;}catch(_){return API.selectFace(flow&&flow.card,flow&&flow.fi)||null;}}
+function timingText(reason){return({
+  priorityRequired:"優先権がありません",
+  sorceryTimingActivePlayerRequired:"自分のターンではありません",
+  sorceryTimingMainPhaseRequired:"自分の第1または第2メインフェイズではありません",
+  sorceryTimingStackEmptyRequired:"スタックが空ではありません"
+})[reason]||String(reason||"タイミングが不適正です");}
+function timingModal(kind,name,result){
+  const reasons=(result.reasons||[]).map(timingText);
+  record("timingBlocked",{kind,name,reasons:result.reasons,turn:clone(state.turn),stackDepth:(state.stack||[]).length});
+  const title=kind==="ability"?"起動タイミング制限":"唱えるタイミング制限";
+  const subject=kind==="ability"?"この能力はソーサリー・タイミングでしか起動できません。":"このカードはソーサリー・タイミングでしか唱えられません。";
+  const body=`<div class="oh-warn"><b>${esc(name||(kind==="ability"?"能力":"カード"))}</b><br>${subject}</div><div class="pvrow">必要条件: <b>自分のメインフェイズ・優先権あり・スタックが空</b></div><div class="note">${reasons.map(esc).join(" / ")}</div>`;
+  try{openModal(title,body,'<button class="btn primary" data-app="closem">閉じる</button>');}catch(_){toast(`${subject} ${reasons.join(" / ")}`);}
+}
+function spellTiming(flow,opts){
+  const override=!!(opts&&(opts._v33Free||opts.timingOverride||opts._timingOverride||opts.castByEffect));
+  return API.validateSpellTiming({card:flow.card,face:spellFace(flow),faceIndex:flow.fi,actorRole:flow.owner||actorOf(flow.card),turn:state.turn||{},stack:state.stack||[],timingOverride:override});
+}
+function abilityTiming(card,ability,owner){return API.validateAbilityTiming({card,ability,actorRole:owner||actorOf(card),turn:state.turn||{},stack:state.stack||[]});}
+const castOpts=new Map();
+const basePlace=placeOnStackFlow;
+placeOnStackFlow=function(id,opts){castOpts.set(String(id),clone(opts||{}));return basePlace.apply(this,arguments);};
+const baseBegin=v24BeginTargetOrPay;
+v24BeginTargetOrPay=function(flow){
+  if((state.settings||{}).v7936SorceryTimingGuard!==false){const opts=castOpts.get(String(flow.id))||{},q=spellTiming(flow,opts);if(!q.ok){try{v24ClearCastFlow(flow,true);}catch(_){try{_v24CastFlow=null;}catch(__){}}castOpts.delete(String(flow.id));timingModal("spell",flow.card&&flow.card.name,q);return false;}}
+  return baseBegin.apply(this,arguments);
+};
+if(typeof v24ClearCastFlow==="function"){const b=v24ClearCastFlow;v24ClearCastFlow=function(flow){if(flow)castOpts.delete(String(flow.id));return b.apply(this,arguments);};}
+if(typeof v24FinishCast==="function"){const b=v24FinishCast;v24FinishCast=function(flow){const r=b.apply(this,arguments);if(flow)castOpts.delete(String(flow.id));return r;};}
+if(typeof v52Proposal==="function"){const b=v52Proposal;v52Proposal=function(flow,pay){const p=b.apply(this,arguments),o=castOpts.get(String(flow&&flow.id))||{};if(o._v33Free||o.timingOverride||o._timingOverride||o.castByEffect){p.zoneMeta=p.zoneMeta||{};p.zoneMeta.timingOverride=true;}return p;};}
+const baseSmart=smartStandardAction;
+smartStandardAction=function(id){
+  if((state.settings||{}).v7936SorceryTimingGuard!==false){const f=findCard(id),mode=typeof smartActionMode==="function"?smartActionMode():"stackFirst",bucket=f&&typeof _smartBucket==="function"?_smartBucket(f.card):"";if(f&&mode==="simpleBattlefield"&&(bucket==="creature"||bucket==="permanent")){const q=API.validateSpellTiming({card:f.card,face:API.selectFace(f.card,f.card.activeFaceIndex),actorRole:f.player||actorOf(f.card),turn:state.turn||{},stack:state.stack||[]});if(!q.ok){timingModal("spell",f.card.name,q);return false;}}}
+  return baseSmart.apply(this,arguments);
+};
+function findAbility(cardId,abilityId){const f=findCard(cardId),ab=f&&typeof getCardAbilities==="function"?getCardAbilities(f.card).find(a=>String(a.id)===String(abilityId)):null;return{f,ab};}
+const basePut=putAbilityOnStack;
+putAbilityOnStack=function(cardId,abilityId){if((state.settings||{}).v7936SorceryTimingGuard!==false){const {f,ab}=findAbility(cardId,abilityId);if(f&&ab){const q=abilityTiming(f.card,ab,f.card.controller||f.player||f.card.owner);if(!q.ok){timingModal("ability",ab.name||f.card.name,q);return false;}}}return basePut.apply(this,arguments);};
+const baseCommitAbility=_commitAbility;
+_commitAbility=function(c,ab,owner){if((state.settings||{}).v7936SorceryTimingGuard!==false){const q=abilityTiming(c,ab,owner);if(!q.ok){timingModal("ability",ab&&ab.name||c&&c.name,q);return false;}}return baseCommitAbility.apply(this,arguments);};
+const baseStructured=autoCommitStructuredAbility;
+autoCommitStructuredAbility=function(c,ab,owner){if((state.settings||{}).v7936SorceryTimingGuard!==false){const q=abilityTiming(c,ab,owner);if(!q.ok){timingModal("ability",ab&&ab.name||c&&c.name,q);return false;}}return baseStructured.apply(this,arguments);};
+
+function captureReveal(source,cards,meta){
+  if((state.settings||{}).v7936RevealVariables===false||!source||!arr(cards).length)return null;
+  const ctx=API.buildRevealContext(cards,{public:meta&&meta.public!==false,sourceCardId:source.id});
+  source.v7936RevealContext=clone(ctx);record("revealContext",{sourceCardId:source.id,sourceName:source.name,context:ctx});
+  try{addLog(`公開情報を記録: ${ctx.count}枚 / 最大MV ${ctx.maxManaValue} / 最小MV ${ctx.minManaValue} / 異なる名前 ${ctx.distinctNameCount}`);}catch(_){}
+  return ctx;
+}
+if(typeof autoLibCommit==="function"){const b=autoLibCommit;autoLibCommit=function(){const w=typeof _autoLibWork!=="undefined"&&_autoLibWork?{source:_autoLibWork.source,cards:arr(_autoLibWork.cards).slice(),action:clone(_autoLibWork.action)}:null;const r=b.apply(this,arguments);if(w&&w.action&&w.action.kind==="reveal")captureReveal(w.source,w.cards,{public:w.action.public!==false});return r;};}
+if(typeof _zswExecute==="function"){const b=_zswExecute;_zswExecute=function(){let cap=null;try{if(_zsw&&(_zsw.publicLog||_zsw.profile&&(_zsw.profile.publicLog||_zsw.profile.revealSelection))){const src=_zsw.sourceCardId?findCard(_zsw.sourceCardId):null,cards=arr(_zsw.selected).map(id=>findCard(id)?.card).filter(Boolean);cap={source:src&&src.card,cards};}}catch(_){}const r=b.apply(this,arguments);if(cap)captureReveal(cap.source,cap.cards,{public:true});return r;};}
+const normBase=typeof normalizeAutoEffect==="function"?normalizeAutoEffect:null;
+if(normBase){normalizeAutoEffect=function(e){const r=normBase(e);for(const k of["v7936Variable","v7936ResolvedValue"]){if(e&&e[k]!==undefined)r[k]=clone(e[k]);}return r;};normalizeAutoEffects=a=>Array.isArray(a)?a.map(normalizeAutoEffect):[];}
+const applyBase=typeof _applySourceAutoEffects==="function"?_applySourceAutoEffects:null;
+if(applyBase){_applySourceAutoEffects=function(src,x,choice){const ctx=src&&src.v7936RevealContext,effects=arr(typeof _sourceAutoEffects==="function"?_sourceAutoEffects(src):src&&src.autoEffects||src&&src.castAutoEffects).map(e=>typeof normalizeAutoEffect==="function"?normalizeAutoEffect(e):clone(e));if(!ctx||!effects.some(e=>e&&e.v7936Variable))return applyBase.apply(this,arguments);const materialized=[],blocked=[];for(const e of effects){const m=API.materializeEffect(e,ctx);materialized.push(m.effect);if(m.blocked)blocked.push(String(e.id||""));}const selected=new Set(choice&&choice.stepIds||effects.map(e=>String(e.id||"")));for(const id of blocked)selected.delete(id);const use={...src,autoEffects:materialized,castAutoEffects:materialized},logs=applyBase(use,x,{...(choice||{}),stepIds:[...selected]})||[];for(const k of["targetStatus","v792EffectFlow","v797AtomicPayment","v798AtomicPayment","v7927VariableResolution","v7929XResolution"]){if(use[k]!==undefined)src[k]=clone(use[k]);}src.v7936VariableResolution={at:new Date().toISOString(),values:Object.fromEntries(materialized.filter(e=>e.v7936ResolvedValue!=null).map(e=>[String(e.id||e.label||"effect"),e.v7936ResolvedValue]))};return logs;};}
+function detectVariable36(text){const s=String(text||"");if(/公開(?:した|された)カードの(?:枚数|数)/.test(s))return"revealedCount";if(/公開(?:した|された)カード[^。]{0,18}最大[^。]{0,10}マナ総量/.test(s)||/公開(?:した|された)カードの中で最大のマナ総量/.test(s))return"maxManaValue";if(/公開(?:した|された)カード[^。]{0,18}最小[^。]{0,10}マナ総量/.test(s)||/公開(?:した|された)カードの中で最小のマナ総量/.test(s))return"minManaValue";if(/公開(?:した|された)カード[^。]{0,20}マナ総量の合計/.test(s))return"sumManaValue";if(/公開(?:した|された)カード[^。]{0,20}異なる(?:カード)?名(?:の数)?/.test(s))return"distinctNameCount";if(/公開(?:した|された)カード[^。]{0,20}異なる色(?:の数)?/.test(s))return"distinctColorCount";if(/公開(?:した|された)カード[^。]{0,20}異なるカード・?タイプ(?:の数)?/.test(s))return"distinctTypeCount";return"";}
+if(typeof v28ParseJapaneseRules==="function"){const b=v28ParseJapaneseRules;v28ParseJapaneseRules=function(text){const out=b.apply(this,arguments),v=detectVariable36(text);if(v){const candidates=arr(out&&out.abilities).flatMap(ab=>arr(ab.effects)).filter(e=>e&&e.kind!=="manual"&&e.kind!=="note"),target=candidates[candidates.length-1];if(target&&!target.v7936Variable)target.v7936Variable=v;out.v7936RevealVariable=v||out.v7936RevealVariable||"";}return out;};}
+const baseSettings=openSettings;openSettings=function(){const r=baseSettings.apply(this,arguments);setTimeout(()=>{const body=document.querySelector("#modalRoot .mbody");if(!body||body.querySelector("#v7936Settings"))return;const box=document.createElement("section");box.id="v7936Settings";box.className="spanel";box.innerHTML=`<h3>v7.9.36 公開情報・ソーサリータイミング</h3><label><input type="checkbox" data-v7936setting="v7936SorceryTimingGuard"${state.settings.v7936SorceryTimingGuard!==false?" checked":""}> ソーサリータイミング限定の呪文・能力を厳格に制限</label><label><input type="checkbox" data-v7936setting="v7936RevealVariables"${state.settings.v7936RevealVariables!==false?" checked":""}> 公開カードの枚数・色・タイプ・マナ総量を後続処理へ渡す</label><div class="note">ソーサリータイミングは「自分の第1/第2メインフェイズ・優先権あり・スタックが空」です。瞬速や効果によるカスケード/発見などの唱える許可は別扱いです。</div>`;body.appendChild(box);box.onchange=e=>{const x=e.target.closest("[data-v7936setting]");if(!x)return;state.settings[x.dataset.v7936setting]=x.checked;saveState(true);};},0);return r;};
+const style=document.createElement("style");style.textContent="#v7936Settings{display:grid;gap:7px}";document.head.appendChild(style);
+globalThis.CPT_V7936_CLIENT={version:API.VERSION,protocol:API.PROTOCOL,runtime,captureReveal,spellTiming,abilityTiming,detectVariable:detectVariable36,diagnose:API.diagnose};
+try{document.body.dataset.v7936="reveal-context-sorcery-timing";document.title="カードゲーム練習卓 v7.9.36 公開情報・ソーサリータイミング";}catch(_){}
+})();
+</script>
+
+<script>
+"use strict";
+
+(function(root, factory){
+  const api = factory();
+  if (typeof module === "object" && module.exports) module.exports = api;
+  if (root) root.CPT_V7937_RULES = api;
+})(typeof globalThis !== "undefined" ? globalThis : this, function(){
+  const VERSION = "7.9.37";
+  const PROTOCOL = "cpt-v7.9.37-linked-delayed-serum";
+  const BATTLEFIELD_ZONES = new Set(["creatures","lands","others","battlefield"]);
+  const EVENT_ALIASES = Object.freeze({
+    endStep:"endStep", endstep:"endStep", upkeep:"upkeep", draw:"draw", drawn:"draw",
+    leavesBattlefield:"leavesBattlefield", leaveBattlefield:"leavesBattlefield", leftBattlefield:"leavesBattlefield",
+    dies:"dies", died:"dies", cast:"cast", spellCast:"cast", zoneMove:"zoneMove", damage:"damage"
+  });
+  const SERUM_NAMES = new Set(["serum powder","血清の粉末"]);
+  const arr = v => Array.isArray(v) ? v : [];
+  const str = v => String(v == null ? "" : v).trim();
+  const num = v => Number.isFinite(Number(v)) ? Number(v) : 0;
+  const clone = v => { try { return JSON.parse(JSON.stringify(v)); } catch (_) { return v; } };
+  const uniq = xs => [...new Set(arr(xs).map(str).filter(Boolean))];
+  const normalizeName = v => str(v).normalize("NFKC").toLowerCase().replace(/[’'`]/g,"").replace(/[‐‑‒–—―]/g,"-").replace(/\s+/g," ").trim();
+  const normEvent = v => EVENT_ALIASES[str(v)] || str(v);
+
+  function cardNames(card, dictionaryEntry){
+    const out=[];
+    for(const source of [card,dictionaryEntry]){
+      if(!source) continue;
+      for(const key of ["name","displayName","printedName","jaName","jpName","englishName","enName","oracleName","nameJa","nameEn"]) if(source[key]) out.push(source[key]);
+      out.push(...arr(source.aliases),...arr(source.otherNames),...arr(source.names));
+      for(const face of arr(source.faces)) for(const key of ["name","displayName","printedName","jaName","englishName"]) if(face&&face[key]) out.push(face[key]);
+    }
+    return uniq(out.map(normalizeName));
+  }
+  function isSerumPowder(card, dictionaryEntry){ return cardNames(card,dictionaryEntry).some(x=>SERUM_NAMES.has(x)); }
+  function serumPowderCount(entries, lookup){
+    let count=0;
+    for(const e of arr(entries)){
+      let d=null; try{ d=typeof lookup==="function"?lookup(e&&e.name):null; }catch(_){}
+      if(isSerumPowder(e,d)) count += Math.max(0,Math.trunc(num(e&&e.qty)||1));
+    }
+    return count;
+  }
+  function recommendOpeningMode(entries, lookup){
+    const count=serumPowderCount(entries,lookup);
+    return {mode:count>0?"library":"",serumPowderCount:count,reason:count>0?"serumPowderDetected":""};
+  }
+
+  function shuffled(cards, random){
+    const a=arr(cards).map(clone),rnd=typeof random==="function"?random:Math.random;
+    for(let i=a.length-1;i>0;i--){const j=Math.max(0,Math.min(i,Math.floor(Number(rnd())*(i+1))));[a[i],a[j]]=[a[j],a[i]];}
+    return a;
+  }
+  function makeOpeningState(cards, random){
+    const pool=shuffled(cards,random),hand=pool.splice(0,Math.min(7,pool.length));
+    return {library:pool,hand,exiled:[],bottom:[],mulliganCount:0,serumPowderCount:0,pendingBottom:0,total:pool.length+hand.length,history:["初手7枚を引いた"]};
+  }
+  function normalLondonMulligan(raw, random){
+    const s=clone(raw||{}); if(num(s.pendingBottom)>0) return {ok:false,reason:"keepBottomPending",state:s};
+    s.library=arr(s.library).concat(arr(s.hand)); s.hand=[]; s.library=shuffled(s.library,random); s.mulliganCount=Math.max(0,Math.trunc(num(s.mulliganCount)))+1; s.bottom=[]; s.pendingBottom=0;
+    if(s.library.length<7)return{ok:false,reason:"libraryTooSmall",state:s};
+    s.hand=s.library.splice(0,7); arr(s.history).push(`通常マリガン${s.mulliganCount}回目: 7枚を引き直した（キープ時に${s.mulliganCount}枚をボトム）`);return{ok:true,state:s};
+  }
+  function beginLondonKeep(raw){const s=clone(raw||{}),need=Math.max(0,Math.trunc(num(s.mulliganCount)));s.pendingBottom=need;return{ok:true,needsBottom:need>0,count:need,state:s};}
+  function confirmLondonBottom(raw,indices){
+    const s=clone(raw||{}),need=Math.max(0,Math.trunc(num(s.pendingBottom))),idx=uniq(arr(indices).map(x=>String(Math.trunc(num(x))))).map(Number);
+    if(idx.length!==need)return{ok:false,reason:"bottomCountInvalid",state:s};if(idx.some(i=>i<0||i>=arr(s.hand).length))return{ok:false,reason:"bottomIndexInvalid",state:s};
+    const set=new Set(idx),picked=idx.map(i=>s.hand[i]),kept=s.hand.filter((_,i)=>!set.has(i));s.hand=kept;s.library=arr(s.library);for(const c of picked)s.library.push(c);s.bottom=picked;s.pendingBottom=0;return{ok:true,state:s,picked,kept};
+  }
+  function useSerumPowder(raw, lookup){
+    const s=clone(raw||{});if(num(s.pendingBottom)>0)return{ok:false,reason:"keepBottomPending",state:s};
+    const has=arr(s.hand).some(c=>{let d=null;try{d=typeof lookup==="function"?lookup(c&&c.name):null;}catch(_){}return isSerumPowder(c,d);});
+    if(!has)return{ok:false,reason:"serumPowderMissing",state:s};const n=arr(s.hand).length;if(arr(s.library).length<n)return{ok:false,reason:"libraryTooSmall",state:s};
+    const ex=arr(s.hand);s.exiled=arr(s.exiled).concat(ex);s.hand=arr(s.library).splice(0,n);s.serumPowderCount=Math.max(0,Math.trunc(num(s.serumPowderCount)))+1;arr(s.history).push(`血清の粉末${s.serumPowderCount}回目: ${n}枚を追放して${n}枚引いた`);return{ok:true,state:s,exiled:ex,drawn:s.hand};
+  }
+  function openingTotalsOk(s){return arr(s&&s.library).length+arr(s&&s.hand).length+arr(s&&s.exiled).length===Math.max(0,Math.trunc(num(s&&s.total)));}
+
+  function zoneSerial(card){return Math.max(0,Math.trunc(num(card&&(card.v796ZoneSerial??card.zoneSerial??card.objectSerial))));}
+  function cardTypes(card){
+    const raw=[...arr(card&&card.types),card&&card.type,card&&card.typeLine].map(str).filter(Boolean).join(" ");
+    const known=["Land","Creature","Artifact","Enchantment","Planeswalker","Battle","Instant","Sorcery","Token","土地","クリーチャー","アーティファクト","エンチャント","プレインズウォーカー","バトル","インスタント","ソーサリー","トークン"];
+    return uniq(known.filter(k=>raw.toLowerCase().includes(k.toLowerCase())));
+  }
+  function snapshot(card, location){
+    if(!card)return null;const id=str(card.id),serial=zoneSerial(card),zone=str(location&&location.zone||card.zone),player=str(location&&location.player||location&&location.owner||card.controller||card.owner);
+    return {id,objectKey:str(card.v797ObjectKey)||`${id}:${serial}`,zoneSerial:serial,name:str(card.name||card.displayName),owner:str(card.owner),controller:str(card.controller||card.owner),player,zone,types:cardTypes(card),colors:uniq(card.colors),manaValue:num(card.manaValue??card.cmc),power:card.power??"",toughness:card.toughness??"",counters:clone(card.counters||{}),tapped:!!card.tapped,faceDown:!!card.faceDown};
+  }
+  function sameObject(a,b){if(!a||!b)return false;if(a.id&&b.id)return str(a.id)===str(b.id)&&num(a.zoneSerial)===num(b.zoneSerial);if(a.objectKey&&b.objectKey)return str(a.objectKey)===str(b.objectKey);return false;}
+  function moveEvents(before, after, meta){
+    if(!before)return[];const from=str(meta&&meta.fromZone||before.zone),to=str(meta&&meta.toZone||after&&after.zone),base={id:`ev-${Date.now().toString(36)}-${Math.random().toString(36).slice(2,8)}`,turn:num(meta&&meta.turn),activeRole:str(meta&&meta.activeRole),actorRole:str(meta&&meta.actorRole),cardId:before.id,objectKey:before.objectKey,fromZone:from,toZone:to,before:clone(before),after:clone(after),lastKnown:clone(before)};
+    const out=[{...base,kind:"zoneMove"}];if(BATTLEFIELD_ZONES.has(from)&&!BATTLEFIELD_ZONES.has(to))out.push({...base,kind:"leavesBattlefield"});if(BATTLEFIELD_ZONES.has(from)&&to==="graveyard"&&before.types.some(t=>["Creature","クリーチャー","Token","トークン"].includes(t)))out.push({...base,kind:"dies"});return out;
+  }
+  function normalizeDelayedSpec(raw){
+    raw=raw||{};const triggerKind=str(raw.triggerKind||raw.kind||"nextEvent"),eventKind=normEvent(raw.eventKind||raw.event||({sourceLeavesBattlefield:"leavesBattlefield",linkedLeavesBattlefield:"leavesBattlefield",nextEndStep:"endStep"}[triggerKind]||""));
+    return {id:str(raw.id)||`v7937-${Date.now().toString(36)}-${Math.random().toString(36).slice(2,8)}`,controller:str(raw.controller)==="B"?"B":"A",triggerKind,eventKind,oneShot:raw.oneShot!==false,optional:!!raw.optional,createdTurn:num(raw.createdTurn),sourceSnapshot:clone(raw.sourceSnapshot||null),linkedSnapshots:arr(raw.linkedSnapshots).map(clone),matchController:str(raw.matchController),matchPlayer:str(raw.matchPlayer),matchTypes:uniq(raw.matchTypes),sourceName:str(raw.sourceName||raw.label||"遅延誘発"),label:str(raw.label||"遅延誘発"),autoEffects:clone(arr(raw.autoEffects)),choices:clone(arr(raw.choices)),note:str(raw.note),targetMode:str(raw.targetMode||"none"),targetProfile:clone(raw.targetProfile||{}),payments:clone(arr(raw.payments)),payload:clone(raw.payload||{})};
+  }
+  function eventCardSnapshot(event){return event&&event.before||event&&event.lastKnown||event&&event.card||null;}
+  function eventMatchesSpec(rawSpec, rawEvent){
+    const spec=normalizeDelayedSpec(rawSpec),event={...(rawEvent||{}),kind:normEvent(rawEvent&&rawEvent.kind)};if(spec.eventKind&&event.kind!==spec.eventKind)return false;
+    if(event.turn!=null&&spec.createdTurn&&event.kind==="endStep"&&num(event.turn)<spec.createdTurn)return false;
+    const ec=eventCardSnapshot(event);
+    if(spec.triggerKind==="sourceLeavesBattlefield"&&!sameObject(spec.sourceSnapshot,ec))return false;
+    if(spec.triggerKind==="linkedLeavesBattlefield"&&!spec.linkedSnapshots.some(x=>sameObject(x,ec)))return false;
+    if(spec.matchController&&str(event.controller||ec&&ec.controller)!==spec.matchController)return false;
+    if(spec.matchPlayer&&str(event.player||event.affected||ec&&ec.player)!==spec.matchPlayer)return false;
+    if(spec.matchTypes.length){const t=new Set(arr(ec&&ec.types));if(!spec.matchTypes.some(x=>t.has(x)))return false;}
+    return true;
+  }
+  function consumeEvent(items,event){const due=[],remaining=[];for(const raw of arr(items)){const x=normalizeDelayedSpec(raw);if(eventMatchesSpec(x,event)){due.push(x);if(!x.oneShot)remaining.push(x);}else remaining.push(x);}return{due,remaining,event:clone(event)};}
+  function buildLastKnownPayload(spec,event){return{source:clone(spec&&spec.sourceSnapshot),linked:clone(spec&&spec.linkedSnapshots),event:clone(event),triggeredObject:clone(eventCardSnapshot(event))};}
+  function diagnose(){
+    const serum={name:"Serum Powder"},st=makeOpeningState(Array.from({length:60},(_,i)=>i===0?serum:{id:String(i),name:`C${i}`}),()=>0.5),m=normalLondonMulligan(st,()=>0.5),k=beginLondonKeep(m.state);
+    const c={id:"c1",name:"Bear",owner:"A",controller:"A",types:["Creature"],v796ZoneSerial:2,power:2,toughness:2},before=snapshot(c,{zone:"creatures",player:"A"}),after=snapshot({...c,v796ZoneSerial:3},{zone:"graveyard",player:"A"}),events=moveEvents(before,after,{fromZone:"creatures",toZone:"graveyard"});
+    const spec=normalizeDelayedSpec({triggerKind:"sourceLeavesBattlefield",sourceSnapshot:before});
+    const tests=[
+      {name:"serum name",ok:isSerumPowder(serum)},
+      {name:"London mulligan waits for keep",ok:m.ok&&m.state.mulliganCount===1&&m.state.pendingBottom===0&&k.count===1},
+      {name:"leave event",ok:events.some(e=>e.kind==="leavesBattlefield")},
+      {name:"dies event",ok:events.some(e=>e.kind==="dies")},
+      {name:"object identity match",ok:eventMatchesSpec(spec,events.find(e=>e.kind==="leavesBattlefield"))},
+      {name:"LKI retained",ok:buildLastKnownPayload(spec,events[1]).triggeredObject.name==="Bear"}
+    ];return{version:VERSION,protocol:PROTOCOL,ok:tests.every(x=>x.ok),tests};
+  }
+  return {VERSION,PROTOCOL,normalizeName,cardNames,isSerumPowder,serumPowderCount,recommendOpeningMode,makeOpeningState,normalLondonMulligan,beginLondonKeep,confirmLondonBottom,useSerumPowder,openingTotalsOk,snapshot,sameObject,moveEvents,normalizeDelayedSpec,eventMatchesSpec,consumeEvent,buildLastKnownPayload,diagnose};
+});
+
+</script>
+<script>
+/* ============================================================
+   v7.9.37 Linked Delayed Events & Serum Powder Opening Practice
+   - correct London mulligan sequence and repeatable Serum Powder replacement
+   - automatic Serum Powder deck detection / mode recommendation
+   - one-shot delayed triggers for source/linked leaves-battlefield and next matching public event
+   - last-known information retained after the tracked object changes zones
+   ============================================================ */
+(function(){
+"use strict";
+const V7937_VERSION="7.9.37";
+const R=globalThis.CPT_V7937_RULES;
+if(!R)throw new Error("v7.9.37 core module is unavailable");
+const clone37=x=>{try{return JSON.parse(JSON.stringify(x));}catch(_){return x;}};
+const id37=p=>`${p||"v7937"}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2,8)}`;
+const bf37=z=>["creatures","lands","others","battlefield"].includes(String(z||""));
+function rt37(){
+  if(!state.v7937||typeof state.v7937!=="object"||Array.isArray(state.v7937))state.v7937={};
+  const r=state.v7937;if(!Array.isArray(r.eventDelayedTriggers))r.eventDelayedTriggers=[];if(!Array.isArray(r.history))r.history=[];if(!Array.isArray(r.eventQueue))r.eventQueue=[];if(!Array.isArray(r.recentKeys))r.recentKeys=[];return r;
+}
+function hist37(kind,detail){const r=rt37();r.history.unshift({id:id37("hist"),at:new Date().toISOString(),kind,detail:clone37(detail)});if(r.history.length>150)r.history.length=150;}
+function loc37(id){try{const f=findCard(id);return f?{card:f.card,zone:f.zone,player:f.player}:null;}catch(_){return null;}}
+function snap37(idOrCard,location){const f=typeof idOrCard==="string"?loc37(idOrCard):null,card=f?f.card:idOrCard,loc=location||f||{};return R.snapshot(card,{zone:loc.zone,player:loc.player});}
+function normalizeEffects37(xs){try{return normalizeAutoEffects(xs||[]);}catch(_){return clone37(xs||[]);}}
+function register37(spec){
+  spec=spec||{};const source=spec.sourceSnapshot||snap37(spec.sourceCardId),linked=(spec.linkedSnapshots||[]).length?spec.linkedSnapshots:(spec.linkedCardIds||[]).map(x=>snap37(x)).filter(Boolean);
+  const item=R.normalizeDelayedSpec({...spec,id:spec.id||id37("delay"),createdTurn:Number(state.turn?.number)||0,sourceSnapshot:source,linkedSnapshots:linked,autoEffects:normalizeEffects37(spec.autoEffects),choices:clone37(spec.choices||[])});
+  rt37().eventDelayedTriggers.push(item);hist37("registered",item);
+  try{addLog(`${pname(item.controller)}: 「${item.label}」を${item.triggerKind==="sourceLeavesBattlefield"?"発生源が戦場を離れたとき":item.triggerKind==="linkedLeavesBattlefield"?"関連カードが戦場を離れたとき":`次の${item.eventKind}`}に予約`);saveState(true);}catch(_){}
+  return item;
+}
+function build37(spec,event){
+  const linkedId=String(event?.cardId||event?.before?.id||"");
+  const legacy={...spec,timing:"endStep",linkedCardIds:[],linkedObjects:[],targetMode:spec.targetMode||"none",autoEffects:normalizeEffects37(spec.autoEffects||[]),choices:clone37(spec.choices||[]),payments:clone37(spec.payments||[])};
+  let a;
+  try{a=v794BuildDelayedAbility(legacy);}catch(_){a={id:id37("ability"),kind:"ability",type:"Ability",abilityKind:"triggered",name:`${spec.label} — ${spec.sourceName}`,owner:spec.controller,controller:spec.controller,zone:"stack",sourceCardName:spec.sourceName,sourceCardId:spec.sourceSnapshot?.id||"",autoEffects:legacy.autoEffects,castAutoEffects:legacy.autoEffects,resolveChecklist:[]};}
+  a.isV7937Delayed=true;a.v7937DelayedId=spec.id;a.v7937Event=clone37(event);a.v7937LastKnown=R.buildLastKnownPayload(spec,event);a.v7937TriggerKind=spec.triggerKind;
+  if(linkedId){a.v795LinkedNonTarget=true;a.v795LinkedCardIds=[linkedId];a.v7937TriggeredCardId=linkedId;}
+  a.resolveChecklist=[...(a.resolveChecklist||[]),`v7.9.37: ${spec.eventKind}を1回検出`,event?.lastKnown?`最終情報を保持: ${event.lastKnown.name||event.lastKnown.id||"カード"} / ${event.fromZone||"?"}→${event.toZone||"?"}`:"公開イベント情報を保持"];
+  if(!(a.autoEffects||[]).length)a.resolveChecklist.push(spec.note||"効果本文は安全のため手動確認");
+  return a;
+}
+function process37(event){
+  if(!event||state.settings?.v7937DelayedEvents===false)return 0;
+  if(typeof online!=="undefined"&&online.connected&&online.roomCode){hist37("onlineManual",event);return 0;}
+  const r=rt37(),out=R.consumeEvent(r.eventDelayedTriggers,event);if(!out.due.length)return 0;r.eventDelayedTriggers=out.remaining;
+  const commit=()=>{for(const x of out.due){state.stack.push(build37(x,event));hist37("triggered",{spec:x,event});}try{addLog(`関連遅延誘発${out.due.length}件をスタックへ置いた`);}catch(_){}};
+  try{if(typeof act==="function")act("関連遅延誘発をスタックへ",commit);else commit();}catch(_){commit();}
+  state.turn.priority=out.due[out.due.length-1].controller;try{saveState(true);render();}catch(_){}return out.due.length;
+}
+let flushing37=false;
+function eventKey37(e){return [e.kind,e.cardId,e.objectKey,e.player,e.turn,e.fromZone,e.toZone,e.count,Date.now()>>4].join(":");}
+function queue37(event){if(!event)return 0;const r=rt37(),key=eventKey37(event);if(r.recentKeys.includes(key))return 0;r.recentKeys.push(key);if(r.recentKeys.length>80)r.recentKeys.splice(0,r.recentKeys.length-80);r.eventQueue.push(clone37(event));if(!flushing37){flushing37=true;setTimeout(()=>{try{while(rt37().eventQueue.length)process37(rt37().eventQueue.shift());}finally{flushing37=false;}},0);}return 1;}
+
+/* Object-zone event bridge. The event uses the pre-move snapshot as LKI. */
+if(typeof moveCard==="function"){
+  const moveBase37=moveCard;
+  moveCard=function(id,destPlayer,destZone,pos,skipUndo){const beforeLoc=loc37(id),before=beforeLoc?snap37(beforeLoc.card,beforeLoc):null,r=moveBase37.apply(this,arguments),afterLoc=loc37(id),after=afterLoc?snap37(afterLoc.card,afterLoc):null;if(r&&before&&beforeLoc.zone!==destZone){for(const e of R.moveEvents(before,after,{fromZone:beforeLoc.zone,toZone:destZone,turn:Number(state.turn?.number)||0,activeRole:state.turn?.active||"",actorRole:r.controller||r.owner||destPlayer}))queue37(e);}return r;};
+}
+if(typeof v25EmitTriggerEvent==="function"){
+  const emitBase37=v25EmitTriggerEvent;
+  v25EmitTriggerEvent=function(eventType,subject,meta){const r=emitBase37.apply(this,arguments),map={draw:"draw",cast:"cast",combatDamage:"damage",lifeChanged:"lifeChanged",endCombat:"endCombat",landfall:"landfall"},kind=map[String(eventType||"")];if(kind){const c=subject?snap37(subject,{zone:subject.zone,player:subject.controller||subject.owner}):null;queue37({id:id37("event"),kind,turn:Number(state.turn?.number)||0,activeRole:state.turn?.active||"",player:meta?.player||c?.controller||"",controller:c?.controller||meta?.player||"",count:Number(meta?.count)||0,amount:Number(meta?.amount)||0,cardId:c?.id||"",objectKey:c?.objectKey||"",before:c,lastKnown:c,meta:clone37(meta||{})});}return r;};
+}
+
+/* Preserve event metadata through Easy Effect Studio. */
+if(typeof eesNormalizeEffect==="function"){
+  const normBase37=eesNormalizeEffect;
+  eesNormalizeEffect=function(e){e=e||{};const q=normBase37(e);q.v7937TriggerKind=String(e.v7937TriggerKind||q.v7937TriggerKind||"");q.v7937EventKind=String(e.v7937EventKind||q.v7937EventKind||"");q.v7937MatchTypes=Array.isArray(e.v7937MatchTypes)?e.v7937MatchTypes.map(String):Array.isArray(q.v7937MatchTypes)?q.v7937MatchTypes:[];q.v7937MatchController=String(e.v7937MatchController||q.v7937MatchController||"");return q;};
+}
+if(typeof eesAutoEffect==="function"){
+  const autoBase37=eesAutoEffect;
+  eesAutoEffect=function(e,a){const q=autoBase37(e,a);if(q&&e&&e.effectId==="delayedTrigger"&&e.v7937TriggerKind)return normalizeAutoEffect({...q,v7937TriggerKind:e.v7937TriggerKind,v7937EventKind:e.v7937EventKind,v7937MatchTypes:e.v7937MatchTypes,v7937MatchController:e.v7937MatchController});return q;};
+}
+if(typeof v794RegisterDelayedTrigger==="function"){
+  const registerBase37=v794RegisterDelayedTrigger;
+  v794RegisterDelayedTrigger=function(spec){if(spec&&spec.v7937TriggerKind&&!["nextEndStep","endStep","upkeep"].includes(spec.v7937TriggerKind))return register37({controller:spec.controller,triggerKind:spec.v7937TriggerKind,eventKind:spec.v7937EventKind,matchTypes:spec.v7937MatchTypes,matchController:spec.v7937MatchController,oneShot:spec.oneShot,optional:spec.optional,sourceCardId:spec.sourceCardId,sourceName:spec.sourceName,label:spec.label,autoEffects:spec.autoEffects,choices:spec.choices,note:spec.note,targetMode:spec.targetMode,targetProfile:spec.targetProfile,payments:spec.payments,linkedCardIds:spec.linkedCardIds});return registerBase37.apply(this,arguments);};
+}
+
+/* Conservative rule-text extension. It automates the trigger occurrence; ambiguous effect bodies remain checklist items. */
+if(typeof v28ParseJapaneseRules==="function"){
+  const parseBase37=v28ParseJapaneseRules;
+  function nested37(body){try{return (parseBase37(String(body||"")).abilities||[]).flatMap(a=>a.effects||[]).filter(e=>e.effectId!=="customManual").map(eesNormalizeEffect);}catch(_){return[];}}
+  function detect37(src){
+    let m,kind="",event="",types=[],controller="",body="";
+    if((m=src.match(/(?:それら|それ|そのカード|そのパーマネント)が戦場を離れたとき[、,]\s*(.+)$/))){kind="linkedLeavesBattlefield";event="leavesBattlefield";body=m[1];}
+    else if((m=src.match(/(?:これ|このパーマネント|このクリーチャー)が戦場を離れたとき[、,]\s*(.+)$/))){kind="sourceLeavesBattlefield";event="leavesBattlefield";body=m[1];}
+    else if((m=src.match(/次に(あなた|対戦相手|いずれかのプレイヤー)?が?カードを(?:[一1]枚)?引いたとき[、,]\s*(.+)$/))){kind="nextEvent";event="draw";controller=m[1]==="あなた"?"controller":m[1]==="対戦相手"?"opponent":"";body=m[2];}
+    else if((m=src.match(/次に(あなた|対戦相手)?が?呪文を唱えたとき[、,]\s*(.+)$/))){kind="nextEvent";event="cast";controller=m[1]==="あなた"?"controller":m[1]==="対戦相手"?"opponent":"";body=m[2];}
+    else if((m=src.match(/次に(?:いずれかの)?(クリーチャー|アーティファクト|パーマネント)(?:が|を)[^。]{0,30}死亡したとき[、,]\s*(.+)$/))){kind="nextEvent";event="dies";types=m[1]==="クリーチャー"?["Creature"]:m[1]==="アーティファクト"?["Artifact"]:["Permanent"];body=m[2];}
+    if(!kind)return null;return{kind,event,types,controller,body:String(body||"").replace(/[。]+$/g,"").trim()};
+  }
+  v28ParseJapaneseRules=function(text){const out=parseBase37.apply(this,arguments),src=String(text||""),d=detect37(src);if(!d)return out;const fx=nested37(d.body),e=eesNormalizeEffect({id:id37("ees-delay"),effectId:"delayedTrigger",optional:false,note:d.body,delayedController:"controller",delayedOneShot:true,delayedEffects:fx,delayedChoices:[],delayedTargetMode:d.kind==="linkedLeavesBattlefield"?"linked":"none",v7937TriggerKind:d.kind,v7937EventKind:d.event,v7937MatchTypes:d.types,v7937MatchController:d.controller});let a=(out.abilities||[]).find(x=>x.kind==="spell")||(out.abilities||[])[0];if(!a){a=eesNewAbility("spell");out.abilities=[a];}a.effects=(a.effects||[]).filter(x=>!(x.effectId==="customManual"&&String(x.note||x.parserSource||"").includes(d.body)));a.effects.push(e);out.matched=(out.matched||0)+1;out.notes=[...(out.notes||[]),`v7.9.37: ${d.event}の次回イベントを追跡`];return out;};
+}
+
+function diag37(){
+  const d=R.diagnose(),tests=[...d.tests];tests.push({name:"runtime",ok:!!rt37()});tests.push({name:"registration",ok:typeof register37==="function"});tests.push({name:"event queue",ok:typeof queue37==="function"});
+  try{const p=v28ParseJapaneseRules("それが戦場を離れたとき、カードを1枚引く。");tests.push({name:"leaves parser",ok:(p.abilities||[]).some(a=>(a.effects||[]).some(e=>e.v7937TriggerKind==="linkedLeavesBattlefield"))});}catch(_){tests.push({name:"leaves parser",ok:false});}
+  return{version:V7937_VERSION,protocol:R.PROTOCOL,ok:tests.every(x=>x.ok),tests,delayed:rt37().eventDelayedTriggers.length,history:rt37().history.length};
+}
+function manager37(){const r=rt37(),rows=r.eventDelayedTriggers.map(x=>`<div class="v794-order-row"><b>${esc(x.label)}</b><span>${esc(x.eventKind)} / ${esc(x.triggerKind)}</span><button class="btn tiny" data-v7937del="${esc(x.id)}">削除</button></div>`).join("")||'<div class="note">予約なし</div>';openModal("v7.9.37 関連遅延誘発",`<div class="note">発生源・関連カードが戦場を離れたとき、または次の公開イベントを1回追跡します。領域変更前の最終情報をスタック上の能力へ保持します。</div>${rows}<div class="menu-grid"><button class="btn primary" data-v7937diag="1">自己診断</button></div>`,`<button class="btn" data-app="closem">閉じる</button>`);setModalHandler(e=>{const d=e.target.closest("[data-v7937del]");if(d){r.eventDelayedTriggers=r.eventDelayedTriggers.filter(x=>x.id!==d.dataset.v7937del);saveState(true);manager37();return;}if(e.target.closest("[data-v7937diag]")){const q=diag37();openModal("v7.9.37 診断",`<pre class="v791-diag">${esc(JSON.stringify(q,null,2))}</pre>`,`<button class="btn" data-app="closem">閉じる</button>`,`lg`);}});}
+if(typeof openRuleSuite==="function"){const ruleBase37=openRuleSuite;openRuleSuite=function(){const q=ruleBase37.apply(this,arguments);setTimeout(()=>{const g=document.querySelector("#modalRoot .menu-grid");if(g&&!g.querySelector("[data-v7937hub]")){const b=document.createElement("button");b.className="btn primary";b.dataset.v7937hub="1";b.textContent="関連遅延誘発・最終情報";b.onclick=manager37;g.appendChild(b);}},0);return q;};}
+if(typeof openSettings==="function"){const settingsBase37=openSettings;openSettings=function(){const q=settingsBase37.apply(this,arguments);setTimeout(()=>{const body=document.querySelector("#modalRoot .mbody");if(!body||body.querySelector("#v7937Settings"))return;const box=document.createElement("section");box.id="v7937Settings";box.className="spanel";box.innerHTML=`<h3>v7.9.37 遅延誘発・初手練習</h3><label><input type="checkbox" data-v7937setting="v7937DelayedEvents"${state.settings.v7937DelayedEvents!==false?" checked":""}> 関連カードの領域変更と次の公開イベントを自動追跡</label><label><input type="checkbox" data-v7937setting="v7937SerumAutoMode"${state.settings.v7937SerumAutoMode!==false?" checked":""}> 血清の粉末入りデッキでロンドン厳密方式を自動選択</label><div class="note">オンライン対戦中の新しい関連イベント遅延誘発は、重複防止のため自動スタック化せず監査履歴へ残します。初手練習はローカル機能です。</div>`;body.appendChild(box);box.onchange=e=>{const x=e.target.closest("[data-v7937setting]");if(!x)return;state.settings[x.dataset.v7937setting]=x.checked;saveState(true);};},0);return q;};}
+try{const d=defaultState();if(d.settings){if(d.settings.v7937DelayedEvents==null)d.settings.v7937DelayedEvents=true;if(d.settings.v7937SerumAutoMode==null)d.settings.v7937SerumAutoMode=true;}}catch(_){}
+if(state.settings.v7937DelayedEvents==null)state.settings.v7937DelayedEvents=true;if(state.settings.v7937SerumAutoMode==null)state.settings.v7937SerumAutoMode=true;
+globalThis.CPT_V7937_CLIENT={version:V7937_VERSION,runtime:rt37,register:register37,process:process37,queue:queue37,snapshot:snap37,diagnose:diag37,openManager:manager37};
+try{document.body.dataset.v7937="linked-delayed-serum";document.title="カードゲーム練習卓 v7.9.37 関連遅延誘発・血清の粉末";}catch(_){}
 })();
 
 </script>

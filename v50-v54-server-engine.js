@@ -2,6 +2,8 @@
 
 const crypto = require("crypto");
 const V7932_TARGETS = require("./v7932-target-constraints");
+const V7936_RULES = require("./v7936-reveal-context-sorcery-timing");
+const V7937_RULES = require("./v7937-linked-delayed-serum");
 
 const PROTOCOLS = Object.freeze({
   RULE: "cpt-v5.0",
@@ -32,6 +34,12 @@ const AUTHORITY_FLAGS = Object.freeze({
   serverMultiTargetConstraintsV7932: true,
   serverDynamicTargetMaximumV7932: true,
   serverTargetAllocationValidationV7932: true,
+  serverSorceryTimingGuardV7936: true,
+  serverSorcerySpeedAbilityGuardV7936: true,
+  revealContextProtocolV7936: V7936_RULES.PROTOCOL,
+  delayedEventCoreProtocolV7937: V7937_RULES.PROTOCOL,
+  delayedEventObjectIdentityV7937: true,
+  delayedEventLastKnownInformationV7937: true,
   abilityProtocol: PROTOCOLS.ABILITY,
   serverAbilityTransactionsV53: true,
   serverAbilityCostValidation: true,
@@ -836,8 +844,16 @@ function createEngine(deps = {}) {
       if (sourceController(f.card, client.role) !== client.role && sourceZone !== "hand" && sourceZone !== "library") throw new Error("sourceControlMismatch");
       const permission = msg.zoneMeta || {};
       if (sourceZone !== "hand" && !(permission.permissionId || permission.kind || msg.castContext)) throw new Error("zoneCastPermissionRequired");
-      const priority = room.state?.turn?.priority;
-      if (isSeat(priority) && priority !== client.role && !permission.timingOverride) throw new Error("priorityRequired");
+      const timing = V7936_RULES.validateSpellTiming({
+        card: f.card,
+        face: V7936_RULES.selectFace(f.card, int(msg.faceIndex)),
+        faceIndex: int(msg.faceIndex),
+        actorRole: client.role,
+        turn: room.state?.turn || {},
+        stack: room.state?.stack || [],
+        timingOverride: !!permission.timingOverride,
+      });
+      if (!timing.ok) throw new Error(timing.reasons[0] || "spellTimingInvalid");
       validateTargetReferences(room, msg.targets || {});
       const targetLimits = validateTargetLimits(room, msg, client.role, f.card), payment = validatePayment(room, client.role, msg.cost || {}, msg.payment || {}), snapshot = targetSnapshot(room, msg.targets || {});
       const tx = {
@@ -888,6 +904,8 @@ function createEngine(deps = {}) {
     return {
       id: text(a.id || uid("ability"), 160), name: text(a.name || "起動型能力", 120), kind: text(a.kind || "activated", 30),
       timing: text(a.timing, 40), zoneHint: text(a.zoneHint, 40), costText: text(a.costText, 160), manaCost: clone(a.manaCost || {}),
+      sorcerySpeed: a.sorcerySpeed === true, activateOnlyAsSorcery: a.activateOnlyAsSorcery === true,
+      rulesText: text(a.rulesText || a.oracleText || a.text, 700),
       createsStackObject: a.createsStackObject !== false, targetRequired: !!a.targetRequired,
       targetKinds: clone(a.targetKinds || []), memo: text(a.memo, 300), resolveNote: text(a.resolveNote, 300),
       resolveChecklist: clone(a.resolveChecklist || []), autoEffects: clone(a.autoEffects || []), autoEffectConfig: clone(a.autoEffectConfig || {}),
@@ -954,6 +972,8 @@ function createEngine(deps = {}) {
       const sourceZone = text(msg.sourceZone, 30), source = findSource(room, client.role, sourceZone, msg.sourceCardId);
       if (!source || sourceController(source.card, client.role) !== client.role) throw new Error("abilitySourceMissing");
       const ability = normalizeAbility(msg), targetConfig = { ...clone(ability.targetProfile || {}), required: ability.targetRequired, min: ability.targetProfile?.minTargets ?? ability.targetProfile?.min ?? (ability.targetRequired ? 1 : 0), max: ability.targetProfile?.maxTargets ?? ability.targetProfile?.max ?? 1, constraints: clone(ability.targetProfile?.constraints || ability.targetProfile?.v7932 || ability.targetProfile || {}) };
+      const timing = V7936_RULES.validateAbilityTiming({ card: source.card, ability, actorRole: client.role, turn: room.state?.turn || {}, stack: room.state?.stack || [], timingOverride: false });
+      if (!timing.ok) throw new Error(timing.reasons[0] || "abilityTimingInvalid");
       validateTargetReferences(room, msg.targets || {});
       const targetLimits = validateTargetLimits(room, { targets: msg.targets || {}, targetConfig, cost: msg.cost || {}, payment: msg.payment || {} }, client.role, source.card), checkedCosts = validateAbilityCosts(room, client.role, source, msg.cost || {}, msg.payment || {});
       const tx = { id: uid("abilitytx"), kind: "ability", clientId: clientId(client), actorRole: client.role, actionNonce: text(msg.actionNonce), baseRev: room.rev, sourceCardId: String(msg.sourceCardId), sourceZone, sourceSnapshotHash: sha256(source.card), ability, proposal: clone(msg), targetLimits, targetSnapshot: targetSnapshot(room, msg.targets || {}), checkedCosts, expiresAt: now() + TX_TTL_MS };
