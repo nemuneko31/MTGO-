@@ -1,6 +1,7 @@
 "use strict";
 
 const crypto = require("crypto");
+const V7932_TARGETS = require("./v7932-target-constraints");
 
 const PROTOCOLS = Object.freeze({
   RULE: "cpt-v5.0",
@@ -19,12 +20,18 @@ const AUTHORITY_FLAGS = Object.freeze({
   shuffleCommitments: true,
   libraryProtocol: PROTOCOLS.LIBRARY,
   serverLibraryTransactionsV51: true,
+  serverLibraryArrangementV7931: true,
+  serverLibraryRandomSelectionV7931: true,
+  serverLibraryPileWorkflowV7931: true,
   transactionConsent: true,
   transactionProofs: true,
   castProtocol: PROTOCOLS.CAST,
   serverCastTransactionsV52: true,
   serverPaymentValidation: true,
   serverTargetSnapshotValidation: true,
+  serverMultiTargetConstraintsV7932: true,
+  serverDynamicTargetMaximumV7932: true,
+  serverTargetAllocationValidationV7932: true,
   abilityProtocol: PROTOCOLS.ABILITY,
   serverAbilityTransactionsV53: true,
   serverAbilityCostValidation: true,
@@ -38,7 +45,7 @@ const AUTHORITY_FLAGS = Object.freeze({
 
 const MESSAGE_TYPES = Object.freeze([
   "requestRuleAuthority", "ruleRegister", "ruleAction", "ruleRevealProofs",
-  "libraryTxStart", "libraryTxApprove", "libraryTxCommit", "libraryTxCancel",
+  "libraryTxStart", "libraryTxApprove", "libraryTxCommit", "libraryTxCancel", "libraryPileChoose",
   "castTxStart", "castTxCommit", "castTxCancel",
   "abilityTxStart", "abilityTxCommit", "abilityTxCancel",
   "stackTxStart", "stackTxCommit", "stackTxCancel",
@@ -47,7 +54,7 @@ const MESSAGE_TYPES = Object.freeze([
 const ROLE_SET = new Set(["A", "B"]);
 const PRIVATE_ZONES = new Set(["hand", "library", "sideboard"]);
 const PUBLIC_ZONES = new Set(["creatures", "lands", "others", "graveyard", "exile", "command"]);
-const LIBRARY_OPS = new Set(["scry", "surveil", "mill", "reorder", "look", "reveal", "search"]);
+const LIBRARY_OPS = new Set(["scry", "surveil", "mill", "reorder", "look", "reveal", "search", "arrange", "random", "piles"]);
 const TX_TTL_MS = 3 * 60 * 1000;
 const MAX_NONCES = 2048;
 const MAX_DRAW = 20;
@@ -86,6 +93,14 @@ function secureShuffle(items) {
     [a[i], a[j]] = [a[j], a[i]];
   }
   return a;
+}
+function secureSample(items, count) {
+  const pool = items.slice(), out = [], n = int(count, 0, pool.length);
+  for (let i = 0; i < n; i++) {
+    const j = crypto.randomInt(pool.length);
+    out.push(pool.splice(j, 1)[0]);
+  }
+  return out;
 }
 function orderCommitment(cards, salt) { return sha256({ salt, ids: cards.map(c => String(c?.id || "")), names: cards.map(cardName) }); }
 function ensureCardId(card, prefix = "card") { if (!card.id) card.id = uid(prefix); return String(card.id); }
@@ -453,15 +468,20 @@ function createEngine(deps = {}) {
     return lib.slice(0, count).map(clone);
   }
   function publicLibraryTx(tx) {
-    return tx ? { id: tx.id, operation: tx.operation, actorRole: tx.actorRole, targetRole: tx.targetRole, baseRev: tx.baseRev, expiresAt: tx.expiresAt, approvalRequired: !!tx.approvalRequired } : null;
+    return tx ? { id: tx.id, operation: tx.operation, actorRole: tx.actorRole, targetRole: tx.targetRole, selectorRole: tx.selectorRole || "", stage: tx.stage || "plan", baseRev: tx.baseRev, expiresAt: tx.expiresAt, approvalRequired: !!tx.approvalRequired } : null;
   }
   function sendLibraryStarted(room, tx) {
     const actor = room.clients.get(tx.clientId) || [...room.clients.values()].find(c => clientId(c) === tx.clientId);
     if (!actor) return;
+    let visibleCards = clone(tx.cards);
+    if (tx.operation === "random" && tx.options?.revealPool !== true && tx.options?.lookPool !== true) {
+      visibleCards = tx.cards.map((c, i) => ({ id: `random-hidden-${i + 1}`, name: "非公開カード", owner: tx.targetRole, controller: tx.targetRole, zone: "library", faceDown: true, v7931Hidden: true }));
+    }
     send(actor, {
       type: "libraryTxStarted", protocol: PROTOCOLS.LIBRARY, txId: tx.id, actionNonce: tx.actionNonce,
-      baseRev: tx.baseRev, operation: tx.operation, targetRole: tx.targetRole,
-      cards: clone(tx.cards), options: clone(tx.options), snapshotCommitment: tx.snapshotHash,
+      baseRev: tx.baseRev, operation: tx.operation, targetRole: tx.targetRole, actorRole: tx.actorRole,
+      selectorRole: tx.selectorRole || "", stage: tx.stage || "plan",
+      cards: visibleCards, options: clone(tx.options), snapshotCommitment: tx.snapshotHash,
       authoritySummary: authoritySummary(room), authority: D.authority(),
     });
   }
@@ -474,9 +494,25 @@ function createEngine(deps = {}) {
       if (!ensureRoom(room).seats[targetRole]) throw new Error("targetSeatNotRegistered");
       const count = int(msg.count, 1, MAX_LIBRARY_COUNT), options = clone(msg.options || {}), cards = libraryCardsFor(room, targetRole, op, count, options);
       const lib = privateZones(room, targetRole).library;
+      let selectorRole = isSeat(options.selectorRole) ? options.selectorRole : client.role;
+      if (op === "piles") {
+        const pileCount = int(options.pileCount, 2, 5); options.pileCount = pileCount;
+        options.selectorRole = selectorRole;
+        if (!findClientByRole(room, selectorRole)) throw new Error("selectorSeatOffline");
+        if (options.revealPiles !== true && options.lookPiles !== true) throw new Error("pileCardsMustBeVisibleToSplitter");
+      }
+      if (op === "arrange") {
+        const allowed = ids(options.destinations || ["top", "bottom"], 8).filter(x => ["top", "bottom", "hand", "sideboard", "graveyard", "exile", "command", "battlefield", "shuffle"].includes(x));
+        options.destinations = allowed.length ? allowed : ["top", "bottom"];
+      }
+      if (op === "random") {
+        options.pickCount = int(options.pickCount, 1, count);
+        options.destination = text(options.destination || "hand", 30);
+        options.remainderDestination = text(options.remainderDestination || "top", 30);
+      }
       const tx = {
         id: uid("libtx"), kind: "library", actionNonce: text(msg.actionNonce), clientId: clientId(client), actorRole: client.role,
-        targetRole, operation: op, count, options, cards, baseRev: room.rev,
+        targetRole, selectorRole, operation: op, stage: op === "piles" ? "split" : "plan", count, options, cards, baseRev: room.rev,
         snapshotHash: sha256(lib.map(c => String(c?.id || ""))), expiresAt: now() + TX_TTL_MS,
         approvalRequired: targetRole !== client.role,
       };
@@ -523,6 +559,57 @@ function createEngine(deps = {}) {
       card.zone = z; p[z].push(card);
     }
   }
+  function libraryDestination(value, fallback = "top") {
+    const d = text(value || fallback, 30);
+    return ["top", "bottom", "hand", "sideboard", "graveyard", "exile", "command", "battlefield", "shuffle"].includes(d) ? d : fallback;
+  }
+  function orderedCards(idsList, cardsById) { return idsList.map(id => cardsById.get(id)).filter(Boolean); }
+  function moveLibraryGroup(room, role, cards, destination, affected, moved) {
+    const d = libraryDestination(destination);
+    if (d === "hand" || d === "sideboard") {
+      for (const c of cards) { c.zone = d; privateZones(room, role)[d].push(c); moved.push(String(c.id || "")); }
+    } else if (["graveyard", "exile", "command", "battlefield"].includes(d)) {
+      for (const c of cards) { movePublicCard(room, role, c, d); moved.push(String(c.id || "")); }
+    }
+    if (d !== "top" && d !== "bottom" && d !== "shuffle") affected.push(role);
+  }
+  function validateDestinationCount(options, destination, count) {
+    const min = int(options?.minByDestination?.[destination], 0, MAX_LIBRARY_COUNT);
+    const rawMax = options?.maxByDestination?.[destination];
+    const max = rawMax == null ? MAX_LIBRARY_COUNT : int(rawMax, 0, MAX_LIBRARY_COUNT);
+    if (count < min || count > max) throw new Error("invalidDestinationCount");
+  }
+  function applyLibraryGroups(room, tx, groups, cardsById, lib, moved) {
+    const allTxIds = tx.cards.map(c => String(c?.id || ""));
+    const affected = [], top = [], bottom = [], shuffle = [];
+    let remaining = lib.filter(c => !allTxIds.includes(String(c?.id || "")));
+    for (const [destination, groupIds] of groups) {
+      const d = libraryDestination(destination), cards = orderedCards(groupIds, cardsById);
+      validateDestinationCount(tx.options, d, cards.length);
+      if (d === "top") top.push(...cards);
+      else if (d === "bottom") bottom.push(...cards);
+      else if (d === "shuffle") shuffle.push(...cards);
+      else moveLibraryGroup(room, tx.targetRole, cards, d, affected, moved);
+    }
+    if (shuffle.length) remaining = secureShuffle([...remaining, ...shuffle]);
+    D.rolePrivate(room, tx.targetRole).state.zones.library = [...top, ...remaining, ...bottom];
+    return affected;
+  }
+  function visiblePile(room, tx, pile) {
+    const cardsById = new Map(tx.cards.map(c => [String(c?.id || ""), c]));
+    const visible = tx.options.revealPiles === true || tx.options.lookPiles === true;
+    return { id: pile.id, index: pile.index, count: pile.cardIds.length, cards: visible ? pile.cardIds.map(id => clone(cardsById.get(id))) : [] };
+  }
+  function sendPileChoice(room, tx) {
+    const chooser = findClientByRole(room, tx.selectorRole);
+    if (!chooser) throw new Error("selectorSeatOffline");
+    send(chooser, {
+      type: "libraryPileChoiceRequested", protocol: PROTOCOLS.LIBRARY, txId: tx.id,
+      operation: tx.operation, actorRole: tx.actorRole, targetRole: tx.targetRole, selectorRole: tx.selectorRole,
+      piles: tx.piles.map(p => visiblePile(room, tx, p)), options: clone(tx.options),
+      snapshotCommitment: tx.snapshotHash, authoritySummary: authoritySummary(room), authority: D.authority(),
+    });
+  }
   function handleLibraryCommit(client, room, msg) {
     const r = ensureRoom(room), tx = r.libraryTx;
     try {
@@ -535,12 +622,42 @@ function createEngine(deps = {}) {
       try {
         const cardsById = new Map(lib.map(c => [String(c?.id || ""), c]));
         const txIds = tx.cards.map(c => String(c?.id || ""));
-        let revealed = [], moved = [];
+        let revealed = [], moved = [], randomSelected = [], affected = [tx.targetRole];
+        if (tx.operation === "piles") {
+          if (tx.stage !== "split") throw new Error("pileSplitAlreadySubmitted");
+          const pileCount = int(tx.options.pileCount, 2, 5);
+          const rawPiles = Array.isArray(plan.piles) ? plan.piles : [];
+          if (rawPiles.length !== pileCount) throw new Error("invalidPileCount");
+          const groups = rawPiles.map((p, i) => ids(Array.isArray(p) ? p : p?.cardIds, MAX_LIBRARY_COUNT));
+          if (!exactPartition(txIds, groups)) throw new Error("invalidPilePartition");
+          if (tx.options.allowEmptyPiles !== true && groups.some(g => !g.length)) throw new Error("emptyPileNotAllowed");
+          tx.piles = groups.map((cardIds, i) => ({ id: `pile-${i + 1}`, index: i, cardIds }));
+          tx.stage = "choose"; tx.expiresAt = now() + TX_TTL_MS;
+          send(client, { type: "libraryPileChoicePending", protocol: PROTOCOLS.LIBRARY, txId: tx.id, selectorRole: tx.selectorRole, piles: tx.piles.map(p => ({ id: p.id, count: p.cardIds.length })), authoritySummary: authoritySummary(room), authority: D.authority() });
+          sendPileChoice(room, tx);
+          record(room, "libraryPileSplit", { txId: tx.id, selectorRole: tx.selectorRole, pileSizes: tx.piles.map(p => p.cardIds.length) });
+          broadcastRuleSummary(room);
+          return;
+        }
         if (tx.operation === "look" || tx.operation === "reveal") {
           if (tx.operation === "reveal") revealed = tx.cards.map(cardName);
         } else if (tx.operation === "reorder") {
           const order = ids(plan.orderIds, MAX_LIBRARY_COUNT); if (!exactPartition(txIds, [order])) throw new Error("invalidReorderPlan");
           const remaining = lib.filter(c => !txIds.includes(String(c?.id || ""))); D.rolePrivate(room, tx.targetRole).state.zones.library = [...order.map(id => cardsById.get(id)), ...remaining];
+        } else if (tx.operation === "arrange") {
+          const allowed = tx.options.destinations || ["top", "bottom"], groupsObj = plan.groups && typeof plan.groups === "object" ? plan.groups : {};
+          const groups = allowed.map(d => [d, ids(groupsObj[d], MAX_LIBRARY_COUNT)]);
+          if (!exactPartition(txIds, groups.map(x => x[1]))) throw new Error("invalidArrangePartition");
+          affected = applyLibraryGroups(room, tx, groups, cardsById, lib, moved);
+          if (tx.options.reveal === true) revealed = tx.cards.map(cardName);
+        } else if (tx.operation === "random") {
+          const pickCount = int(tx.options.pickCount, 1, txIds.length), selectedIds = secureSample(txIds, pickCount), selected = orderedCards(selectedIds, cardsById);
+          const selectedSet = new Set(selectedIds), remainderIds = txIds.filter(id => !selectedSet.has(id));
+          randomSelected = selectedIds.slice();
+          const selectedDest = libraryDestination(tx.options.destination, "hand"), remainderDest = libraryDestination(tx.options.remainderDestination, "top");
+          affected = applyLibraryGroups(room, tx, [[selectedDest, selectedIds], [remainderDest, remainderIds]], cardsById, lib, moved);
+          if (tx.options.revealPool === true) revealed = tx.cards.map(cardName);
+          else if (tx.options.revealSelected === true) revealed = selected.map(cardName);
         } else if (tx.operation === "mill") {
           const order = ids(plan.graveyardOrderIds, MAX_LIBRARY_COUNT); if (!exactPartition(txIds, [order])) throw new Error("invalidMillPlan");
           D.rolePrivate(room, tx.targetRole).state.zones.library = lib.filter(c => !txIds.includes(String(c?.id || "")));
@@ -570,22 +687,57 @@ function createEngine(deps = {}) {
           D.rolePrivate(room, tx.targetRole).state.zones.library = nextLib;
           if (tx.options.reveal) revealed = selected.map(id => cardName(cardsById.get(id)));
         }
-        const seat = updateSeatCommitment(room, tx.targetRole, tx.options.shuffleAfter ? "shuffle" : "libraryTx");
-        finalize(room, [tx.targetRole], `library:${tx.operation}`);
-        const proof = makeProof(room, `library:${tx.operation}`, { txId: tx.id, actorRole: tx.actorRole, targetRole: tx.targetRole, moved, revealed, commitment: seat.commitment });
+        const didShuffle = tx.options.shuffleAfter || (tx.operation === "random" && tx.options.remainderDestination === "shuffle") || (tx.operation === "arrange" && (tx.options.destinations || []).includes("shuffle"));
+        const seat = updateSeatCommitment(room, tx.targetRole, didShuffle ? "shuffle" : "libraryTx");
+        finalize(room, [...new Set([tx.targetRole, ...affected])], `library:${tx.operation}`);
+        const proof = makeProof(room, `library:${tx.operation}`, { txId: tx.id, actorRole: tx.actorRole, targetRole: tx.targetRole, moved, revealed, randomSelected, commitment: seat.commitment });
         r.libraryTx = null;
         record(room, "libraryCommit", { txId: tx.id, operation: tx.operation, rev: room.rev });
-        send(client, commonPayload(room, client, { type: "libraryTxCommitted", protocol: PROTOCOLS.LIBRARY, txId: tx.id, actionNonce: text(msg.actionNonce), operation: tx.operation, targetRole: tx.targetRole, summary: { moved: moved.length, revealed, commitment: proof.commitment }, commitment: proof.commitment }));
-        broadcastPublic(room, "libraryPublicSync", { protocol: PROTOCOLS.LIBRARY, txId: tx.id, operation: tx.operation, actorRole: tx.actorRole, targetRole: tx.targetRole, summary: { moved: moved.length, revealed }, commitment: proof.commitment }, clientId(client));
-        const owner = findClientByRole(room, tx.targetRole); if (owner && clientId(owner) !== clientId(client)) send(owner, commonPayload(room, owner, { type: "libraryTxOwnerNotice", protocol: PROTOCOLS.LIBRARY, txId: tx.id, operation: tx.operation, actorRole: tx.actorRole, summary: { moved: moved.length, revealed } }));
+        const summary = { moved: moved.length, revealed, randomSelectedCount: randomSelected.length, commitment: proof.commitment };
+        send(client, commonPayload(room, client, { type: "libraryTxCommitted", protocol: PROTOCOLS.LIBRARY, txId: tx.id, actionNonce: text(msg.actionNonce), operation: tx.operation, targetRole: tx.targetRole, summary, commitment: proof.commitment }));
+        broadcastPublic(room, "libraryPublicSync", { protocol: PROTOCOLS.LIBRARY, txId: tx.id, operation: tx.operation, actorRole: tx.actorRole, targetRole: tx.targetRole, summary: { moved: moved.length, revealed, randomSelectedCount: randomSelected.length }, commitment: proof.commitment }, clientId(client));
+        const owner = findClientByRole(room, tx.targetRole); if (owner && clientId(owner) !== clientId(client)) send(owner, commonPayload(room, owner, { type: "libraryTxOwnerNotice", status: "committed", protocol: PROTOCOLS.LIBRARY, txId: tx.id, operation: tx.operation, actorRole: tx.actorRole, summary }));
         broadcastRuleSummary(room);
       } catch (e) { restoreMutable(room, backup); throw e; }
     } catch (e) { reject(client, room, "libraryTxRejected", msg, e.message || e); }
   }
+
+  function handleLibraryPileChoose(client, room, msg) {
+    const r = ensureRoom(room), tx = r.libraryTx;
+    try {
+      verifySeatBase(client, room, msg, PROTOCOLS.LIBRARY);
+      if (!tx || tx.operation !== "piles" || tx.stage !== "choose" || String(msg.txId || "") !== tx.id) throw new Error("pileChoiceNotFound");
+      if (client.role !== tx.selectorRole) throw new Error("pileSelectorMismatch");
+      const chosen = tx.piles.find(p => p.id === String(msg.pileId || "")); if (!chosen) throw new Error("invalidPileChoice");
+      const lib = privateZones(room, tx.targetRole).library;
+      if (sha256(lib.map(c => String(c?.id || ""))) !== tx.snapshotHash) throw new Error("librarySnapshotChanged");
+      const backup = snapshotMutable(room);
+      try {
+        const cardsById = new Map(lib.map(c => [String(c?.id || ""), c]));
+        const remainderIds = tx.piles.filter(p => p.id !== chosen.id).flatMap(p => p.cardIds);
+        const moved = [], selectedDest = libraryDestination(tx.options.selectedDestination || "hand", "hand"), remainderDest = libraryDestination(tx.options.remainderDestination || "graveyard", "graveyard");
+        const affected = applyLibraryGroups(room, tx, [[selectedDest, chosen.cardIds], [remainderDest, remainderIds]], cardsById, lib, moved);
+        const revealed = tx.options.revealPiles === true ? tx.cards.map(cardName) : (tx.options.revealSelected === true ? chosen.cardIds.map(id => cardName(cardsById.get(id))) : []);
+        const didShuffle = remainderDest === "shuffle" || selectedDest === "shuffle";
+        const seat = updateSeatCommitment(room, tx.targetRole, didShuffle ? "shuffle" : "libraryTx");
+        finalize(room, [...new Set([tx.targetRole, ...affected])], "library:piles");
+        const proof = makeProof(room, "library:piles", { txId: tx.id, actorRole: tx.actorRole, selectorRole: tx.selectorRole, targetRole: tx.targetRole, chosenPileId: chosen.id, pileSizes: tx.piles.map(p => p.cardIds.length), moved, revealed, commitment: seat.commitment });
+        const actor = room.clients.get(tx.clientId) || [...room.clients.values()].find(c => clientId(c) === tx.clientId);
+        const summary = { chosenPileId: chosen.id, chosenCount: chosen.cardIds.length, moved: moved.length, revealed, commitment: proof.commitment };
+        r.libraryTx = null; record(room, "libraryPileChosen", { txId: tx.id, selectorRole: tx.selectorRole, chosenPileId: chosen.id, rev: room.rev });
+        if (actor) send(actor, commonPayload(room, actor, { type: "libraryTxCommitted", protocol: PROTOCOLS.LIBRARY, txId: tx.id, actionNonce: text(msg.actionNonce), operation: "piles", targetRole: tx.targetRole, summary, commitment: proof.commitment }));
+        if (!actor || clientId(actor) !== clientId(client)) send(client, commonPayload(room, client, { type: "libraryPileChoiceResolved", protocol: PROTOCOLS.LIBRARY, txId: tx.id, operation: "piles", targetRole: tx.targetRole, summary, commitment: proof.commitment }));
+        broadcastPublic(room, "libraryPublicSync", { protocol: PROTOCOLS.LIBRARY, txId: tx.id, operation: "piles", actorRole: tx.actorRole, selectorRole: tx.selectorRole, targetRole: tx.targetRole, summary: { chosenPileId: chosen.id, chosenCount: chosen.cardIds.length, moved: moved.length, revealed }, commitment: proof.commitment }, actor ? clientId(actor) : "");
+        const owner = findClientByRole(room, tx.targetRole); if (owner && (!actor || clientId(owner) !== clientId(actor)) && clientId(owner) !== clientId(client)) send(owner, commonPayload(room, owner, { type: "libraryTxOwnerNotice", status: "committed", protocol: PROTOCOLS.LIBRARY, txId: tx.id, operation: "piles", actorRole: tx.actorRole, selectorRole: tx.selectorRole, summary }));
+        broadcastRuleSummary(room);
+      } catch (e) { restoreMutable(room, backup); throw e; }
+    } catch (e) { reject(client, room, "libraryTxRejected", msg, e.message || e); }
+  }
+
   function handleLibraryCancel(client, room, msg) {
     const r = ensureRoom(room), tx = r.libraryTx;
     if (!tx || String(msg.txId || "") !== tx.id) return reject(client, room, "libraryTxRejected", msg, "transactionNotFound");
-    if (tx.clientId !== clientId(client) && client.role !== tx.targetRole) return reject(client, room, "libraryTxRejected", msg, "transactionOwnerMismatch");
+    if (tx.clientId !== clientId(client) && client.role !== tx.targetRole && client.role !== tx.selectorRole) return reject(client, room, "libraryTxRejected", msg, "transactionOwnerMismatch");
     r.libraryTx = null;
     send(client, { type: "libraryTxCancelled", protocol: PROTOCOLS.LIBRARY, txId: tx.id, reason: text(msg.reason, 120), authoritySummary: authoritySummary(room), authority: D.authority() }); broadcastRuleSummary(room);
   }
@@ -623,10 +775,15 @@ function createEngine(deps = {}) {
       if (!ref || typeof ref !== "object" || !isSeat(ref.role || ref.player) || !text(ref.zone, 30)) throw new Error("targetZoneInvalid");
     }
   }
-  function validateTargetLimits(msg) {
-    const n = targetCount(msg.targets), cfg = msg.targetConfig || {}, min = cfg.required ? Math.max(1, int(cfg.min)) : int(cfg.min), max = Math.max(min, int(cfg.max, 1, 100));
-    if (n < min || n > max) throw new Error("targetCountInvalid");
-    return { min, max, count: n };
+  function v7932CardDescriptor(room,id){const f=findPublicCard(room,id);return f?{id:String(id),zone:f.zone,ownerRole:f.ownerRole,controller:sourceController(f.card,f.ownerRole),name:cardName(f.card),type:f.card.type,types:cardTypes(f.card),manaValue:int(f.card.manaValue??f.card.cmc)}:null;}
+  function v7932ZoneCount(room, actorRole, dyn){const rr=dyn?.role==="opponent"?otherRole(actorRole):dyn?.role==="A"||dyn?.role==="B"?dyn.role:actorRole,z=String(dyn?.zone||"");if(PRIVATE_ZONES.has(z))return privateZones(room,rr)[z].length;if(PUBLIC_ZONES.has(z))return publicPlayer(room,rr)[z].length;if(z==="battlefield")return ["creatures","lands","others"].reduce((n,k)=>n+publicPlayer(room,rr)[k].length,0);if(z==="stack")return room.state?.stack?.length||0;return 0;}
+  function v7932Context(room,actorRole,source,cfg,msg){const other=otherRole(actorRole),dyn=(cfg?.constraints||cfg?.v7932||cfg)?.dynamicMax||null;return{actorRole,xValue:int(cfg?.xValue??msg?.cost?.X??msg?.payment?.xValue),sourcePower:int(source?.power??source?.currentPower),sourceToughness:int(source?.toughness??source?.currentToughness),actorLife:int(publicPlayer(room,actorRole).life),opponentLife:int(publicPlayer(room,other).life),cardsInZone:v7932ZoneCount(room,actorRole,dyn)};}
+  function validateTargetLimits(room,msg,actorRole,sourceCard) {
+    const cfg0=msg.targetConfig||{}, constraints={...(cfg0.constraints||cfg0.v7932||{}),required:cfg0.required,min:cfg0.min??cfg0.minTargets,max:cfg0.max??cfg0.maxTargets};
+    const cardIds=Array.isArray(msg.targets?.cardIds)?msg.targets.cardIds:[], cards=cardIds.map(id=>v7932CardDescriptor(room,id)).filter(Boolean);
+    const result=V7932_TARGETS.validate({targets:msg.targets||{},cards,players:msg.targets?.playerIds||[],zoneRefs:msg.targets?.zoneRefs||[],actorRole,config:constraints,context:v7932Context(room,actorRole,sourceCard,cfg0,msg)});
+    if(!result.ok)throw new Error(result.errors[0]);
+    return {min:result.min,max:result.max,effectiveMax:result.effectiveMax,count:result.count,cardCount:result.cardCount,playerCount:result.playerCount,zoneCount:result.zoneCount,dynamicMax:result.dynamicMax,constraints:result.config};
   }
   function validatePayment(room, role, cost, payment) {
     const total = totalMana(cost), paid = manaConsumed(payment);
@@ -665,6 +822,7 @@ function createEngine(deps = {}) {
     c.castContext = clone(msg.castContext || null); c.castAutoEffects = clone(msg.autoEffects || []); c.castAutoEffectConfig = clone(msg.autoEffectConfig || {});
     c.abilityCatalog = clone(msg.abilityCatalog || []); c.paymentInfo = clone(paymentInfo); c.specialCostInfo = clone(specialInfo);
     c.v54 = normalizeV54(msg.v54); c.v54Targeting = { checked: true, results: clone(targetInfo.snapshot), ward: clone(c.v54.wardPayments || {}) };
+    c.v7932TargetConstraints = clone(targetInfo.constraints || null);
     return c;
   }
   function publicCastTx(tx) { return tx ? { id: tx.id, cardId: tx.cardId, cardName: tx.cardName, actorRole: tx.actorRole, sourceZone: tx.sourceZone, baseRev: tx.baseRev, expiresAt: tx.expiresAt } : null; }
@@ -681,7 +839,7 @@ function createEngine(deps = {}) {
       const priority = room.state?.turn?.priority;
       if (isSeat(priority) && priority !== client.role && !permission.timingOverride) throw new Error("priorityRequired");
       validateTargetReferences(room, msg.targets || {});
-      const targetLimits = validateTargetLimits(msg), payment = validatePayment(room, client.role, msg.cost || {}, msg.payment || {}), snapshot = targetSnapshot(room, msg.targets || {});
+      const targetLimits = validateTargetLimits(room, msg, client.role, f.card), payment = validatePayment(room, client.role, msg.cost || {}, msg.payment || {}), snapshot = targetSnapshot(room, msg.targets || {});
       const tx = {
         id: uid("casttx"), kind: "cast", actionNonce: text(msg.actionNonce), clientId: clientId(client), actorRole: client.role,
         baseRev: room.rev, cardId: String(msg.cardId), cardName: cardName(f.card), sourceZone, sourceOwnerRole,
@@ -786,6 +944,7 @@ function createEngine(deps = {}) {
       targetRequired: ability.targetRequired, targetStatus: targetCount(msg.targets) ? "selected" : (ability.targetRequired ? "needed" : "none"),
       autoEffects: clone(ability.autoEffects || []), autoEffectConfig: clone(ability.autoEffectConfig || {}), resolveNote: ability.resolveNote, resolveChecklist: clone(ability.resolveChecklist),
       v54: normalizeV54(msg.v54), v54Targeting: { checked: true, results: targetSnapshot(room, msg.targets || {}), ward: clone(msg.v54?.wardPayments || {}) },
+      v7932TargetConstraints: clone(msg.ability?.targetProfile?.constraints || msg.ability?.targetProfile?.v7932 || msg.ability?.targetProfile || null),
       createdAt: new Date().toISOString(),
     };
   }
@@ -794,9 +953,9 @@ function createEngine(deps = {}) {
       verifySeatBase(client, room, msg, PROTOCOLS.ABILITY); ensureIdle(room);
       const sourceZone = text(msg.sourceZone, 30), source = findSource(room, client.role, sourceZone, msg.sourceCardId);
       if (!source || sourceController(source.card, client.role) !== client.role) throw new Error("abilitySourceMissing");
-      const ability = normalizeAbility(msg), targetConfig = { required: ability.targetRequired, min: ability.targetRequired ? 1 : 0, max: Math.max(1, int(ability.targetProfile?.max, 1, 100)) };
+      const ability = normalizeAbility(msg), targetConfig = { ...clone(ability.targetProfile || {}), required: ability.targetRequired, min: ability.targetProfile?.minTargets ?? ability.targetProfile?.min ?? (ability.targetRequired ? 1 : 0), max: ability.targetProfile?.maxTargets ?? ability.targetProfile?.max ?? 1, constraints: clone(ability.targetProfile?.constraints || ability.targetProfile?.v7932 || ability.targetProfile || {}) };
       validateTargetReferences(room, msg.targets || {});
-      const targetLimits = validateTargetLimits({ targets: msg.targets || {}, targetConfig }), checkedCosts = validateAbilityCosts(room, client.role, source, msg.cost || {}, msg.payment || {});
+      const targetLimits = validateTargetLimits(room, { targets: msg.targets || {}, targetConfig, cost: msg.cost || {}, payment: msg.payment || {} }, client.role, source.card), checkedCosts = validateAbilityCosts(room, client.role, source, msg.cost || {}, msg.payment || {});
       const tx = { id: uid("abilitytx"), kind: "ability", clientId: clientId(client), actorRole: client.role, actionNonce: text(msg.actionNonce), baseRev: room.rev, sourceCardId: String(msg.sourceCardId), sourceZone, sourceSnapshotHash: sha256(source.card), ability, proposal: clone(msg), targetLimits, targetSnapshot: targetSnapshot(room, msg.targets || {}), checkedCosts, expiresAt: now() + TX_TTL_MS };
       ensureRoom(room).abilityTx = tx;
       send(client, { type: "abilityTxStarted", protocol: PROTOCOLS.ABILITY, txId: tx.id, actionNonce: tx.actionNonce, baseRev: tx.baseRev, sourceCard: clone(source.card), ability: clone(ability), targets: clone(msg.targets || {}), cost: clone(msg.cost || {}), payment: checkedCosts.mana, targetLimits, authoritySummary: authoritySummary(room), authority: D.authority() });
@@ -864,6 +1023,12 @@ function createEngine(deps = {}) {
     top._room = room;
     const targetIds = ids(top.targetIds), legal = [], illegal = [];
     for (const id of targetIds) { const q = targetLegality(top, id); if (q.legal) legal.push(id); else illegal.push({ id, reason: q.reason, wardCost: q.wardCost || "" }); }
+    if(top.v7932TargetConstraints){
+      const actor=isSeat(top.controller)?top.controller:"A", cfg=clone(top.v7932TargetConstraints), survivors=[];
+      for(const id of legal){const card=v7932CardDescriptor(room,id),one=V7932_TARGETS.validate({targets:{cardIds:[id]},cards:card?[card]:[],players:[],zoneRefs:[],actorRole:actor,config:{...cfg,min:0,required:false,max:100,dynamicMax:null,allocation:null,relation:{}},context:{}}),why=one.errors.find(x=>x.includes(`:${id}`)||["cardTargetsNotAllowed","targetCardMissing"].includes(x));if(why)illegal.push({id,reason:why});else survivors.push(id);}
+      legal.splice(0,legal.length,...survivors);
+      if(legal.length>1){const cards=legal.map(id=>v7932CardDescriptor(room,id)).filter(Boolean),rel=V7932_TARGETS.validate({targets:{cardIds:legal,playerIds:ids(top.targetPlayerIds,2),zoneRefs:top.targetZoneRefs||[]},cards,players:ids(top.targetPlayerIds,2),zoneRefs:top.targetZoneRefs||[],actorRole:actor,config:{...cfg,min:0,required:false,max:100,dynamicMax:null,allocation:null},context:{}}),relationErrors=rel.errors.filter(x=>/^targetsMust/.test(x));if(relationErrors.length){for(const id of legal.splice(0))illegal.push({id,reason:relationErrors[0]});}}
+    }
     delete top._room;
     const effects = effectList(top), steps = effects.map((e, i) => {
       const kind = text(e.kind || e.type, 40), mode = SUPPORTED_EFFECTS.has(kind) ? "server" : "manual";
@@ -994,6 +1159,7 @@ function createEngine(deps = {}) {
       case "libraryTxApprove": handleLibraryApprove(client, room, msg); return true;
       case "libraryTxCommit": handleLibraryCommit(client, room, msg); return true;
       case "libraryTxCancel": handleLibraryCancel(client, room, msg); return true;
+      case "libraryPileChoose": handleLibraryPileChoose(client, room, msg); return true;
       case "castTxStart": handleCastStart(client, room, msg); return true;
       case "castTxCommit": handleCastCommit(client, room, msg); return true;
       case "castTxCancel": handleCastCancel(client, room, msg); return true;

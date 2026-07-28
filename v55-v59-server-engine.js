@@ -16,6 +16,8 @@ const AUTHORITY_FLAGS = Object.freeze({
   serverDelayedTriggersV55: true,
   serverAPNAPOrderingV55: true,
   serverReplacementChoicesV55: true,
+  serverReplacementReevaluationV7930: true,
+  serverReplacementLoopGuardV7930: true,
   combatProtocol: PROTOCOLS.COMBAT,
   serverCombatTransactionsV56: true,
   serverAttackLegalityV56: true,
@@ -51,6 +53,7 @@ const TX_TTL_MS = 3 * 60 * 1000;
 const MAX_NONCES = 4096;
 const MAX_TRIGGER_CANDIDATES = 200;
 const MAX_LAYER_PROFILES = 500;
+const MAX_REPLACEMENT_CHAIN = 32;
 const PHASE_COUNT = 12;
 
 function clone(v) { return v == null ? v : JSON.parse(JSON.stringify(v)); }
@@ -355,27 +358,93 @@ function createEngine(D) {
       D.broadcast(room, { type: "triggerPublicSync", protocol: PROTOCOLS.TRIGGER, rev: room.rev, state: clone(room.state), summary: { kind: "delayedRegistered", id: d.id }, authoritySummary: authoritySummary(room), authority: D.authority() }, clientId(client));
     } catch (e) { reject(client, room, "delayedTriggerRejected", msg, e.message || e); }
   }
-  function collectReplacementCandidates(room, event) {
+  function replacementBaseKey(c, i = 0) {
+    const id = text(c?.id || `replacement-${i}`, 120), source = text(c?.sourceCardId || c?.sourceId || "global", 160);
+    return `${source}::${id}`;
+  }
+  function replacementKindMatches(c, event) {
+    const kind = text(c?.kind || event.kind, 40);
+    if (event.kind === "damage") return ["damage", "prevent"].includes(kind);
+    if (event.kind === "zoneMove") return ["zoneMove", "move"].includes(kind);
+    return false;
+  }
+  function replacementZoneFilter(c, event) {
+    if (event.kind !== "zoneMove") return true;
+    const from = text(c?.fromZone || c?.appliesFromZone || c?.sourceZone || "", 40);
+    const to = text(c?.toZone || c?.appliesToZone || c?.destination || c?.originalToZone || "", 40);
+    if (from && from !== "any" && from !== event.fromZone) return false;
+    if (to && to !== "any" && to !== event.toZone) return false;
+    if (c?.replaceZone && text(c.replaceZone, 40) === event.toZone) return false;
+    return true;
+  }
+  function replacementTargetFilter(c, event) {
+    if (c?.affectedRole && c.affectedRole !== event.affectedRole) return false;
+    if (c?.targetId && String(c.targetId) !== String(event.targetId || event.cardId || "")) return false;
+    if (c?.cardId && String(c.cardId) !== String(event.cardId || event.targetId || "")) return false;
+    if (c?.sourceId && event.sourceId && String(c.sourceId) !== String(event.sourceId)) return false;
+    if (c?.combatOnly && !event.combat) return false;
+    return true;
+  }
+  function normalizeReplacementCandidate(raw, event, i) {
+    const c = clone(raw || {});
+    c.id = text(c.id || `replacement-${i}`, 120);
+    c.label = text(c.label || c.name || "置換効果", 120);
+    c.kind = text(c.kind || event.kind, 40);
+    c.sourceCardId = text(c.sourceCardId || c.sourceId || "", 160);
+    c.optional = c.optional === true || c.may === true || c.mandatory === false;
+    c.mandatory = !c.optional;
+    c.v7930Key = replacementBaseKey(c, i);
+    return c;
+  }
+  function collectReplacementCandidates(room, event, usedKeys = []) {
     const out = [];
     for (const raw of arr(event.candidates)) out.push(clone(raw));
     for (const raw of arr(room.state?.v55?.replacementProfiles)) out.push(clone(raw));
     for (const x of battlefieldCards(room)) for (const raw of arr(x.card.v55Replacements)) out.push({ ...clone(raw), sourceCardId: x.card.id, sourceName: cardName(x.card) });
-    return out.filter((c, i) => {
-      c.id = text(c.id || `replacement-${i}`); c.label = text(c.label || c.name || "置換効果", 120); c.kind = text(c.kind || event.kind, 40);
-      if (event.kind === "damage" && !["damage", "prevent"].includes(c.kind)) return false;
-      if (event.kind === "zoneMove" && !["zoneMove", "move"].includes(c.kind)) return false;
-      return !c.affectedRole || c.affectedRole === event.affectedRole;
-    }).slice(0, 100);
+    const used = new Set(arr(usedKeys).map(String)), seen = new Map(), rows = [];
+    for (let i = 0; i < out.length; i++) {
+      const c = normalizeReplacementCandidate(out[i], event, i);
+      if (c.enabled === false || used.has(c.v7930Key)) continue;
+      if (!replacementKindMatches(c, event) || !replacementZoneFilter(c, event) || !replacementTargetFilter(c, event)) continue;
+      if (event.kind === "damage" && int(event.amount) <= 0) continue;
+      const n = seen.get(c.id) || 0; seen.set(c.id, n + 1);
+      if (n) c.id = text(`${c.id}@${c.sourceCardId || n + 1}`, 120);
+      rows.push(c);
+      if (rows.length >= 100) break;
+    }
+    return rows;
   }
+  function canUseOriginalEvent(candidates) { return !arr(candidates).some(c => c.mandatory !== false); }
   function normalizeReplacementEvent(raw, client) {
     raw = raw && typeof raw === "object" ? clone(raw) : {}; const kind = raw.kind === "damage" ? "damage" : "zoneMove";
     return { id: uid("replacement-event"), kind, affectedRole: isSeat(raw.affectedRole) ? raw.affectedRole : client.role, targetId: text(raw.targetId || raw.cardId), cardId: text(raw.cardId || raw.targetId), sourceId: text(raw.sourceId), fromZone: text(raw.fromZone || "creatures", 40), toZone: text(raw.toZone || "graveyard", 40), amount: int(raw.amount, 0, 100000), combat: !!raw.combat, candidates: clone(raw.candidates || []) };
   }
+  function replacementPublicTx(room, tx, type, actionNonce = "", selectedId = "") {
+    return {
+      type, protocol: PROTOCOLS.TRIGGER, txId: tx.id, actionNonce: text(actionNonce),
+      event: clone(tx.currentEvent), originalEvent: clone(tx.event), candidates: clone(tx.candidates),
+      canUseOriginal: canUseOriginalEvent(tx.candidates), iteration: int(tx.iteration),
+      selectedId: text(selectedId), appliedTrace: clone(tx.trace),
+      authoritySummary: authoritySummary(room), authority: D.authority()
+    };
+  }
+  function transformReplacementEvent(event, selected) {
+    const next = clone(event);
+    if (next.kind === "damage") {
+      const before = int(next.amount);
+      if (selected.preventAll) next.amount = 0;
+      else if (selected.setAmount != null) next.amount = int(selected.setAmount, 0, 100000);
+      else if (selected.replaceAmount != null) next.amount = int(selected.replaceAmount, 0, 100000);
+      else if (selected.multiplier != null || selected.amountMultiplier != null) next.amount = int(before * Number(selected.multiplier ?? selected.amountMultiplier), 0, 100000);
+      else next.amount = Math.max(0, before - int(selected.amount));
+    } else if (selected.replaceZone) next.toZone = text(selected.replaceZone, 40);
+    return next;
+  }
   function handleReplacementStart(client, room, msg) {
     try {
       verify(client, room, msg, PROTOCOLS.TRIGGER); if (anyActive(room)) throw new Error(activeKind(room)); const event = normalizeReplacementEvent(msg.event, client); if (event.affectedRole !== client.role) throw new Error("affectedPlayerMustChoose");
-      const candidates = collectReplacementCandidates(room, event); const tx = { id: uid("replacementtx"), clientId: clientId(client), actorRole: client.role, event, candidates, baseRev: room.rev, expiresAt: now() + TX_TTL_MS };
-      room.v55v59.replacementTx = tx; D.send(client, { type: "replacementTxStarted", protocol: PROTOCOLS.TRIGGER, txId: tx.id, actionNonce: text(msg.actionNonce), event: clone(event), candidates: clone(candidates), canUseOriginal: true, authoritySummary: authoritySummary(room), authority: D.authority() });
+      const candidates = collectReplacementCandidates(room, event, []); const tx = { id: uid("replacementtx"), clientId: clientId(client), actorRole: client.role, event, currentEvent: clone(event), candidates, usedKeys: [], trace: [], iteration: 0, baseRev: room.rev, expiresAt: now() + TX_TTL_MS };
+      room.v55v59.replacementTx = tx; D.send(client, replacementPublicTx(room, tx, "replacementTxStarted", msg.actionNonce));
     } catch (e) { reject(client, room, "replacementTxRejected", msg, e.message || e); }
   }
   function applyReplacementEvent(room, event) {
@@ -389,18 +458,30 @@ function createEngine(D) {
   function handleReplacementCommit(client, room, msg) {
     const r = ensureRoom(room), tx = r.replacementTx;
     try {
-      verify(client, room, msg, PROTOCOLS.TRIGGER); if (!tx || String(msg.txId) !== tx.id) throw new Error("transactionNotFound"); if (tx.clientId !== clientId(client)) throw new Error("transactionOwnerMismatch");
+      verify(client, room, msg, PROTOCOLS.TRIGGER); if (!tx || String(msg.txId) !== tx.id) throw new Error("transactionNotFound"); if (tx.clientId !== clientId(client)) throw new Error("transactionOwnerMismatch"); if (tx.baseRev !== room.rev) throw new Error("staleRev");
       const backup = snapshotMutable(room);
       try {
-        let event = clone(tx.event), selected = null; const id = String(msg.candidateId || "original");
-        if (id !== "original") {
-          selected = tx.candidates.find(x => x.id === id); if (!selected) throw new Error("replacementCandidateMissing");
-          if (event.kind === "damage") event.amount = selected.preventAll ? 0 : Math.max(0, event.amount - int(selected.amount));
-          else if (selected.replaceZone) event.toZone = text(selected.replaceZone, 40);
+        const id = String(msg.candidateId || "original");
+        if (id === "original") {
+          if (!canUseOriginalEvent(tx.candidates)) throw new Error("replacementMandatoryChoiceRequired");
+        } else {
+          const selected = tx.candidates.find(x => x.id === id); if (!selected) throw new Error("replacementCandidateMissing");
+          const before = clone(tx.currentEvent), after = transformReplacementEvent(before, selected);
+          tx.usedKeys.push(selected.v7930Key); tx.iteration = int(tx.iteration) + 1;
+          if (tx.iteration > MAX_REPLACEMENT_CHAIN) throw new Error("replacementChainTooLong");
+          tx.trace.push({ iteration: tx.iteration, selectedId: selected.id, candidateKey: selected.v7930Key, label: selected.label, sourceCardId: selected.sourceCardId || "", before, after: clone(after) });
+          tx.currentEvent = after; tx.candidates = collectReplacementCandidates(room, after, tx.usedKeys); tx.expiresAt = now() + TX_TTL_MS;
+          if (tx.candidates.length) {
+            D.send(client, replacementPublicTx(room, tx, "replacementTxContinued", msg.actionNonce, selected.id));
+            record(room, "replacementContinue", { txId: tx.id, iteration: tx.iteration, selectedId: selected.id, remaining: tx.candidates.length, event: clone(after) });
+            return;
+          }
         }
-        applyReplacementEvent(room, event); room.state.v55.lastReplacement = { txId: tx.id, selectedId: id, original: clone(tx.event), result: clone(event), at: new Date().toISOString() };
-        r.replacementTx = null; finalize(room); const result = { selectedId: id, event, originalEvent: tx.event, applied: true };
-        sendCommit(room, client, "replacementTxCommitted", "replacementPublicSync", { kind: "replacementApplied", event }, { protocol: PROTOCOLS.TRIGGER, txId: tx.id, result });
+        const event = clone(tx.currentEvent); applyReplacementEvent(room, event);
+        room.state.v55.lastReplacement = { txId: tx.id, selectedId: id, selectedIds: tx.trace.map(x => x.selectedId), original: clone(tx.event), result: clone(event), trace: clone(tx.trace), iterations: tx.iteration, at: new Date().toISOString() };
+        r.replacementTx = null; finalize(room); const result = { selectedId: id, selectedIds: tx.trace.map(x => x.selectedId), event, originalEvent: tx.event, trace: clone(tx.trace), iterations: tx.iteration, applied: true };
+        sendCommit(room, client, "replacementTxCommitted", "replacementPublicSync", { kind: "replacementApplied", event, iterations: tx.iteration }, { protocol: PROTOCOLS.TRIGGER, txId: tx.id, result });
+        record(room, "replacementCommit", { txId: tx.id, iterations: tx.iteration, selectedIds: result.selectedIds, event });
       } catch (e) { restoreMutable(room, backup, ensureRoom); throw e; }
     } catch (e) { reject(client, room, "replacementTxRejected", msg, e.message || e); }
   }
