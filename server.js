@@ -13,6 +13,7 @@
    - v7.9.34: localStorage容量超過・保存制限時も共有サーバー保存と起動時復元を継続
    - v7.9.37: 関連遅延誘発のオブジェクト世代・最終情報スキーマと血清の粉末初手練習を追加
    - v7.9.38: 通常の土地プレイを自分のメイン・優先権あり・スタック空に限定。能力で戦場に出す土地は除外
+   - v7.9.39: 手札から土地エリアへ動かす手動経路も通常の土地プレイとして統一
    - v6.0～v6.4: オブジェクト世代/両面/合体、装着/支配、位相/LKI、同時領域移動/置換連鎖
    - v6.5～v6.9: 同時誘発チェーン/介在if、誘発ループ監視、任意/選択/分岐ループ、応答予約
    - v7.0～v7.4: 行動履歴、合意巻き戻し、秘密state復元、差分修復、リプレイ、レポート、チャプター/ハイライト
@@ -44,7 +45,7 @@ const HOST = process.env.HOST || "0.0.0.0"; // クラウドで外部公開する
 const ROOT = __dirname;
 
 const SERVER_VERSION = "7.9.20-integrated-play";
-const APP_RELEASE = "7.9.38-land-timing-guard";
+const APP_RELEASE = "7.9.39-land-manual-path-fix";
 const V49_PROTOCOL = "cpt-v4.9";
 const EFFECT_PROTOCOL = V7912_ENGINE.PROTOCOL;
 const AUTHORITY = Object.freeze({
@@ -78,6 +79,8 @@ const AUTHORITY = Object.freeze({
   sharedSaveFallbackV7934: true,
   clientLandPlayTimingGuardV7938: true,
   landPutByEffectExemptV7938: true,
+  manualHandToLandGuardV7939: true,
+  explicitLandEffectPutV7939: true,
   stage2V50V54Integrated: true,
   stage3V55V59Integrated: true,
   stage4V60V64Integrated: true,
