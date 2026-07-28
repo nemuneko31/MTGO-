@@ -1,5 +1,5 @@
 /* ============================================================
-   card-practice-table v7.9.33 共有保存修正版サーバー — Stage 7 (v7.5～v7.9共同レビュー/通知権限)
+   card-practice-table v7.9.34 共有保存フォールバック版サーバー — Stage 7 (v7.5～v7.9共同レビュー/通知権限)
    - アップロードされたオンラインMVP版を土台に直接拡張
    - v4.9公開state提案をサーバー側で厳密検証
    - 公開ハッシュ、nonce、匿名化、秘密枚数、変更マニフェスト、席境界を検査
@@ -10,6 +10,7 @@
    - v7.9.30: 置換効果を1件ずつ適用し、変化後イベントへ候補を再評価。必須/任意、履歴、循環防止を追加
    - v7.9.31: 順番付き複数行き先、サーバー無作為選択、束分け後の指定席選択を追加
    - v7.9.33: 辞書とデッキの一括共有保存、保存後照合、起動時自動復元、APIキャッシュ禁止を追加
+   - v7.9.34: localStorage容量超過・保存制限時も共有サーバー保存と起動時復元を継続
    - v6.0～v6.4: オブジェクト世代/両面/合体、装着/支配、位相/LKI、同時領域移動/置換連鎖
    - v6.5～v6.9: 同時誘発チェーン/介在if、誘発ループ監視、任意/選択/分岐ループ、応答予約
    - v7.0～v7.4: 行動履歴、合意巻き戻し、秘密state復元、差分修復、リプレイ、レポート、チャプター/ハイライト
@@ -70,6 +71,7 @@ const AUTHORITY = Object.freeze({
   sharedPersistenceBundleV7933: true,
   sharedReadAfterWriteVerificationV7933: true,
   sharedStartupRestoreV7933: true,
+  sharedSaveFallbackV7934: true,
   stage2V50V54Integrated: true,
   stage3V55V59Integrated: true,
   stage4V60V64Integrated: true,

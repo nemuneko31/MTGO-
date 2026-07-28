@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, user-scalable=yes, viewport-fit=cover" />
-<title>カードゲーム練習卓 v7.9.33 共有保存修正版</title>
+<title>カードゲーム練習卓 v7.9.34 共有保存フォールバック</title>
 <style>
   :root{
     --bg:#0e1116; --bg2:#141922; --panel:#1a2130; --panel2:#222b3d;
@@ -5281,14 +5281,20 @@ function confirmDlg(msg,onok){
    ============================================================ */
 function serialize(){ return JSON.stringify(state); }
 function saveState(silent){
+  let raw="";
   try{
     if(state.meta){ state.meta.lastSaved=nowISO(); }
-    const raw=serialize(); localStorage.setItem(LS_KEY,raw);
+    raw=serialize(); localStorage.setItem(LS_KEY,raw);
     if(localStorage.getItem(LS_KEY)!==raw) throw new Error("保存後のlocalStorage照合に失敗しました");
+    globalThis.CPT_LAST_SAVE_ERROR=null;
     if(!silent){ addLog("状態を保存しました"); toast("保存しました"); }
     try{ cptSaveLightCheck(); }catch(_){} try{ maybeScheduleOnlineBroadcast(); }catch(_){}
     return true;
-  }catch(e){ showErr("保存失敗(容量超過の可能性): "+e.message); try{ cptLog("save-error","failed",e.message); }catch(_){} return false; }
+  }catch(e){
+    globalThis.CPT_LAST_SAVE_ERROR={name:String(e&&e.name||"Error"),message:String(e&&e.message||e||"保存失敗"),estimatedBytes:raw?raw.length*2:0,at:nowISO()};
+    if(!silent) showErr("保存失敗(容量超過の可能性): "+globalThis.CPT_LAST_SAVE_ERROR.message);
+    try{ cptLog("save-error","failed",globalThis.CPT_LAST_SAVE_ERROR.message); }catch(_){} return false;
+  }
 }
 let _autoTimer=null;
 function autosaveMaybe(){ if(!state.settings.autosave) return;
@@ -24960,7 +24966,7 @@ globalThis.cptV7932DescribeTargetProfile=function(ab){return api.describe(profil
 </script>\n
 <script>
 /* ============================================================
-   v7.9.33 Shared Persistence Repair
+   v7.9.34 Shared Save Fallback
    - shared dictionary + decks are saved as one canonical bundle
    - startup restores newer shared data automatically
    - exact dictionary payload is preserved (automation fields included)
@@ -24969,10 +24975,10 @@ globalThis.cptV7932DescribeTargetProfile=function(ab){return api.describe(profil
 (function(root,factory){
   const api=factory();
   if(typeof module==="object"&&module.exports)module.exports=api;
-  root.CPT_V7933_PERSISTENCE=api;
+  root.CPT_V7934_PERSISTENCE=api;
 })(typeof globalThis!=="undefined"?globalThis:this,function(){
 "use strict";
-const VERSION="7.9.33",PROTOCOL="cpt-v7.9.33-shared-persistence",SCHEMA=1;
+const VERSION="7.9.34",PROTOCOL="cpt-v7.9.34-shared-save-fallback",SCHEMA=1;
 const isObj=v=>!!v&&typeof v==="object"&&!Array.isArray(v);
 const clone=v=>v==null?v:JSON.parse(JSON.stringify(v));
 function canonical(v){
@@ -25020,10 +25026,22 @@ return{version:VERSION,protocol:PROTOCOL,schema:SCHEMA,clone,canonical,hash,norm
 
 (function(){
 "use strict";
-if(typeof window==="undefined"||typeof document==="undefined"||!globalThis.CPT_V7933_PERSISTENCE)return;
-const API=globalThis.CPT_V7933_PERSISTENCE,SYNC_KEY="cpt_shared_sync_v2",hadLocalAtModuleLoad=(()=>{try{return !!localStorage.getItem(LS_KEY);}catch(_){return false;}})();
+if(typeof window==="undefined"||typeof document==="undefined"||!globalThis.CPT_V7934_PERSISTENCE)return;
+const API=globalThis.CPT_V7934_PERSISTENCE,SYNC_KEY="cpt_shared_sync_v2",hadLocalAtModuleLoad=(()=>{try{return !!localStorage.getItem(LS_KEY);}catch(_){return false;}})();
 function syncRead(){try{const x=JSON.parse(localStorage.getItem(SYNC_KEY)||"null");return x&&typeof x==="object"?x:{};}catch(_){return{};}}
 function syncWrite(patch){const x=Object.assign(syncRead(),patch||{});try{localStorage.setItem(SYNC_KEY,JSON.stringify(x));}catch(_){}return x;}
+function localSaveDetail(){
+  const e=globalThis.CPT_LAST_SAVE_ERROR;
+  if(e&&typeof e==="object")return String(e.message||e.name||"localStorage保存失敗");
+  if(e)return String(e);
+  return "localStorageへの保存に失敗しました（容量上限またはブラウザーの保存制限の可能性）";
+}
+function persistLocal(){
+  if(typeof saveState!=="function")return{ok:true,error:""};
+  try{const ok=saveState(true)!==false;return{ok,error:ok?"":localSaveDetail()};}
+  catch(e){return{ok:false,error:String(e&&e.message||e||localSaveDetail())};}
+}
+function autoRestoreEnabled(){const x=syncRead();if(typeof x.autoRestoreEnabled==="boolean")return x.autoRestoreEnabled;return (state.settings||{}).sharedAutoRestoreEnabled!==false;}
 function bundleNow(){return API.buildBundle(state.cardDictionary||{},state.decks||[],{savedAt:nowISO(),appVersion:API.version});}
 function countBundle(b){b=API.normalizeBundle(b);return{cards:Object.keys(b.cards).length,decks:b.decks.length};}
 async function request(path,opts){const r=await _sharedFetch(path,Object.assign({cache:"no-store"},opts||{}));return r;}
@@ -25046,15 +25064,15 @@ async function postVerified(path,data,pw){
 function applyBundle(bundle,mode,meta={}){
   const overwrite=mode==="overwrite",m=API.mergeBundle(state,bundle,{overwrite});
   state.cardDictionary=m.cardDictionary;state.decks=m.decks;
-  if(typeof saveState==="function"&&!saveState(true))throw new Error("ローカル保存に失敗しました");
+  const local=persistLocal();
   try{render();renderLog();}catch(_){}
-  const c=countBundle(bundle);syncWrite({sharedSource:meta.source||"bundle",bundleVersion:Number(meta.version)||0,bundleUpdatedAt:meta.updatedAt||null,lastAppliedAt:nowISO(),lastAppliedHash:API.hash(bundle)});
-  return{...m.stats,remoteCards:c.cards,remoteDecks:c.decks};
+  const c=countBundle(bundle);syncWrite({sharedSource:meta.source||"bundle",bundleVersion:Number(meta.version)||0,bundleUpdatedAt:meta.updatedAt||null,lastAppliedAt:nowISO(),lastAppliedHash:API.hash(bundle),lastLocalSaveOk:local.ok,lastLocalSaveError:local.error||null});
+  return{...m.stats,remoteCards:c.cards,remoteDecks:c.decks,localSaved:local.ok,localSaveError:local.error};
 }
 async function saveAllWithPassword(pw){
   if(!sharedState.enabled)throw new Error("共有機能は無効です");
   if(!pw)throw new Error("管理パスワードを入力してください");
-  if(typeof saveState==="function"&&!saveState(true))throw new Error("共有保存前のローカル保存に失敗しました");
+  const local=persistLocal();
   const data=bundleNow(),v=await postVerified("/api/shared-bundle",data,pw);
   // 旧版クライアント互換用ミラー。正本は bundle で、ミラー失敗は正本成功を取り消さない。
   const mirrors=await Promise.allSettled([
@@ -25062,33 +25080,33 @@ async function saveAllWithPassword(pw){
     request("/api/shared-decks",{method:"POST",headers:{"Content-Type":"application/json","x-admin-password":pw},body:JSON.stringify({data:{decks:data.decks}})})
   ]);
   const c=countBundle(data);syncWrite({bundleVersion:v.version,bundleUpdatedAt:v.updatedAt,lastSavedAt:nowISO(),lastSavedHash:API.hash(data)});
-  return{...v,...c,mirrorOk:mirrors.every(x=>x.status==="fulfilled"&&x.value.status===200&&x.value.json?.ok)};
+  return{...v,...c,mirrorOk:mirrors.every(x=>x.status==="fulfilled"&&x.value.status===200&&x.value.json?.ok),localSaved:local.ok,localSaveError:local.error};
 }
 async function sharedSaveAll(){
   if(!sharedState.enabled){toast("共有機能は無効です");return;}
   const pw=(document.getElementById("shPw")?.value)||"";if(!pw){toast("管理パスワードを入力してください");return;}
   confirmDlg("カード辞書とデッキを1つの共有データとして保存します。よろしいですか？",async()=>{
     sharedState.lastMsg="共有一括保存中...";_sharedRender();
-    try{const r=await saveAllWithPassword(pw);sharedState.lastMsg=`共有一括保存・再照合完了（v${r.version} / 辞書${r.cards}件 / デッキ${r.decks}件${r.mirrorOk?"":" / 旧版ミラーのみ失敗"}）`;toast("共有保存を確認しました");}
+    try{const r=await saveAllWithPassword(pw);const localNote=r.localSaved?"":` / 端末保存のみ失敗: ${r.localSaveError}`;sharedState.lastMsg=`共有一括保存・再照合完了（v${r.version} / 辞書${r.cards}件 / デッキ${r.decks}件${r.mirrorOk?"":" / 旧版ミラーのみ失敗"}${localNote}）`;toast(r.localSaved?"共有保存を確認しました":"共有サーバーへの保存は成功しました（端末保存のみ失敗）");}
     catch(e){sharedState.lastMsg="保存失敗: "+String(e.message||e);showErr(sharedState.lastMsg);} _sharedRender();
   });
 }
 async function loadBundleInteractive(mode){
   if(!sharedState.enabled){toast("共有機能は無効です");return;}
   try{const r=await getBundle();if(!r||!r.data){sharedState.lastMsg="共有データはまだありません";_sharedRender();return;}const c=countBundle(r.data);
-    const run=()=>{try{const s=applyBundle(r.data,mode,r);sharedState.lastMsg=`共有データを${mode==="overwrite"?"上書き":"マージ"}復元（辞書${c.cards}件 / デッキ${c.decks}件）`;toast("共有データを復元しました");_sharedRender();}catch(e){showErr("共有復元失敗: "+String(e.message||e));}};
+    const run=()=>{try{const s=applyBundle(r.data,mode,r);const localNote=s.localSaved?"":` / 端末保存のみ失敗: ${s.localSaveError}`;sharedState.lastMsg=`共有データを${mode==="overwrite"?"上書き":"マージ"}復元（辞書${c.cards}件 / デッキ${c.decks}件${localNote}）`;toast(s.localSaved?"共有データを復元しました":"共有データを復元しました（端末保存のみ失敗）");_sharedRender();}catch(e){showErr("共有復元失敗: "+String(e.message||e));}};
     if(mode==="overwrite")confirmDlg("ローカルのカード辞書とデッキを共有データで置き換えます。よろしいですか？",run);else run();
   }catch(e){sharedState.lastMsg="読込失敗: "+String(e.message||e);_sharedRender();}
 }
 async function autoRestore(){
   try{
-    if((state.settings||{}).sharedAutoRestoreEnabled===false)return{skipped:"setting"};
+    if(!autoRestoreEnabled())return{skipped:"setting"};
     const st=await request("/api/shared-status");if(st.status!==200||!st.json?.enabled)return{skipped:"disabled"};
     sharedState.enabled=true;sharedState.reason=st.json.reason||"";sharedState.adminConfigured=!!st.json.adminConfigured;
     const r=await getBundle();if(!r||!r.data)return{skipped:"empty"};
     const sm=syncRead();if(sm.sharedSource===r.source&&Number(r.version)<=Number(sm.bundleVersion||0))return{skipped:"current"};
     const mode=!hadLocalAtModuleLoad?"overwrite":"merge",stats=applyBundle(r.data,mode,r),c=countBundle(r.data);
-    sharedState.lastMsg=`起動時に共有データを自動復元（辞書${c.cards}件 / デッキ${c.decks}件）`;_sharedRender();
+    const localNote=stats.localSaved?"":` / 端末保存のみ失敗: ${stats.localSaveError}`;sharedState.lastMsg=`起動時に共有データを自動復元（辞書${c.cards}件 / デッキ${c.decks}件${localNote}）`;_sharedRender();
     return{restored:true,mode,stats,version:r.version};
   }catch(e){sharedState.lastMsg="共有自動復元を保留: "+String(e.message||e);_sharedRender();return{error:String(e.message||e)};}
 }
@@ -25108,7 +25126,7 @@ openSharedModal=function(){
     const over=document.createElement("button");over.className="btn warn";over.id="shRestoreOverwrite";over.textContent="共有データで上書き復元";over.onclick=()=>loadBundleInteractive("overwrite");row.appendChild(over);
     const all=document.createElement("button");all.className="btn primary";all.id="shSaveAll";all.textContent="辞書＋デッキを一括共有保存";all.onclick=sharedSaveAll;row.appendChild(all);
   }
-  const pw=document.getElementById("shPw");if(pw&&!document.getElementById("shAutoRestore")){const label=document.createElement("label");label.className="field";label.style.marginTop="8px";label.innerHTML='<span><input type="checkbox" id="shAutoRestore"> 起動時に新しい共有データを自動復元する</span><span class="note" style="font-size:10px">同じID・同じカード名は更新日時が新しい側を採用し、ローカルだけの項目は残します。</span>';pw.parentElement.insertAdjacentElement("afterend",label);const cb=document.getElementById("shAutoRestore");cb.checked=(state.settings||{}).sharedAutoRestoreEnabled!==false;cb.onchange=()=>{state.settings.sharedAutoRestoreEnabled=cb.checked;saveState(true);};}
+  const pw=document.getElementById("shPw");if(pw&&!document.getElementById("shAutoRestore")){const label=document.createElement("label");label.className="field";label.style.marginTop="8px";label.innerHTML='<span><input type="checkbox" id="shAutoRestore"> 起動時に新しい共有データを自動復元する</span><span class="note" style="font-size:10px">同じID・同じカード名は更新日時が新しい側を採用し、ローカルだけの項目は残します。端末保存が容量不足でも、共有サーバーから毎回復元できます。</span>';pw.parentElement.insertAdjacentElement("afterend",label);const cb=document.getElementById("shAutoRestore");cb.checked=autoRestoreEnabled();cb.onchange=()=>{state.settings.sharedAutoRestoreEnabled=cb.checked;syncWrite({autoRestoreEnabled:cb.checked});const r=persistLocal();if(!r.ok){sharedState.lastMsg=`自動復元設定は今回の画面で有効です（端末設定保存のみ失敗: ${r.error}）`;_sharedRender();}};}
   _sharedRender();
 };
 const baseSharedRender=_sharedRender;
@@ -25120,8 +25138,8 @@ state.settings=Object.assign({sharedAutoRestoreEnabled:true},state.settings||{})
 window.addEventListener("pagehide",()=>{try{saveState(true);}catch(_){}},{capture:true});
 let restoreStarted=false;function scheduleRestore(){if(restoreStarted)return;restoreStarted=true;setTimeout(autoRestore,0);}
 window.addEventListener("DOMContentLoaded",scheduleRestore);if(document.readyState!=="loading")scheduleRestore();
-globalThis.CPT_V7933_SHARED={version:API.version,protocol:API.protocol,getBundle,saveAllWithPassword,applyBundle,autoRestore,syncRead,syncWrite,diagnose:API.diagnose};
-try{document.body.dataset.v7933="persistence-repair";document.title="カードゲーム練習卓 v7.9.33 共有保存修正版";}catch(_){}
+globalThis.CPT_V7934_SHARED={version:API.version,protocol:API.protocol,getBundle,saveAllWithPassword,applyBundle,autoRestore,syncRead,syncWrite,persistLocal,autoRestoreEnabled,diagnose:API.diagnose};
+try{document.body.dataset.v7934="shared-save-fallback";document.title="カードゲーム練習卓 v7.9.34 共有保存フォールバック";}catch(_){}
 })();
 
 </script>

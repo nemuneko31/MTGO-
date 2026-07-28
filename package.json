@@ -1,8 +1,8 @@
 {
-  "name": "mtgo-style-v7-9-33-persistence-repair",
-  "version": "7.9.33",
+  "name": "mtgo-style-v7-9-34-shared-save-fallback-render",
+  "version": "7.9.34",
   "private": true,
-  "description": "v7.9.33 Render minimum package with verified shared persistence dependencies and v7.9.32 target constraints runtime.",
+  "description": "Render minimum package: shared server save continues when browser localStorage is full or blocked.",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
