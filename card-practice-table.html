@@ -8789,7 +8789,7 @@ function openOpeningSetup(){
     <label class="field">マリガン方式<select id="ohMull">
       <option value="simple"${mm==="simple"?" selected":""}>簡易方式（手札枚数を減らして引き直す）</option>
       <option value="precise"${mm==="precise"?" selected":""}>精密方式（毎回7枚→キープ時にマリガン回数分を山下へ）</option>
-      <option value="library"${mm==="library"?" selected":""}>ロンドン厳密方式（毎回7枚・キープ時にボトム・血清の粉末対応）</option></select></label>
+      <option value="library"${mm==="library"?" selected":""}>ロンドン厳密方式（毎回7枚→その回数分を即ボトム・血清の粉末対応）</option></select></label>
     <div class="note" style="font-size:10px" id="ohMullNote"></div>
     <div class="note" style="font-size:10px" id="ohSerumHint"></div>
     <label class="field">練習メモ<input type="text" id="ohMemo" placeholder="任意"></label>`,
@@ -8798,7 +8798,7 @@ function openOpeningSetup(){
      <button class="btn primary" id="ohGo">引く</button>`);
   const noteEl=$("#ohMullNote"), serumEl=$("#ohSerumHint"), hsEl=$("#ohHS"), mullEl=$("#ohMull"), deckEl=$("#ohDeck");
   const upd=()=>{ const p=mullEl.value==="precise", l=mullEl.value==="library";
-    noteEl.textContent = l?"ロンドン厳密方式: マリガンのたびに7枚引き直し、キープを決めた後でマリガン回数分をライブラリーの下へ置きます。血清の粉末はキープ前なら連続して使用できます。":p?"精密方式: 常に7枚引き、キープ時にマリガン回数分のカードを選んで山札の下へ戻します。":"簡易方式: マリガンのたびに手札が1枚ずつ減ります。";
+    noteEl.textContent = l?"ロンドン厳密方式: 通常マリガンのたびに7枚引き、直ちにマリガン回数分をライブラリーの下へ置きます。その後でキープ／次の通常マリガン／血清の粉末を選びます。":p?"精密方式: 常に7枚引き、キープ時にマリガン回数分のカードを選んで山札の下へ戻します。":"簡易方式: マリガンのたびに手札が1枚ずつ減ります。";
     hsEl.disabled=p||l; if(p||l) hsEl.value="7"; };
   const serumSuggest=()=>{ const src=ohSourceEntries(deckEl.value); if(!src){ serumEl.textContent=""; return; }
     let count=0; try{ count=globalThis.CPT_V7937_RULES?CPT_V7937_RULES.serumPowderCount(src.entries,n=>dictGet(n)):src.entries.reduce((n,e)=>n+(_ohIsSerumPowder(e.name)?Number(e.qty||0):0),0); }catch(_){}
@@ -8843,13 +8843,15 @@ function ohShuffleDraw(){
 }
 function ohMulligan(){
   if(_oh.mulliganMode==="library"){
-    if(_oh.pendingBottom>0){ toast(`キープを選択済みです。先に${_oh.pendingBottom}枚をライブラリーの下へ置いてください`); return; }
-    // ロンドン・マリガン: 追放領域は戻さず、現在の手札をライブラリーへ戻してシャッフルし、毎回7枚引く。ボトムはキープ決定後に行う。
+    if(_oh.pendingBottom>0){ toast(`通常マリガン処理中です。先に${_oh.pendingBottom}枚をライブラリーの下へ置いてください`); return; }
+    // CR 103.5: 通常マリガンは、手札を戻してシャッフル→7枚引く→その回数分を即座にライブラリー下へ置く。
+    // 追放領域は戻さない。ボトム完了後に、キープ／次の通常マリガン／血清の粉末を選ぶ。
     _oh.lib=_oh.lib.concat(_oh.hand); _oh.hand=[]; shuffle(_oh.lib); _oh.bottomList=[]; _oh.bottomSelOrder=[];
     _oh.mulliganCount++;
     if(_oh.lib.length<7){ toast(`ライブラリーが${_oh.lib.length}枚しかなく7枚引けません（「最初から」でリセットしてください）`); _oh.histLog.push(`エラー: ライブラリー不足（${_oh.lib.length}枚）`); ohRender(); return; }
-    _oh.hand=_oh.lib.splice(0,7); _oh.currentSevenCards=_oh.hand.slice(); _oh.pendingBottom=0;
-    _oh.histLog.push(`通常マリガン${_oh.mulliganCount}回目: 手札を戻してシャッフル→7枚引いた（キープ時に${_oh.mulliganCount}枚を下へ置く）`);
+    _oh.hand=_oh.lib.splice(0,7); _oh.currentSevenCards=_oh.hand.slice();
+    _oh.pendingBottom=Math.min(_oh.mulliganCount,_oh.hand.length);
+    _oh.histLog.push(`通常マリガン${_oh.mulliganCount}回目: 手札を戻してシャッフル→7枚引いた。続けて${_oh.pendingBottom}枚をライブラリーの下へ置く`);
     ohLibImgs(); ohRender(); return;
   }
   if(_oh.mulliganMode==="precise"){
@@ -8868,9 +8870,8 @@ function ohResultLabel(r){ return {keep:"キープ",mulligan:"マリガン",noLa
 /* 精密: キープ押下 → ボトム選択へ or 即記録 */
 function ohKeepPressed(){
   if(_oh.mulliganMode==="library"){
-    if(_oh.pendingBottom>0){ toast(`先に${_oh.pendingBottom}枚をライブラリーの下へ置いてください`); return; }
-    if(_oh.mulliganCount>0){ _oh.pendingBottom=_oh.mulliganCount; _oh.bottomSelOrder=[]; _oh.histLog.push(`キープを選択: ${_oh.mulliganCount}枚のボトム選択へ`); ohRender(); return; }
-    _oh.histLog.push(`キープ（手札${_oh.hand.length}枚 / マリガン0回 / 粉末${_oh.spCount}回）`); ohRecord("keep", false); return;
+    if(_oh.pendingBottom>0){ toast(`通常マリガン処理中です。先に${_oh.pendingBottom}枚をライブラリーの下へ置いてください`); return; }
+    _oh.histLog.push(`キープ（手札${_oh.hand.length}枚 / 通常マリガン${_oh.mulliganCount}回 / 粉末${_oh.spCount}回）`); ohRecord("keep", false); return;
   }
   if(_oh.mulliganMode==="precise" && _oh.mulliganCount>0){
     _oh.bottomStepActive=true; _oh.bottomConfirmed=false; _oh.bottomSel=new Set(); ohRender(); return;
@@ -8919,10 +8920,10 @@ function ohLibBottomConfirm(){
   _oh.hand=_oh.hand.filter((c,i)=>!pickedSet.has(i));
   picked.forEach(c=>{ _oh.lib.push(c); _oh.bottomList.push(c); }); // 選択順=上から順にライブラリーの一番下へ（最後に選んだカードが最下）
   _oh.pendingBottom=0; _oh.bottomSelOrder=[];
-  _oh.currentSevenCards=_oh.currentSevenCards; // 直近ドローの記録は維持
-  _oh.histLog.push(`${need}枚をライブラリーの下へ置いた（${picked.map(c=>c.name).join("、")}）→ 手札${_oh.hand.length}枚でキープ確定`);
+  _oh.histLog.push(`${need}枚をライブラリーの下へ置いた（${picked.map(c=>c.name).join("、")}）→ 手札${_oh.hand.length}枚。キープ／次の通常マリガン／血清の粉末を選択`);
   if(!ohLibTotalsOk()) toast("警告: カード総数が一致しません（自己診断）");
-  ohRecord("keep", false);
+  toast(`通常マリガン${_oh.mulliganCount}回目が完了しました。次の選択をしてください`);
+  ohRender();
 }
 function ohSerumPowder(){
   if(_oh.mulliganMode!=="library") return;
@@ -9023,8 +9024,7 @@ function ohRender(){
         <label>先手/後手
           <select id="ohPDsel"><option value="先手"${_oh.playDraw==="先手"?" selected":""}>先手</option><option value="後手"${_oh.playDraw==="後手"?" selected":""}>後手</option></select></label>
         <span class="oh-hs">${hsLabel}</span>
-        ${LIB?"":`<button class="btn sm" data-oh="redraw">引き直す</button>`}
-        <button class="btn sm" data-oh="mull"${(LIB&&PB>0)?" disabled":(!LIB&&!precise&&_oh.handSize<=4)?" disabled":""}>${LIB?`通常マリガン（→${_oh.mulliganCount+1}回）`:precise?`マリガン（→${_oh.mulliganCount+1}回）`:`マリガン(${_oh.handSize}→${Math.max(4,_oh.handSize-1)})`}</button>
+        ${LIB?"":`<button class="btn sm" data-oh="redraw">引き直す</button><button class="btn sm" data-oh="mull"${(!precise&&_oh.handSize<=4)?" disabled":""}>${precise?`マリガン（→${_oh.mulliganCount+1}回）`:`マリガン(${_oh.handSize}→${Math.max(4,_oh.handSize-1)})`}</button>`}
         <button class="btn sm" data-oh="reset7"${LIB?((_oh.mulliganCount===0&&_oh.spCount===0&&PB===0)?" disabled":""):(precise?_oh.mulliganCount===0:_oh.handSize===7)?" disabled":""}>${(LIB||precise)?"最初から":"7枚に戻す"}</button>
       </div>
       ${warn4}
@@ -9033,27 +9033,49 @@ function ohRender(){
     ${LIB?(function(){
       const hasSP=ohLibHasSP();
       const spDisabled=PB>0 || !hasSP || _oh.lib.length<_oh.hand.length;
-      const spReason=PB>0?`先に${PB}枚をライブラリーの下へ置いてください`:!hasSP?"現在の手札に血清の粉末がありません":(_oh.lib.length<_oh.hand.length)?`ライブラリー残${_oh.lib.length}枚のため${_oh.hand.length}枚引けません`:"";
+      const spReason=PB>0?`先に${PB}枚をライブラリーの下へ置いてください`:!hasSP?"現在の手札に《血清の粉末》がありません":(_oh.lib.length<_oh.hand.length)?`ライブラリー残${_oh.lib.length}枚のため${_oh.hand.length}枚引けません`:"";
       const selN=_oh.bottomSelOrder.length;
+      const nextMull=_oh.mulliganCount+1;
       return `
-      <div class="oh-counts">通常マリガン <b>${_oh.mulliganCount}</b>回 ／ 手札 <b>${_oh.hand.length}</b>枚 ／ デッキ下 <b>${_oh.bottomList.length}</b>枚 ／ 追放 <b>${_oh.exiled.length}</b>枚 ／ ライブラリー残 <b>${_oh.lib.length}</b>枚 ／ 粉末使用 <b>${_oh.spCount}</b>回${ohLibTotalsOk()?"":' <span class="oh-warn">⚠ 総数不一致</span>'}</div>
-      ${PB>0?`<div class="oh-warn" style="font-size:11px">キープを選択しました。手札の画像をクリックして <b>${PB}枚</b> 選び、ライブラリーの一番下へ置いてください（選択 <b>${selN}/${PB}</b>・選択順に上から下へ置きます）。確定するとこの初手をキープとして記録します。</div>
-      <div class="oh-results"><button class="btn sm primary" data-oh="btmok"${selN!==PB?" disabled":""}>この${PB}枚を山下へ（確定）</button><button class="btn sm" data-oh="btmclear"${selN===0?" disabled":""}>選択解除</button></div>`
-      :`<div class="oh-results"><button class="btn sm" data-oh="serum"${spDisabled?" disabled":""} title="${esc(spReason)}">血清の粉末を使用${hasSP&&!spDisabled?`（手札${_oh.hand.length}枚を追放して${_oh.hand.length}枚引く）`:""}</button>${spReason?`<span class="note" style="font-size:10px">${esc(spReason)}</span>`:""}</div>`}
-      <details class="oh-fold"><summary>追放（${_oh.exiled.length}枚）・デッキ下（${_oh.bottomList.length}枚）・履歴</summary>
+      <div class="oh-counts" style="margin-bottom:7px">通常マリガン <b>${_oh.mulliganCount}</b>回 ／ 現在の手札 <b>${_oh.hand.length}</b>枚 ／ デッキ下 <b>${_oh.bottomList.length}</b>枚 ／ 追放 <b>${_oh.exiled.length}</b>枚 ／ ライブラリー残 <b>${_oh.lib.length}</b>枚 ／ 粉末使用 <b>${_oh.spCount}</b>回${ohLibTotalsOk()?"":' <span class="oh-warn">⚠ 総数不一致</span>'}</div>
+      ${PB>0?`<section style="border:2px solid var(--accent,#8aa4ff);border-radius:10px;padding:10px;margin:8px 0;background:rgba(120,145,255,.07)">
+        <div style="font-size:14px;font-weight:700;margin-bottom:4px">通常マリガン${_oh.mulliganCount}回目：${PB}枚をライブラリー下へ</div>
+        <div class="note">7枚を引き直した直後です。手札画像をクリックして <b>${PB}枚</b> 選んでください。ここはキープ決定ではなく、通常マリガン処理の一部です。</div>
+        <div class="oh-warn" style="font-size:11px;margin-top:6px">選択 <b>${selN}/${PB}</b> ／ 確定後の手札は <b>${7-PB}枚</b>。その後に「キープ」「次の通常マリガン」「血清の粉末」を選べます。</div>
+        <div class="oh-results" style="margin-top:8px"><button class="btn sm primary" data-oh="btmok"${selN!==PB?" disabled":""}>選んだ${PB}枚を山下へ置く</button><button class="btn sm" data-oh="btmclear"${selN===0?" disabled":""}>選択解除</button></div>
+      </section>`
+      :`<section style="border:2px solid var(--accent,#8aa4ff);border-radius:10px;padding:10px;margin:8px 0;background:rgba(120,145,255,.07)">
+        <div style="display:flex;gap:8px;align-items:flex-start;justify-content:space-between;flex-wrap:wrap;margin-bottom:8px">
+          <div><div style="font-size:15px;font-weight:700">ゲーム開始前：この手札をどうしますか？</div><div class="note">下の3つは実際のマリガン手順です。決定するまでゲームは始まりません。</div></div>
+          <span class="oh-hs">現在 ${_oh.hand.length}枚</span>
+        </div>
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:8px">
+          <button class="btn primary" data-oh="keep" style="min-height:76px;white-space:normal;text-align:left;padding:10px">
+            <b style="display:block;font-size:14px">この手札をキープ</b><span style="display:block;font-size:10px;margin-top:4px">${_oh.hand.length}枚でゲーム開始として記録します</span>
+          </button>
+          <button class="btn" data-oh="mull" style="min-height:76px;white-space:normal;text-align:left;padding:10px">
+            <b style="display:block;font-size:14px">通常マリガン（${nextMull}回目）</b><span style="display:block;font-size:10px;margin-top:4px">手札${_oh.hand.length}枚を戻す → 7枚引く → ${nextMull}枚を山下へ</span>
+          </button>
+          <button class="btn" data-oh="serum"${spDisabled?" disabled":""} title="${esc(spReason)}" style="min-height:76px;white-space:normal;text-align:left;padding:10px">
+            <b style="display:block;font-size:14px">《血清の粉末》を使用</b><span style="display:block;font-size:10px;margin-top:4px">${hasSP&&!spDisabled?`手札${_oh.hand.length}枚を追放 → ${_oh.hand.length}枚引く（通常マリガン回数は増えない）`:esc(spReason)}</span>
+          </button>
+        </div>
+      </section>`}
+      <details class="oh-fold"><summary>追放（${_oh.exiled.length}枚）・直近のデッキ下（${_oh.bottomList.length}枚）・手順履歴</summary>
         <div class="note">追放: ${_oh.exiled.map(c=>esc(c.name)).join("、")||"-"}</div>
-        <div class="note">デッキ下（上から置いた順・直近マリガン分）: ${_oh.bottomList.map(c=>esc(c.name)).join("、")||"-"}</div>
+        <div class="note">直近のデッキ下（選択順）: ${_oh.bottomList.map(c=>esc(c.name)).join("、")||"-"}</div>
         <div class="note" style="white-space:pre-wrap">${_oh.histLog.map(esc).join("\n")||"-"}</div>
       </details>`;
     })():""}
     <div class="oh-counts">手札 <b>${tc.total}</b> ／ 土地 <b>${tc.land}</b> ／ クリーチャー <b>${tc.creature}</b> ／ インスタント・ソーサリー <b>${tc.spell}</b> ／ その他 <b>${tc.other}</b> ／ 未分類 <b>${tc.unknown}</b></div>
+    ${LIB?`<div class="note" style="margin-top:8px"><b>分析用の結果タグ</b>（上のゲーム開始操作とは別です。押すと評価を記録して次の初手へ進みます）</div>`:""}
     <div class="oh-results">
-      <button class="btn sm primary" data-oh="keep"${(LIB&&PB>0)?" disabled":""}>キープ${(precise||LIB)&&_oh.mulliganCount>0?"（ボトム選択へ）":""}</button>
-      <button class="btn sm" data-oh="rec:mulligan">マリガン記録</button>
-      <button class="btn sm" data-oh="rec:noLand">ノーランド</button>
-      <button class="btn sm" data-oh="rec:flood">土地過多</button>
-      <button class="btn sm" data-oh="rec:colorScrew">色事故</button>
-      <button class="btn sm" data-oh="rec:unsure">判断保留</button>
+      ${LIB?"":`<button class="btn sm primary" data-oh="keep">キープ${precise&&_oh.mulliganCount>0?"（ボトム選択へ）":""}</button>`}
+      <button class="btn sm" data-oh="rec:mulligan">評価: マリガン</button>
+      <button class="btn sm" data-oh="rec:noLand">評価: ノーランド</button>
+      <button class="btn sm" data-oh="rec:flood">評価: 土地過多</button>
+      <button class="btn sm" data-oh="rec:colorScrew">評価: 色事故</button>
+      <button class="btn sm" data-oh="rec:unsure">評価: 判断保留</button>
     </div>
     <label class="field" style="margin-top:4px">メモ<input type="text" id="ohNotes" value="${esc(_oh.notes||"")}" placeholder="この初手の判断理由など"></label>
     ${ohEvalHTML(_oh.hand)}
@@ -26300,6 +26322,331 @@ globalThis.CPT_V7940_CLIENT={version:API.VERSION,protocol:API.PROTOCOL,ready:rea
 try{document.body.dataset.v7940="indexeddb-storage";document.title="カードゲーム練習卓 v7.9.40 IndexedDB保存";}catch(_){}
 })();
 
+
+</script>
+<script>
+"use strict";
+
+(function(root,factory){
+  const api=factory();
+  if(typeof module==="object"&&module.exports)module.exports=api;
+  if(root)root.CPT_V7941_OPENING=api;
+})(typeof globalThis!=="undefined"?globalThis:this,function(){
+  const VERSION="7.9.41";
+  const PROTOCOL="cpt-v7.9.41-serum-mulligan-decision";
+  const arr=v=>Array.isArray(v)?v:[];
+  const num=v=>Number.isFinite(Number(v))?Number(v):0;
+  const clone=v=>JSON.parse(JSON.stringify(v));
+  function shuffled(cards,random){
+    const out=arr(cards).map(clone),rnd=typeof random==="function"?random:Math.random;
+    for(let i=out.length-1;i>0;i--){
+      const j=Math.max(0,Math.min(i,Math.floor(Number(rnd())*(i+1))));
+      [out[i],out[j]]=[out[j],out[i]];
+    }
+    return out;
+  }
+  function makeState(cards,random){
+    const library=shuffled(cards,random),hand=library.splice(0,Math.min(7,library.length));
+    return{library,hand,exiled:[],bottom:[],mulliganCount:0,serumPowderCount:0,pendingBottom:0,total:library.length+hand.length,history:["初手7枚を引いた"]};
+  }
+  function normalMulligan(raw,random){
+    const s=clone(raw||{});
+    if(num(s.pendingBottom)>0)return{ok:false,reason:"bottomPending",state:s};
+    s.library=arr(s.library).concat(arr(s.hand));
+    s.hand=[];
+    s.library=shuffled(s.library,random);
+    s.mulliganCount=Math.max(0,Math.trunc(num(s.mulliganCount)))+1;
+    s.bottom=[];
+    if(s.library.length<7)return{ok:false,reason:"libraryTooSmall",state:s};
+    s.hand=s.library.splice(0,7);
+    s.pendingBottom=Math.min(s.mulliganCount,s.hand.length);
+    arr(s.history).push(`通常マリガン${s.mulliganCount}回目: 7枚を引き、${s.pendingBottom}枚のボトム選択へ`);
+    return{ok:true,state:s,pendingBottom:s.pendingBottom};
+  }
+  function uniqueIndices(indices){
+    return[...new Set(arr(indices).map(x=>Math.trunc(num(x))))];
+  }
+  function confirmBottom(raw,indices){
+    const s=clone(raw||{}),need=Math.max(0,Math.trunc(num(s.pendingBottom))),idx=uniqueIndices(indices);
+    if(need<=0)return{ok:false,reason:"bottomNotPending",state:s};
+    if(idx.length!==need)return{ok:false,reason:"bottomCountInvalid",state:s};
+    if(idx.some(i=>i<0||i>=arr(s.hand).length))return{ok:false,reason:"bottomIndexInvalid",state:s};
+    const set=new Set(idx),picked=idx.map(i=>s.hand[i]),kept=s.hand.filter((_,i)=>!set.has(i));
+    s.hand=kept;
+    s.library=arr(s.library);
+    for(const c of picked)s.library.push(c);
+    s.bottom=picked;
+    s.pendingBottom=0;
+    arr(s.history).push(`${picked.length}枚をライブラリー下へ置き、手札${kept.length}枚で次の判断へ`);
+    return{ok:true,state:s,picked,kept};
+  }
+  function useSerumPowder(raw,isSerum){
+    const s=clone(raw||{});
+    if(num(s.pendingBottom)>0)return{ok:false,reason:"bottomPending",state:s};
+    const test=typeof isSerum==="function"?isSerum:c=>String(c&&c.name||"").trim().toLowerCase()==="serum powder"||String(c&&c.name||"").trim()==="血清の粉末";
+    if(!arr(s.hand).some(test))return{ok:false,reason:"serumPowderMissing",state:s};
+    const n=arr(s.hand).length;
+    if(arr(s.library).length<n)return{ok:false,reason:"libraryTooSmall",state:s};
+    const ex=arr(s.hand);
+    s.exiled=arr(s.exiled).concat(ex);
+    s.hand=arr(s.library).splice(0,n);
+    s.serumPowderCount=Math.max(0,Math.trunc(num(s.serumPowderCount)))+1;
+    arr(s.history).push(`血清の粉末${s.serumPowderCount}回目: 手札${n}枚を追放し${n}枚引いた`);
+    return{ok:true,state:s,exiled:ex,drawn:s.hand};
+  }
+  function decisionModel(raw,isSerum){
+    const s=raw||{},pending=Math.max(0,Math.trunc(num(s.pendingBottom))),handCount=arr(s.hand).length,mulls=Math.max(0,Math.trunc(num(s.mulliganCount)));
+    const test=typeof isSerum==="function"?isSerum:c=>String(c&&c.name||"").trim().toLowerCase()==="serum powder"||String(c&&c.name||"").trim()==="血清の粉末";
+    const hasSerum=arr(s.hand).some(test),canSerum=pending===0&&hasSerum&&arr(s.library).length>=handCount;
+    return{stage:pending>0?"bottom":"decision",handCount,mulliganCount:mulls,pendingBottom:pending,nextMulliganCount:mulls+1,hasSerum,canSerum,serumDrawCount:canSerum?handCount:0,keepLabel:`この${handCount}枚をキープ`,mulliganLabel:`通常マリガン（${mulls+1}回目）`,serumLabel:"《血清の粉末》を使用"};
+  }
+  function totalsOk(s){return arr(s&&s.library).length+arr(s&&s.hand).length+arr(s&&s.exiled).length===Math.max(0,Math.trunc(num(s&&s.total)));}
+  function diagnose(){
+    const cards=Array.from({length:60},(_,i)=>({id:String(i),name:i===0?"Serum Powder":`C${i}`}));
+    const initial=makeState(cards,()=>0.25),m1=normalMulligan(initial,()=>0.75),b1=confirmBottom(m1.state,[0]);
+    const withPowder={...b1.state,hand:[{id:"sp",name:"Serum Powder"},...b1.state.hand.slice(1)]};
+    const powder=useSerumPowder(withPowder);
+    const tests=[
+      {name:"first mulligan draws seven",ok:m1.ok&&m1.state.hand.length===7},
+      {name:"first mulligan immediately requires one bottom",ok:m1.state.pendingBottom===1},
+      {name:"bottom leaves six",ok:b1.ok&&b1.state.hand.length===6&&b1.state.pendingBottom===0},
+      {name:"powder after first mulligan exiles six",ok:powder.ok&&powder.exiled.length===6&&powder.state.hand.length===6},
+      {name:"powder does not add mulligan",ok:powder.state.mulliganCount===1},
+      {name:"decision stage is explicit",ok:decisionModel(b1.state).stage==="decision"},
+      {name:"totals remain valid",ok:totalsOk(powder.state)}
+    ];
+    return{version:VERSION,protocol:PROTOCOL,ok:tests.every(x=>x.ok),tests};
+  }
+  return{VERSION,PROTOCOL,makeState,normalMulligan,confirmBottom,useSerumPowder,decisionModel,totalsOk,diagnose};
+});
+
+(function(){
+  "use strict";
+  if(typeof window==="undefined"||typeof document==="undefined"||!globalThis.CPT_V7941_OPENING)return;
+  try{
+    document.body.dataset.v7941="serum-mulligan-decision-ui";
+    document.title="カードゲーム練習卓 v7.9.41 血清の粉末・初手判断UI";
+  }catch(_){ }
+  globalThis.CPT_V7941_CLIENT={
+    version:globalThis.CPT_V7941_OPENING.VERSION,
+    protocol:globalThis.CPT_V7941_OPENING.PROTOCOL,
+    diagnose:globalThis.CPT_V7941_OPENING.diagnose
+  };
+})();
+
+</script>
+<script>
+/* ============================================================
+   v7.9.42 Settings Readability
+   - reorganizes the accumulated settings into readable categories
+   - adds search, category filters, important-status shortcuts
+   - preserves all original controls and event handlers
+   ============================================================ */
+(function(root,factory){
+  const api=factory();
+  if(typeof module==="object"&&module.exports)module.exports=api;
+  if(root)root.CPT_V7942_SETTINGS=api;
+})(typeof globalThis!=="undefined"?globalThis:this,function(){
+"use strict";
+const VERSION="7.9.42";
+const PROTOCOL="cpt-v7.9.42-settings-readability";
+const CATEGORIES=[
+  {id:"basic",label:"基本",hint:"プレイモードと日常操作"},
+  {id:"rules",label:"ゲーム進行・ルール",hint:"ターン、戦闘、土地、優先権"},
+  {id:"automation",label:"自動化・補助",hint:"自動処理と各種ウィザード"},
+  {id:"display",label:"表示・操作",hint:"盤面、画像、ログ、カード表示"},
+  {id:"storage",label:"保存・バックアップ",hint:"自動保存、共有、IndexedDB"},
+  {id:"advanced",label:"詳細・高度",hint:"追加エンジンと監査設定"}
+];
+const normalize=v=>String(v==null?"":v).replace(/\s+/g," ").trim().toLowerCase();
+function categoryForText(text,meta={}){
+  const t=normalize(text),id=normalize(meta.id),tag=normalize(meta.tag);
+  const x=`${id} ${t}`;
+  if(/indexeddb|localstorage|保存|バックアップ|共有|復元|永続化/.test(x))return"storage";
+  if(/戦闘表示|盤面|カード色|画像|レイアウト|回転|コンパクト|ログ|ショートカット|表示視点|公開設定/.test(x))return"display";
+  if(/土地|ソーサリー|タイミング|ターン|フェイズ|優先権|スタック|戦闘|アンタップ|ドロー|マリガン|誘発|置換|軽減|コスト|対象|ルール|ダメージ|ライフ|カウンター/.test(x))return"rules";
+  if(/自動|ウィザード|チェックリスト|エンジン|監査|補助|サーチ|コピー|トークン|手札操作|非公開領域|特殊キャスト|ゾーン使用権|ライブラリー|登録効果/.test(x))return"automation";
+  if(/プレイモード|1人テスト|基本/.test(x))return"basic";
+  if(tag==="details"||/^v\d/.test(t)||/完成版|拡張|高度/.test(x))return"advanced";
+  return meta.current||"basic";
+}
+function matchesQuery(text,query){const q=normalize(query);return !q||normalize(text).includes(q);}
+function groupPlan(items){
+  let current="basic";
+  return (Array.isArray(items)?items:[]).map((item,i)=>{
+    const text=String(item&&item.text||""),meta=item&&item.meta||{};
+    const blank=!normalize(text);
+    const category=blank?current:categoryForText(text,{...meta,current});
+    if(!blank)current=category;
+    return{index:i,category,text};
+  });
+}
+function diagnose(){
+  const tests=[
+    {name:"storage category",ok:categoryForText("v7.9.40 IndexedDB保存")==="storage"},
+    {name:"land category",ok:categoryForText("土地プレイのタイミング")==="rules"},
+    {name:"display category",ok:categoryForText("戦闘表示 / 盤面")==="display"},
+    {name:"automation category",ok:categoryForText("解決チェックリストを有効化")==="automation"},
+    {name:"basic category",ok:categoryForText("プレイモード")==="basic"},
+    {name:"query normalization",ok:matchesQuery("  土地 プレイ  ","土地 プレイ")},
+    {name:"blank inherits",ok:groupPlan([{text:"土地"},{text:""}])[1].category==="rules"}
+  ];
+  return{version:VERSION,protocol:PROTOCOL,ok:tests.every(x=>x.ok),tests};
+}
+return{VERSION,PROTOCOL,CATEGORIES,normalize,categoryForText,matchesQuery,groupPlan,diagnose};
+});
+
+(function(){
+"use strict";
+if(typeof window==="undefined"||typeof document==="undefined"||!globalThis.CPT_V7942_SETTINGS)return;
+const API=globalThis.CPT_V7942_SETTINGS;
+const categoryMap=Object.fromEntries(API.CATEGORIES.map(x=>[x.id,x]));
+function esc42(v){
+  if(typeof esc==="function")return esc(String(v==null?"":v));
+  return String(v==null?"":v).replace(/[&<>\"]/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[m]));
+}
+function directChildren(body){return Array.from(body.children).filter(x=>x.id!=="v7942SettingsShell");}
+function currentChecked(selector){const x=document.querySelector(selector);return x&&"checked" in x?!!x.checked:null;}
+function statusText(selector){const v=currentChecked(selector);return v==null?"確認":""+(v?"ON":"OFF");}
+function statusClass(selector){const v=currentChecked(selector);return v==null?"neutral":v?"on":"off";}
+function openAndFocus(shell,selector){
+  const target=document.querySelector(selector);
+  if(!target)return;
+  const group=target.closest(".v7942-group");
+  if(group){group.hidden=false;group.open=true;}
+  const item=target.closest(".v7942-item")||target;
+  try{item.scrollIntoView({behavior:"smooth",block:"center"});}catch(_){item.scrollIntoView();}
+  setTimeout(()=>{try{target.focus({preventScroll:true});}catch(_){}},180);
+}
+function importantCards(){
+  return[
+    {label:"自動保存",selector:'[data-toggle="autosave"]',category:"storage",desc:"変更内容を自動で保存"},
+    {label:"土地プレイ制限",selector:'[data-v7938setting="v7938LandTimingGuard"]',category:"rules",desc:"メイン・優先権・空スタック"},
+    {label:"手札からの土地経路",selector:'[data-v7939setting="v7939ManualLandPathGuard"]',category:"rules",desc:"手動移動の抜け道を防止"},
+    {label:"ソーサリータイミング",selector:'[data-v7936setting="v7936SorceryTimingGuard"]',category:"rules",desc:"呪文・能力の使用時機"},
+    {label:"血清の粉末",selector:'[data-v7937setting="v7937SerumAutoMode"]',category:"rules",desc:"初手練習で自動案内"},
+    {label:"IndexedDB",selector:'#v7940VerifySetting',category:"storage",desc:"大容量の端末内保存",action:true}
+  ];
+}
+function renderImportant(shell){
+  const host=shell.querySelector(".v7942-important-grid");
+  if(!host)return;
+  host.innerHTML=importantCards().map((x,i)=>{
+    const cls=x.action?"neutral":statusClass(x.selector),st=x.action?"開く":statusText(x.selector);
+    return`<button type="button" class="v7942-status-card ${cls}" data-v7942-focus="${i}"><span class="v7942-status-head"><b>${esc42(x.label)}</b><span class="v7942-status">${esc42(st)}</span></span><small>${esc42(x.desc)}</small></button>`;
+  }).join("");
+}
+function classifyElement(el,current){
+  const text=String(el.textContent||"");
+  const tag=String(el.tagName||"").toLowerCase();
+  if(!API.normalize(text))return current;
+  return API.categoryForText(text,{id:el.id||"",tag,current});
+}
+function enhanceSettings(){
+  const body=document.querySelector("#modalRoot .mbody");
+  const modal=body&&body.closest(".modal");
+  if(!body||!modal||body.querySelector("#v7942SettingsShell"))return false;
+  const title=modal.querySelector(".mhead h2");
+  if(!title||!/設定/.test(title.textContent||""))return false;
+  title.textContent="設定";
+  modal.classList.add("v7942-settings-modal");
+  const nodes=directChildren(body);
+  const shell=document.createElement("div");
+  shell.id="v7942SettingsShell";
+  shell.innerHTML=`
+    <section class="v7942-overview" aria-label="重要設定">
+      <div class="v7942-overview-title"><div><b>重要設定</b><small>よく確認する項目を上にまとめました</small></div><span class="v7942-version">v${API.VERSION}</span></div>
+      <div class="v7942-important-grid"></div>
+    </section>
+    <div class="v7942-toolbar">
+      <label class="v7942-search-label"><span>設定を検索</span><div class="v7942-search-row"><input id="v7942Search" type="search" placeholder="例: 土地、保存、戦闘"><button type="button" class="btn sm" id="v7942Clear">クリア</button></div></label>
+      <div class="v7942-filter-row" role="group" aria-label="設定カテゴリ"><button type="button" class="btn sm primary" data-v7942-cat="all">すべて</button>${API.CATEGORIES.map(x=>`<button type="button" class="btn sm" data-v7942-cat="${x.id}">${esc42(x.label)}</button>`).join("")}</div>
+      <div class="v7942-toolbar-actions"><span id="v7942Result" class="note"></span><button type="button" class="btn sm" id="v7942OpenAll">すべて開く</button><button type="button" class="btn sm" id="v7942CloseAll">すべて閉じる</button></div>
+    </div>
+    <div class="v7942-groups"></div>`;
+  body.appendChild(shell);
+  const groupsHost=shell.querySelector(".v7942-groups");
+  const groupEls={};
+  API.CATEGORIES.forEach((cat,i)=>{
+    const d=document.createElement("details");
+    d.className="v7942-group";
+    d.dataset.category=cat.id;
+    d.open=i<2;
+    d.innerHTML=`<summary><span><b>${esc42(cat.label)}</b><small>${esc42(cat.hint)}</small></span><span class="v7942-count">0項目</span></summary><div class="v7942-group-body"></div>`;
+    groupsHost.appendChild(d);groupEls[cat.id]=d;
+  });
+  let current="basic";
+  for(const el of nodes){
+    const category=classifyElement(el,current);current=category;
+    el.classList.add("v7942-item");
+    el.dataset.v7942Category=category;
+    groupEls[category].querySelector(".v7942-group-body").appendChild(el);
+  }
+  Object.values(groupEls).forEach(g=>{
+    const n=g.querySelectorAll(":scope > .v7942-group-body > .v7942-item").length;
+    g.querySelector(".v7942-count").textContent=`${n}項目`;
+    if(!n)g.hidden=true;
+  });
+  renderImportant(shell);
+  let activeCategory="all";
+  const search=shell.querySelector("#v7942Search"),result=shell.querySelector("#v7942Result");
+  function applyFilter(){
+    const q=search.value||"";let visibleItems=0,visibleGroups=0;
+    Object.values(groupEls).forEach(g=>{
+      const category=g.dataset.category,catOk=activeCategory==="all"||activeCategory===category;let n=0;
+      g.querySelectorAll(":scope > .v7942-group-body > .v7942-item").forEach(item=>{
+        const ok=catOk&&API.matchesQuery(item.textContent,q);item.hidden=!ok;if(ok)n++;
+      });
+      g.hidden=n===0;g.querySelector(".v7942-count").textContent=`${n}項目`;
+      if(n){visibleGroups++;visibleItems+=n;if(q)g.open=true;}
+    });
+    result.textContent=q?`${visibleItems}項目が一致`:`${visibleGroups}カテゴリ / ${visibleItems}項目`;
+  }
+  search.addEventListener("input",applyFilter);
+  shell.querySelector("#v7942Clear").addEventListener("click",()=>{search.value="";search.focus();applyFilter();});
+  shell.querySelectorAll("[data-v7942-cat]").forEach(b=>b.addEventListener("click",()=>{
+    activeCategory=b.dataset.v7942Cat;
+    shell.querySelectorAll("[data-v7942-cat]").forEach(x=>x.classList.toggle("primary",x===b));
+    applyFilter();
+  }));
+  shell.querySelector("#v7942OpenAll").addEventListener("click",()=>Object.values(groupEls).forEach(g=>{if(!g.hidden)g.open=true;}));
+  shell.querySelector("#v7942CloseAll").addEventListener("click",()=>Object.values(groupEls).forEach(g=>g.open=false));
+  shell.addEventListener("click",e=>{
+    const b=e.target.closest("[data-v7942-focus]");if(!b)return;
+    const spec=importantCards()[Number(b.dataset.v7942Focus)];if(!spec)return;
+    const catBtn=shell.querySelector(`[data-v7942-cat="${spec.category}"]`);if(catBtn)catBtn.click();
+    openAndFocus(shell,spec.selector);
+  });
+  body.addEventListener("change",()=>setTimeout(()=>renderImportant(shell),0));
+  applyFilter();
+  return true;
+}
+const oldOpenSettings=typeof openSettings==="function"?openSettings:null;
+if(oldOpenSettings){
+  openSettings=function(){
+    const r=oldOpenSettings.apply(this,arguments);
+    setTimeout(()=>{try{enhanceSettings();}catch(e){console.error("v7.9.42 settings enhancement failed",e);}},30);
+    return r;
+  };
+}
+const css=document.createElement("style");
+css.textContent=`
+.v7942-settings-modal{max-width:1120px;height:min(920px,94dvh);display:flex;flex-direction:column;overflow:hidden}
+.v7942-settings-modal .mhead,.v7942-settings-modal .mfoot{flex:0 0 auto}
+.v7942-settings-modal .mbody{flex:1 1 auto;min-height:0;max-height:none;padding:12px;gap:0;background:var(--bg)}
+#v7942SettingsShell{display:flex;flex-direction:column;gap:12px}
+.v7942-overview{border:1px solid var(--line2);border-radius:12px;background:var(--panel);padding:12px}
+.v7942-overview-title{display:flex;justify-content:space-between;align-items:flex-start;gap:10px;margin-bottom:9px}.v7942-overview-title>div{display:grid;gap:2px}.v7942-overview-title small,.v7942-group summary small,.v7942-status-card small{color:var(--muted);font-size:11px}.v7942-version{font-size:11px;color:var(--accent);border:1px solid var(--line);border-radius:999px;padding:3px 8px;white-space:nowrap}
+.v7942-important-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:7px}.v7942-status-card{appearance:none;text-align:left;border:1px solid var(--line);border-radius:9px;background:var(--bg2);color:var(--text);padding:9px 10px;display:grid;gap:4px;cursor:pointer;min-height:58px}.v7942-status-card:hover{border-color:var(--accent)}.v7942-status-head{display:flex;justify-content:space-between;gap:8px;align-items:center}.v7942-status{font-size:10px;border-radius:999px;padding:2px 7px;background:rgba(128,128,128,.16)}.v7942-status-card.on .v7942-status{color:#8ee29a;background:rgba(80,180,100,.15)}.v7942-status-card.off .v7942-status{color:#ffb0a8;background:rgba(210,80,70,.14)}
+.v7942-toolbar{position:sticky;top:-12px;z-index:5;display:grid;gap:8px;padding:10px 0 9px;background:linear-gradient(var(--bg) 85%,transparent)}.v7942-search-label{display:grid;gap:5px;font-weight:700}.v7942-search-row{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:6px}.v7942-search-row input{width:100%;min-width:0;padding:9px 11px;border:1px solid var(--line2);border-radius:9px;background:var(--panel);color:var(--text);font-size:14px}.v7942-filter-row,.v7942-toolbar-actions{display:flex;gap:6px;flex-wrap:wrap;align-items:center}.v7942-toolbar-actions{justify-content:flex-end}.v7942-toolbar-actions .note{margin-right:auto}
+.v7942-groups{display:grid;gap:9px;padding-bottom:8px}.v7942-group{border:1px solid var(--line2);border-radius:11px;background:var(--panel);overflow:hidden}.v7942-group>summary{cursor:pointer;list-style:none;display:flex;justify-content:space-between;align-items:center;gap:10px;padding:11px 12px;background:var(--bg2)}.v7942-group>summary::-webkit-details-marker{display:none}.v7942-group>summary>span:first-child{display:grid;gap:2px}.v7942-group[open]>summary{border-bottom:1px solid var(--line)}.v7942-count{font-size:11px;color:var(--muted);white-space:nowrap}.v7942-group-body{display:grid;gap:7px;padding:10px}.v7942-item{margin:0!important}.v7942-group-body>label,.v7942-group-body>.field{border:1px solid var(--line);border-radius:8px;background:var(--bg2);padding:8px 9px}.v7942-group-body>.note{padding:7px 9px;border-radius:7px;background:rgba(128,128,128,.06)}.v7942-group-body>details,.v7942-group-body>.spanel,.v7942-group-body>section{border:1px solid var(--line);border-radius:9px;padding:9px;background:var(--bg2)}.v7942-group-body h3{font-size:14px;margin:0 0 7px}.v7942-item[hidden],.v7942-group[hidden]{display:none!important}
+@media(max-width:760px){.v7942-settings-modal{width:100vw;height:100dvh;max-height:none;border-radius:0}.v7942-settings-modal .mbody{padding:8px}.v7942-important-grid{grid-template-columns:1fr 1fr}.v7942-filter-row{flex-wrap:nowrap;overflow-x:auto;padding-bottom:3px}.v7942-filter-row .btn{flex:0 0 auto}.v7942-toolbar-actions{justify-content:flex-start}.v7942-toolbar-actions .note{width:100%;margin:0}.v7942-status-card{min-height:64px}}
+@media(max-width:430px){.v7942-important-grid{grid-template-columns:1fr}.v7942-search-row{grid-template-columns:1fr}.v7942-search-row .btn{width:100%}}
+`;
+document.head.appendChild(css);
+try{document.body.dataset.v7942="settings-readability";document.title="カードゲーム練習卓 v7.9.42 見やすい設定画面";}catch(_){ }
+globalThis.CPT_V7942_CLIENT={version:API.VERSION,protocol:API.PROTOCOL,enhanceSettings,diagnose:API.diagnose};
+})();
 
 </script>
 </body>
