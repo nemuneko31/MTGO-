@@ -17,6 +17,7 @@
    - v7.9.40: カード辞書・デッキ・自動バックアップをIndexedDBへ安全移行し、localStorageを軽量化
    - v7.9.42: 設定画面をカテゴリ分けし、検索・重要設定・開閉操作を追加
    - v7.9.43: 土地・ソーサリー設定を常時表示し、遅延追加された設定項目を自動回収
+   - v7.9.44: 手札→土地エリアの最終移動地点でタイミングと回数を強制
    - v6.0～v6.4: オブジェクト世代/両面/合体、装着/支配、位相/LKI、同時領域移動/置換連鎖
    - v6.5～v6.9: 同時誘発チェーン/介在if、誘発ループ監視、任意/選択/分岐ループ、応答予約
    - v7.0～v7.4: 行動履歴、合意巻き戻し、秘密state復元、差分修復、リプレイ、レポート、チャプター/ハイライト
@@ -48,7 +49,8 @@ const HOST = process.env.HOST || "0.0.0.0"; // クラウドで外部公開する
 const ROOT = __dirname;
 
 const SERVER_VERSION = "7.9.20-integrated-play";
-const APP_RELEASE = "7.9.43-land-settings-visibility-fix";
+const APP_RELEASE = "7.9.47-client-bundle";
+const PREVIOUS_APP_RELEASE = "7.9.46-land-route-lock";
 const V49_PROTOCOL = "cpt-v4.9";
 const EFFECT_PROTOCOL = V7912_ENGINE.PROTOCOL;
 const AUTHORITY = Object.freeze({
@@ -89,6 +91,12 @@ const AUTHORITY = Object.freeze({
   automaticBackupRetentionV7940: true,
   visibleLandRuleSettingsV7943: true,
   lateSettingsObserverV7943: true,
+  authoritativeLandCommitGuardV7944: true,
+  finalHandToLandBoundaryV7944: true,
+  absoluteGenericLandRouteLockV7946: true,
+  explicitLandEffectPlacementOnlyV7946: true,
+  visibleLandGuardRuntimeBadgeV7946: true,
+  consolidatedClientBundleV7947: true,
   stage2V50V54Integrated: true,
   stage3V55V59Integrated: true,
   stage4V60V64Integrated: true,
@@ -322,7 +330,7 @@ const httpServer = http.createServer((req, res) => {
     if (!MIME[ext]) { res.writeHead(404); res.end("Not Found"); return; }
     fs.readFile(filePath, (err, data) => {
       if (err) { res.writeHead(404); res.end("Not Found"); return; }
-      res.writeHead(200, { "Content-Type": MIME[ext] });
+      res.writeHead(200, { "Content-Type": MIME[ext], "Cache-Control": "no-store, max-age=0", "Pragma": "no-cache", "X-App-Release": APP_RELEASE });
       res.end(data);
     });
   } catch (e) {
