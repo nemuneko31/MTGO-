@@ -1,12 +1,12 @@
 {
-  "name": "mtgo-style-v7-9-47-client-bundle",
-  "version": "7.9.47",
+  "name": "mtgo-style-v7-9-49-single-html-client",
+  "version": "7.9.49",
   "private": true,
-  "description": "v7.9.46 behavior with v7.9.30-v7.9.46 client extensions consolidated into one ordered bundle.",
+  "description": "Browser extensions are embedded in card-practice-table.html; only server-required modules remain separate.",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
-    "check": "node --check server.js && node --check mini-ws.js && node --check v7912-server-engine.js && node --check v50-v54-server-engine.js && node --check v55-v59-server-engine.js && node --check v60-v64-server-engine.js && node --check v65-v69-server-engine.js && node --check v70-v74-server-engine.js && node --check v75-v79-server-engine.js && node --check v7932-target-constraints.js && node --check v7936-reveal-context-sorcery-timing.js && node --check v7937-linked-delayed-serum.js && node --check v7947-client-bundle.js"
+    "check": "node --check server.js && node --check mini-ws.js && node --check v7912-server-engine.js && node --check v50-v54-server-engine.js && node --check v55-v59-server-engine.js && node --check v60-v64-server-engine.js && node --check v65-v69-server-engine.js && node --check v70-v74-server-engine.js && node --check v75-v79-server-engine.js && node --check v7932-target-constraints.js && node --check v7936-reveal-context-sorcery-timing.js && node --check v7937-linked-delayed-serum.js"
   },
   "dependencies": {
     "pg": "^8.0.0",
