@@ -1,8 +1,8 @@
 {
-  "name": "mtgo-style-v7-9-51-etb-trigger-commit-fix",
-  "version": "7.9.51",
+  "name": "mtgo-style-v7-9-65-guided-delayed-phase-triggers",
+  "version": "7.9.65",
   "private": true,
-  "description": "Single-HTML client with immediate ETB trigger commit, current Oracle wording support, fetch double-click, and guided simple-trigger resolution.",
+  "description": "Render single-HTML release with one-shot delayed triggers for the next upkeep or end step, player-specific timing, forced due-phase stops, and linked-object identity checks.",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",

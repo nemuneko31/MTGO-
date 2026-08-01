@@ -18,6 +18,18 @@
    - v7.9.42: 設定画面をカテゴリ分けし、検索・重要設定・開閉操作を追加
    - v7.9.43: 土地・ソーサリー設定を常時表示し、遅延追加された設定項目を自動回収
    - v7.9.44: 手札→土地エリアの最終移動地点でタイミングと回数を強制
+   - v7.9.53: 固定ダメージ・カウンター・タップ・P/T・トークン・明確なゾーン移動・捨てる誘発を簡潔解決へ拡張
+   - v7.9.54: 任意効果・モード選択・単純な未指定対象を1画面で選び、効果適用からスタック除去まで一括完了
+   - v7.9.55: 占術・諜報2以上と、上からN枚を見る／公開して条件一致1枚を手札へ加える処理を1画面で完了
+   - v7.9.56: 探検・謀議・増殖を専用の1画面解決フローへ統合
+   - v7.9.57: 明確なライブラリー検索本文を解決時に候補選択・移動・シャッフルまで一連化
+   - v7.9.58: 解決時の固定ライフ／固定マナの任意支払いを、支払う・支払わない分岐から効果適用まで一連化
+   - v7.9.59: 公開情報の「各～につき」と各オブジェクトへの単純一括誘発を解決時再計算で一連化
+   - v7.9.60: 一時追放と終了ステップ／発生源離脱時の関連帰還をオブジェクト単位で追跡
+   - v7.9.61: 呪文・能力のコピー作成と安全な対象変更を1画面へ統合
+   - v7.9.62: 続唱・発見の追放、条件一致、唱える／手札分岐、無作為下戻しを専用解決へ統合
+   - v7.9.63: 自分の墓地・追放領域から条件一致カードを選び、手札・戦場・山札へ戻す処理を1画面へ統合
+   - v7.9.64: 墓地・追放領域のカードへ期限付きの唱える／プレイ権を与え、既存v4.5使用権エンジンと安全に連携
    - v6.0～v6.4: オブジェクト世代/両面/合体、装着/支配、位相/LKI、同時領域移動/置換連鎖
    - v6.5～v6.9: 同時誘発チェーン/介在if、誘発ループ監視、任意/選択/分岐ループ、応答予約
    - v7.0～v7.4: 行動履歴、合意巻き戻し、秘密state復元、差分修復、リプレイ、レポート、チャプター/ハイライト
@@ -49,8 +61,8 @@ const HOST = process.env.HOST || "0.0.0.0"; // クラウドで外部公開する
 const ROOT = __dirname;
 
 const SERVER_VERSION = "7.9.20-integrated-play";
-const APP_RELEASE = "7.9.51-etb-trigger-commit-fix";
-const PREVIOUS_APP_RELEASE = "7.9.49-single-html-client";
+const APP_RELEASE = "7.9.65-guided-delayed-phase-triggers";
+const PREVIOUS_APP_RELEASE = "7.9.64-guided-zone-play-permission";
 const V49_PROTOCOL = "cpt-v4.9";
 const EFFECT_PROTOCOL = V7912_ENGINE.PROTOCOL;
 const AUTHORITY = Object.freeze({
@@ -102,6 +114,84 @@ const AUTHORITY = Object.freeze({
   immediateEtbTriggerCommitV7951: true,
   currentOracleEntersWordingV7951: true,
   pendingSimpleEtbMergeV7951: true,
+  guidedChecklistSuppressionV7952: true,
+  deterministicSimpleTriggerResolutionV7952: true,
+  fixedDrawLifeInferenceV7952: true,
+  expandedSimpleTriggerTemplatesV7953: true,
+  targetedSimpleEffectSafetyV7953: true,
+  ambiguousTriggerManualFallbackV7953: true,
+  guidedOptionalTriggerChoiceV7954: true,
+  guidedSimpleTargetSelectionV7954: true,
+  existingModalChoiceOneScreenV7954: true,
+  ambiguousChoiceManualFallbackV7954: true,
+  groupedMultiScrySurveilV7955: true,
+  guidedTopNLookRevealV7955: true,
+  conditionalSinglePickFromTopV7955: true,
+  orderedRemainderCommitV7955: true,
+  ambiguousLibraryTemplateManualFallbackV7955: true,
+  guidedExploreResolutionV7956: true,
+  guidedConniveResolutionV7956: true,
+  guidedProliferateResolutionV7956: true,
+  guidedTextLibrarySearchV7957: true,
+  lockedSearchDestinationV7957: true,
+  automaticSearchShuffleV7957: true,
+  ambiguousSearchManualFallbackV7957: true,
+  guidedOptionalPaymentV7958: true,
+  fixedLifePaymentGateV7958: true,
+  fixedManaPaymentGateV7958: true,
+  declinedPaymentBranchV7958: true,
+  ambiguousPaymentManualFallbackV7958: true,
+  countedPublicInformationV7959: true,
+  perMatchingObjectBatchV7959: true,
+  resolutionTimeCountRecheckV7959: true,
+  zeroCountCleanResolutionV7959: true,
+  ambiguousCountManualFallbackV7959: true,
+  guidedTemporaryExileV7960: true,
+  linkedEndStepReturnV7960: true,
+  sourceLeavesImmediateReturnV7960: true,
+  exileObjectIdentityGuardV7960: true,
+  leftExileSkipV7960: true,
+  ambiguousTemporaryExileManualFallbackV7960: true,
+  guidedStackCopyV7961: true,
+  copyInheritedChoicesV7961: true,
+  guidedCopyRetargetV7961: true,
+  permanentSpellCopyTokenV7961: true,
+  copiedObjectCeaseOutsideStackV7961: true,
+  ambiguousCopyManualFallbackV7961: true,
+  guidedCascadeResolutionV7962: true,
+  guidedDiscoverResolutionV7962: true,
+  textCascadeTriggerCreationV7962: true,
+  revealedExilePreviewV7962: true,
+  freeCastDeferredUntilSourceResolvedV7962: true,
+  randomBottomCleanupV7962: true,
+  ambiguousCascadeDiscoverManualFallbackV7962: true,
+  guidedGraveyardRetrievalV7963: true,
+  guidedOwnedExileRetrievalV7963: true,
+  filteredPublicZoneSelectionV7963: true,
+  resolutionTimeZoneRecheckV7963: true,
+  existingTargetRestrictionV7963: true,
+  ambiguousZoneRetrievalManualFallbackV7963: true,
+  guidedZonePlayPermissionV7964: true,
+  graveyardCastPermissionV7964: true,
+  ownedExilePlayPermissionV7964: true,
+  topLibraryExilePermissionV7964: true,
+  nextEndStepPermissionExpiryV7964: true,
+  whileExiledPermissionExpiryV7964: true,
+  exactOwnNextTurnPermissionExpiryV7964: true,
+  existingV45PermissionEngineReuseV7964: true,
+  ambiguousZonePermissionManualFallbackV7964: true,
+  guidedDelayedPhaseTriggersV7965: true,
+  nextAnyUpkeepTriggerV7965: true,
+  nextControllerUpkeepTriggerV7965: true,
+  nextAnyEndStepTriggerV7965: true,
+  nextControllerEndStepTriggerV7965: true,
+  linkedPlayerPhaseTimingV7965: true,
+  forcedDuePhaseStopV7965: true,
+  delayedLinkedObjectIdentityV7965: true,
+  existingSimpleTriggerResolutionReuseV7965: true,
+  ambiguousDelayedTriggerManualFallbackV7965: true,
+  specialMechanicChecklistSuppressionV7956: true,
+  ambiguousSpecialMechanicManualFallbackV7956: true,
   stage2V50V54Integrated: true,
   stage3V55V59Integrated: true,
   stage4V60V64Integrated: true,
