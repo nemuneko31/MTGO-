@@ -1,8 +1,8 @@
 {
-  "name": "mtgo-style-v7-9-50-fetch-etb-guided-resolution",
-  "version": "7.9.50",
+  "name": "mtgo-style-v7-9-51-etb-trigger-commit-fix",
+  "version": "7.9.51",
   "private": true,
-  "description": "Single-HTML client with fetch-land double-click, ETB tapped enforcement, and guided stack resolution for simple triggers.",
+  "description": "Single-HTML client with immediate ETB trigger commit, current Oracle wording support, fetch double-click, and guided simple-trigger resolution.",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",

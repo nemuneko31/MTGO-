@@ -27605,5 +27605,162 @@ installStatus50();setTimeout(installStatus50,300);setTimeout(installStatus50,130
 })();
 </script>
 
+<script>
+/* ============================================================
+   v7.9.51 ETB Trigger Commit Fix
+   - recognizes current Oracle wording such as "When this land enters"
+   - commits simple self-ETB triggers at the actual zone-move boundary
+   - does not wait for IndexedDB bootstrap or a later render scan
+   - upgrades/cleans a matching pending ETB trigger instead of leaving it hidden
+   - keeps the v7.9.50 guided resolution flow for surveil/scry/mill
+   ============================================================ */
+(function(root,factory){
+  const api=factory();
+  if(typeof module==="object"&&module.exports)module.exports=api;
+  if(root)root.CPT_V7951_CORE=api;
+})(typeof globalThis!=="undefined"?globalThis:this,function(){
+"use strict";
+const VERSION="7.9.51";
+const PROTOCOL="cpt-v7.9.51-etb-trigger-commit-fix";
+const FIELD_ZONES=new Set(["lands","creatures","others"]);
+const str=v=>String(v==null?"":v);
+function isField(z){return FIELD_ZONES.has(str(z));}
+function joinText(obj){
+  if(!obj||typeof obj!=="object")return"";
+  const out=[];
+  for(const k of ["name","displayName","memo","rulesText","oracleText","printedText","resolveNote","abilityName","sourceCardName","backMemo","splitLeftText","splitRightText"]){if(obj[k])out.push(str(obj[k]));}
+  for(const a of Array.isArray(obj.abilities)?obj.abilities:[])out.push(joinText(a));
+  for(const x of Array.isArray(obj.resolveChecklist)?obj.resolveChecklist:[])out.push(str(x&&x.label),str(x&&x.memo));
+  for(const f of Array.isArray(obj.faces)?obj.faces:[])out.push(joinText(f));
+  return out.filter(Boolean).join("\n");
+}
+function sentences(text){return str(text).split(/(?<=[。！？.!?])|\n+/).map(x=>x.trim()).filter(Boolean);}
+function selfEtbSegments(text,names=[]){
+  const ns=(Array.isArray(names)?names:[]).map(str).map(x=>x.trim()).filter(Boolean);
+  return sentences(text).filter(s=>{
+    if(/(?:他の|別の|another)\b/i.test(s))return false;
+    if(/戦場に出(?:た|る)(?:とき|たび)/.test(s)){
+      const before=s.split(/戦場に出(?:た|る)(?:とき|たび)/)[0]||"";
+      return /(?:これ|この(?:土地|パーマネント|カード|クリーチャー)|自身)/.test(before)||ns.some(n=>before.includes(n));
+    }
+    if(/\b(?:when|whenever)\b[^.!?\n]{0,180}\benters(?: the battlefield)?\b/i.test(s)){
+      const low=s.toLowerCase();
+      if(/\bthis\s+(?:land|permanent|card|creature|artifact|enchantment|planeswalker|battle)\s+enters\b/i.test(s))return true;
+      return ns.some(n=>n&&low.includes(n.toLowerCase()+" enters"));
+    }
+    return false;
+  });
+}
+function entersTappedText(text){
+  const s=str(text);
+  return /(?:^|[。\n])[^。\n]{0,120}(?:は|が)?\s*タップ状態で戦場に出る/i.test(s)
+    || /\b(?:this permanent|this land|this card|[A-Z][^.!?\n]{0,100}) enters(?: the battlefield)? tapped\b/i.test(s);
+}
+function dedupeActions(rows){
+  const seen=new Set(),out=[];
+  for(const a of Array.isArray(rows)?rows:[]){if(!a||!["scry","surveil","mill"].includes(a.kind))continue;const n=Math.max(1,Number(a.amount)||1),key=`${a.kind}:${n}:${a.targetMode||"controller"}`;if(seen.has(key))continue;seen.add(key);out.push({...a,amount:n,enabled:true,targetMode:a.targetMode||"controller"});}
+  return out;
+}
+function diagnose(){
+  const jp="迷路庭園はタップ状態で戦場に出る。迷路庭園が戦場に出たとき、諜報１を行う。";
+  const current="This land enters tapped. When this land enters, surveil 1.";
+  const named="Hedge Maze enters tapped. When Hedge Maze enters, surveil 1.";
+  const tests=[
+    {name:"current Oracle self ETB",ok:selfEtbSegments(current,["Hedge Maze"]).some(x=>/surveil 1/i.test(x))},
+    {name:"named English self ETB",ok:selfEtbSegments(named,["Hedge Maze"]).some(x=>/surveil 1/i.test(x))},
+    {name:"Japanese self ETB",ok:selfEtbSegments(jp,["迷路庭園"]).some(x=>/諜報１/.test(x))},
+    {name:"another permanent excluded",ok:selfEtbSegments("Whenever another creature enters, scry 1.",["Watcher"]).length===0},
+    {name:"current Oracle tapped",ok:entersTappedText(current)},
+    {name:"search result tapped is not self",ok:!entersTappedText("Search your library for a land card, put it onto the battlefield tapped, then shuffle.")}
+  ];
+  return{version:VERSION,protocol:PROTOCOL,ok:tests.every(x=>x.ok),tests};
+}
+return{VERSION,PROTOCOL,FIELD_ZONES,isField,joinText,sentences,selfEtbSegments,entersTappedText,dedupeActions,diagnose};
+});
+
+(function(){
+"use strict";
+if(typeof window==="undefined"||typeof document==="undefined"||!globalThis.CPT_V7951_CORE)return;
+if(typeof state!=="object"||typeof findCard!=="function"||typeof moveCard!=="function")return;
+const API=globalThis.CPT_V7951_CORE;
+let seq=0,scanBusy=false,scanArmed=false,snapshot=new Map();
+function field(z){return API.isField(z);}
+function entry(card){try{return typeof dictGet==="function"?(dictGet(card?.name)||card||{}):(card||{});}catch(_){return card||{};}}
+function fullText(card){return [API.joinText(entry(card)),API.joinText(card)].filter(Boolean).join("\n");}
+function names(card){const e=entry(card),out=[card?.name,e?.name,e?.displayName];for(const a of Array.isArray(e?.aliases)?e.aliases:[])out.push(a);return [...new Set(out.map(x=>String(x||"").trim()).filter(Boolean))];}
+function parser(){return globalThis.CPT_V7945_CORE?.parseSimpleLibraryActions;}
+function inferActions(card){
+  const e=entry(card),segments=API.selfEtbSegments(fullText(card),names(card));
+  let rows=[];
+  try{if(typeof parser()==="function")rows.push(...parser()(segments.join("\n")));}catch(_){}
+  try{
+    const abs=typeof getCardAbilities==="function"?getCardAbilities(card):[];
+    for(const ab of abs){if(ab?.kind!=="triggered"||ab?.timing!=="enterBattlefield")continue;const t=API.joinText(ab);if(typeof parser()==="function")rows.push(...parser()(t));}
+  }catch(_){}
+  return API.dedupeActions(rows);
+}
+function actionLabel(actions){try{return globalThis.CPT_V7950_CORE?.actionLabel?.(actions)||"";}catch(_){return"";}}
+function matchingStack(card){return (state.stack||[]).find(o=>o&&o.sourceCardId===card.id&&(o.timing==="enterBattlefield"||o._v7950Etb||o._v7951Etb));}
+function abilityText(card,abilityId){try{const ab=(typeof getCardAbilities==="function"?getCardAbilities(card):[]).find(a=>String(a?.id||"")===String(abilityId||""));return API.joinText(ab);}catch(_){return"";}}
+function pendingSimple(card){
+  try{
+    const r=typeof saRuntime==="function"?saRuntime():null;
+    if(!r||!Array.isArray(r.pendingTriggers))return[];
+    return r.pendingTriggers.filter(x=>x&&x.cardId===card.id&&x.eventType==="enterBattlefield"&&API.dedupeActions(typeof parser()==="function"?parser()(abilityText(card,x.abilityId)):[]).length);
+  }catch(_){return[];}
+}
+function removeMatchingPending(card){
+  try{const r=typeof saRuntime==="function"?saRuntime():null;if(!r||!Array.isArray(r.pendingTriggers))return 0;const keys=new Set(pendingSimple(card).map(x=>x.key));if(!keys.size)return 0;const before=r.pendingTriggers.length;r.pendingTriggers=r.pendingTriggers.filter(x=>!keys.has(x.key));return before-r.pendingTriggers.length;}catch(_){return 0;}
+}
+function checklist(card,actions){return actions.map((a,i)=>({id:`v7951:${card.id}:${++seq}:${i}`,label:`${actionLabel([a])||a.kind}を処理`,category:"library",required:true,memo:"解決ボタンから一連処理"}));}
+function makeSynthetic(card,actions){
+  const p=card.controller||card.owner||state.turn?.active||"A",label=actionLabel(actions)||"簡単ETB処理";
+  return{id:typeof uid==="function"?uid():`v7951-${Date.now()}-${++seq}`,kind:"ability",type:"Ability",abilityKind:"triggered",name:`${card.name} — 戦場に出たとき（${label}）`,sourceCardId:card.id,sourceCardName:card.name,sourceOwner:card.owner,sourceController:p,controller:p,owner:p,abilityId:`v7951:etb:${card.id}:${seq}`,abilityName:`戦場に出たとき（${label}）`,timing:"enterBattlefield",costText:"",manaCost:null,memo:"カード本文から確定した簡単ETB誘発",resolveNote:"選択完了後に自動で解決完了",targetRequired:false,targetKinds:[],targetIds:[],targetPlayerIds:[],targetZoneRefs:[],targetMemo:"",paymentStatus:"none",paymentCostText:"",consumedMana:{},paymentShortage:null,paymentNote:"",paymentAutoConsumed:false,zone:"stack",createdAt:typeof nowISO==="function"?nowISO():new Date().toISOString(),resolveChecklist:checklist(card,actions),resolveChecklistState:{},resolveChecklistNote:"",resolveChecklistCompletedAt:null,libraryActions:actions.map((a,i)=>({...a,id:a.id||`v7951lib:${card.id}:${i}`,enabled:true,targetMode:a.targetMode||"controller"})),autoEffects:[],castAutoEffects:[],_v7951Etb:true};
+}
+function attachActions(obj,card,actions){
+  if(!obj)return false;
+  if(!Array.isArray(obj.libraryActions)||!obj.libraryActions.length)obj.libraryActions=actions.map((a,i)=>({...a,id:a.id||`v7951lib:${card.id}:${i}`,enabled:true,targetMode:a.targetMode||"controller"}));
+  if(!Array.isArray(obj.resolveChecklist)||!obj.resolveChecklist.length)obj.resolveChecklist=checklist(card,actions);
+  if(!obj.resolveChecklistState||typeof obj.resolveChecklistState!=="object")obj.resolveChecklistState={};
+  obj._v7951Etb=true;return true;
+}
+function processEntry(card,oldZone,newZone,source){
+  if(!card||field(oldZone)||!field(newZone))return false;
+  let changed=false;
+  if(API.entersTappedText(fullText(card))&&!card.tapped){card.tapped=true;changed=true;try{addLog(`[${card.name}] はタップ状態で戦場に出ました`);}catch(_){}}
+  const actions=inferActions(card);
+  if(!actions.length)return changed;
+  let obj=matchingStack(card);
+  if(obj){changed=attachActions(obj,card,actions)||changed;return changed;}
+  const removed=removeMatchingPending(card);
+  obj=makeSynthetic(card,actions);state.stack.push(obj);state.turn.priority=state.turn.active;changed=true;
+  try{addLog(`[${card.name}] の戦場に出たときの誘発（${actionLabel(actions)}）をスタックへ置きました${removed?"（保留誘発を統合）":""}`);}catch(_){}
+  return changed;
+}
+function collect(){const m=new Map();for(const p of ["A","B"]){const pl=state.players?.[p];if(!pl)continue;for(const z of ["library","hand","creatures","lands","others","graveyard","exile","sideboard"]){for(const c of pl[z]||[])m.set(c.id,{zone:z,card:c});}}return m;}
+function rebase(){snapshot=collect();}
+function scan(){if(!scanArmed||scanBusy)return false;scanBusy=true;let changed=false;try{const cur=collect();for(const[id,row]of cur){const prev=snapshot.get(id);if(prev&&!field(prev.zone)&&field(row.zone))changed=processEntry(row.card,prev.zone,row.zone,"scan")||changed;}snapshot=cur;}finally{scanBusy=false;}return changed;}
+/* Actual commit boundary: process immediately after every zone move. */
+const moveBase=moveCard;
+moveCard=function(id,destPlayer,destZone,pos,skipUndo){const before=findCard(id),oldZone=before?.zone;const out=moveBase.apply(this,arguments);if(out&&!field(oldZone)&&field(destZone)){processEntry(out,oldZone,destZone,"moveCard");snapshot.set(out.id,{zone:destZone,card:out});}return out;};
+/* Fallback for legacy routes that still mutate zone arrays directly. */
+if(typeof render==="function"){
+  const renderBase=render;render=function(){const changed=scan();const r=renderBase.apply(this,arguments);if(changed)setTimeout(()=>{try{saveState(true);}catch(_){}},0);return r;};
+}
+rebase();
+const ready=globalThis.CPT_V7940_CLIENT?.ready;
+if(ready&&typeof ready.then==="function")Promise.resolve(ready).finally(()=>{rebase();scanArmed=true;});
+setTimeout(()=>{if(!scanArmed){rebase();scanArmed=true;}},1200);
+function installStatus(){
+  document.getElementById("v7950SingleHtmlStatus")?.remove();
+  let b=document.getElementById("v7951SingleHtmlStatus");if(!b){b=document.createElement("button");b.type="button";b.id="v7951SingleHtmlStatus";b.style.cssText="position:fixed;top:8px;right:8px;z-index:2147483647;border:1px solid #4e8b62;border-radius:999px;padding:5px 10px;background:#173322;color:#d9ffe4;font:600 12px system-ui,sans-serif;box-shadow:0 2px 8px rgba(0,0,0,.35);cursor:pointer";document.body.appendChild(b);}const checks={indexeddb:!!globalThis.CPT_V7940_CLIENT,land:!!globalThis.CPT_V7946_CLIENT,serum:!!globalThis.CPT_V7941_CLIENT,etbCommit:!!globalThis.CPT_V7951_CLIENT};const ok=Object.values(checks).every(Boolean);b.textContent=ok?"単一HTML v7.9.51 有効":"単一HTML v7.9.51 初期化不足";b.onclick=()=>{const lines=[`IndexedDB: ${checks.indexeddb?"有効":"未初期化"}`,`土地ルール: ${checks.land?"有効":"未初期化"}`,`血清の粉末: ${checks.serum?"有効":"未初期化"}`,`ETB誘発コミット: ${checks.etbCommit?"有効":"未初期化"}`];try{openModal("v7.9.51 稼働状態",`<div class="note">${lines.join("<br>")}</div>`,`<button class="btn" data-app="closem">閉じる</button>`);}catch(_){alert(lines.join("\n"));}};
+}
+globalThis.CPT_V7951_CLIENT={version:API.VERSION,protocol:API.PROTOCOL,inferActions,processEntry,scan,rebase,diagnose:API.diagnose};
+try{document.body.dataset.v7951="etb-trigger-commit-fix";document.title="カードゲーム練習卓 v7.9.51 ETB誘発コミット修正";}catch(_){}
+installStatus();setTimeout(installStatus,300);setTimeout(installStatus,1300);
+})();
+
+</script>
+
 </body>
 </html>

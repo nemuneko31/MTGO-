@@ -49,7 +49,7 @@ const HOST = process.env.HOST || "0.0.0.0"; // クラウドで外部公開する
 const ROOT = __dirname;
 
 const SERVER_VERSION = "7.9.20-integrated-play";
-const APP_RELEASE = "7.9.50-fetch-etb-guided-resolution";
+const APP_RELEASE = "7.9.51-etb-trigger-commit-fix";
 const PREVIOUS_APP_RELEASE = "7.9.49-single-html-client";
 const V49_PROTOCOL = "cpt-v4.9";
 const EFFECT_PROTOCOL = V7912_ENGINE.PROTOCOL;
@@ -99,6 +99,9 @@ const AUTHORITY = Object.freeze({
   fetchLandDoubleClickV7950: true,
   textBasedEtbTappedV7950: true,
   guidedSimpleTriggerResolutionV7950: true,
+  immediateEtbTriggerCommitV7951: true,
+  currentOracleEntersWordingV7951: true,
+  pendingSimpleEtbMergeV7951: true,
   stage2V50V54Integrated: true,
   stage3V55V59Integrated: true,
   stage4V60V64Integrated: true,
