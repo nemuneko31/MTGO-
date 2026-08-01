@@ -1,8 +1,8 @@
 {
-  "name": "mtgo-style-v7-9-49-single-html-client",
-  "version": "7.9.49",
+  "name": "mtgo-style-v7-9-50-fetch-etb-guided-resolution",
+  "version": "7.9.50",
   "private": true,
-  "description": "Browser extensions are embedded in card-practice-table.html; only server-required modules remain separate.",
+  "description": "Single-HTML client with fetch-land double-click, ETB tapped enforcement, and guided stack resolution for simple triggers.",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",

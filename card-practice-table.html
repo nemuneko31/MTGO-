@@ -27315,34 +27315,295 @@ try{document.body.dataset.v7946="land-route-lock";document.title="カードゲ�
 </script>
 
 <script>
-/* v7.9.49 Single-HTML client integrity status */
+/* ============================================================
+   v7.9.50 Fetch Double-Click + ETB/Stack Guided Resolution
+   - double-clicking a battlefield fetch land opens its registered
+     fetch search profile directly
+   - card text / ETB profile can force a permanent to enter tapped
+   - direct land-play routes that bypass normal move hooks are detected
+   - simple ETB scry/surveil/mill triggers are inferred from imported text
+   - resolving an ability starts its registered/inferred processing flow
+     instead of asking for a generic destination/confirmation first
+   ============================================================ */
+(function(root,factory){
+  const api=factory();
+  if(typeof module==="object"&&module.exports)module.exports=api;
+  if(root)root.CPT_V7950_CORE=api;
+})(typeof globalThis!=="undefined"?globalThis:this,function(){
+"use strict";
+const VERSION="7.9.50";
+const PROTOCOL="cpt-v7.9.50-fetch-etb-guided-resolution";
+const FIELD_ZONES=new Set(["lands","creatures","others"]);
+const str=v=>String(v==null?"":v);
+function isField(z){return FIELD_ZONES.has(str(z));}
+function joinText(obj){
+  if(!obj||typeof obj!=="object")return "";
+  const out=[];
+  for(const k of ["name","displayName","memo","rulesText","oracleText","printedText","resolveNote","abilityName","sourceCardName","backMemo","splitLeftText","splitRightText"]){if(obj[k])out.push(str(obj[k]));}
+  for(const a of Array.isArray(obj.abilities)?obj.abilities:[]){out.push(joinText(a));}
+  for(const x of Array.isArray(obj.resolveChecklist)?obj.resolveChecklist:[]){out.push(str(x&&x.label),str(x&&x.memo));}
+  for(const f of Array.isArray(obj.faces)?obj.faces:[]){out.push(joinText(f));}
+  return out.filter(Boolean).join("\n");
+}
+function entersTappedText(text){
+  const s=str(text);
+  return /(?:^|[。\n])[^。\n]{0,100}(?:は|が)?\s*タップ状態で戦場に出る/i.test(s)
+    || /\b(?:this permanent|this land|this card|[A-Z][^.!?\n]{0,80}) enters(?: the battlefield)? tapped\b/i.test(s);
+}
+function etbSegments(text){
+  return str(text).split(/(?<=[。！？.!?])|\n+/).map(x=>x.trim()).filter(x=>/戦場に出(?:た|る)(?:とき|たび)|enters the battlefield/i.test(x));
+}
+function fetchLike(profile){
+  if(!profile||profile.enabled===false)return false;
+  const types=Array.isArray(profile.typeFilters)?profile.typeFilters:[];
+  return profile.sacrificeSource===true&&profile.destination==="battlefield"&&(types.includes("Land")||profile.requireBasicLandType===true||Array.isArray(profile.landTypeFilters)&&profile.landTypeFilters.length>0);
+}
+function fetchNeedsTap(text){return /(?:\{?T\}?|Ｔ|タップ)\s*[,，、:：].{0,80}(?:生け贄|sacrifice)/i.test(str(text));}
+function actionLabel(actions){
+  const a=Array.isArray(actions)&&actions[0];if(!a)return "";
+  const n=Math.max(1,Number(a.amount)||1);
+  return a.kind==="surveil"?`諜報${n}`:a.kind==="scry"?`占術${n}`:a.kind==="mill"?`切削${n}`:"";
+}
+function diagnose(){
+  const jp="迷路庭園はタップ状態で戦場に出る。迷路庭園が戦場に出たとき、諜報1を行う。";
+  const en="Hedge Maze enters the battlefield tapped. When Hedge Maze enters the battlefield, surveil 1.";
+  const tests=[
+    {name:"jp enters tapped",ok:entersTappedText(jp)},
+    {name:"en enters tapped",ok:entersTappedText(en)},
+    {name:"search result is not self tapped",ok:!entersTappedText("Search your library for a land card, put it onto the battlefield tapped, then shuffle.")},
+    {name:"jp etb segment",ok:etbSegments(jp).some(x=>/諜報1/.test(x))},
+    {name:"en etb segment",ok:etbSegments(en).some(x=>/surveil 1/i.test(x))},
+    {name:"fetch profile",ok:fetchLike({enabled:true,sacrificeSource:true,destination:"battlefield",typeFilters:["Land"]})},
+    {name:"non-fetch profile",ok:!fetchLike({enabled:true,sacrificeSource:false,destination:"battlefield",typeFilters:["Land"]})},
+    {name:"tap sacrifice parsed",ok:fetchNeedsTap("{T}, Sacrifice this land: Search your library.")}
+  ];
+  return{version:VERSION,protocol:PROTOCOL,ok:tests.every(x=>x.ok),tests};
+}
+return{VERSION,PROTOCOL,FIELD_ZONES,isField,joinText,entersTappedText,etbSegments,fetchLike,fetchNeedsTap,actionLabel,diagnose};
+});
+
 (function(){
-  "use strict";
-  const VERSION="7.9.49";
-  function install(){
-    if(!document.body)return;
-    let b=document.getElementById("v7949SingleHtmlStatus");
-    if(!b){
-      b=document.createElement("button");
-      b.type="button";
-      b.id="v7949SingleHtmlStatus";
-      b.style.cssText="position:fixed;top:8px;right:8px;z-index:2147483647;border:1px solid #4e8b62;border-radius:999px;padding:5px 10px;background:#173322;color:#d9ffe4;font:600 12px system-ui,sans-serif;box-shadow:0 2px 8px rgba(0,0,0,.35);cursor:pointer";
-      document.body.appendChild(b);
+"use strict";
+if(typeof window==="undefined"||typeof document==="undefined"||!globalThis.CPT_V7950_CORE)return;
+if(typeof state!=="object"||typeof findCard!=="function")return;
+const API=globalThis.CPT_V7950_CORE;
+let scanning=false,armed=false,zoneSnapshot=new Map(),entrySeq=0;
+function esc50(v){try{return typeof esc==="function"?esc(String(v??"")):String(v??"");}catch(_){return String(v??"");}}
+function field50(z){return API.isField(z);}
+function entry50(card){try{return typeof dictGet==="function"?(dictGet(card?.name)||card||{}):(card||{});}catch(_){return card||{};}}
+function sourceAbility50(obj){
+  try{
+    if(!obj||!obj.sourceCardName)return null;
+    const e=dictGet(obj.sourceCardName)||{};
+    return (Array.isArray(e.abilities)?e.abilities:[]).find(a=>String(a?.id||"")===String(obj.abilityId||""))||null;
+  }catch(_){return null;}
+}
+function text50(cardOrObj){
+  const bits=[API.joinText(cardOrObj)];
+  try{if(cardOrObj?.name)bits.push(API.joinText(dictGet(cardOrObj.name)||{}));}catch(_){}
+  try{if(cardOrObj?.sourceCardName)bits.push(API.joinText(dictGet(cardOrObj.sourceCardName)||{}));}catch(_){}
+  const ab=sourceAbility50(cardOrObj);if(ab)bits.push(API.joinText(ab));
+  return bits.filter(Boolean).join("\n");
+}
+function explicitEtbTapped50(card){
+  const e=entry50(card);
+  try{if(typeof normalizeEtbProfile==="function"&&normalizeEtbProfile(e.etbProfile||{}).enterTapped)return true;}catch(_){}
+  return API.entersTappedText(API.joinText(e)+"\n"+API.joinText(card));
+}
+function simpleEtbActions50(card){
+  const e=entry50(card),parts=API.etbSegments(API.joinText(e)+"\n"+API.joinText(card));
+  if(!parts.length)return[];
+  try{
+    const parser=globalThis.CPT_V7945_CORE?.parseSimpleLibraryActions;
+    if(typeof parser==="function")return parser(parts.join("\n")).filter(a=>["scry","surveil","mill"].includes(a.kind));
+  }catch(_){}
+  return[];
+}
+function stackOrPendingEtb50(card){
+  try{if((state.stack||[]).some(o=>o&&o.sourceCardId===card.id&&(o.timing==="enterBattlefield"||o._v7950Etb)))return true;}catch(_){}
+  try{const r=typeof saRuntime==="function"?saRuntime():null;if(r&&Array.isArray(r.pendingTriggers)&&r.pendingTriggers.some(x=>x.cardId===card.id&&x.eventType==="enterBattlefield"))return true;}catch(_){}
+  return false;
+}
+function syntheticEtb50(card,actions){
+  if(!actions.length||stackOrPendingEtb50(card))return false;
+  const p=card.controller||card.owner||state.turn?.active||"A",label=API.actionLabel(actions)||"簡単ETB処理";
+  const checks=actions.map((a,i)=>({id:`v7950:${card.id}:${i}`,label:`${API.actionLabel([a])}を処理`,category:"library",required:true,memo:"解決ボタンから一連処理"}));
+  const obj={id:typeof uid==="function"?uid():`v7950-${Date.now()}-${++entrySeq}`,kind:"ability",type:"Ability",abilityKind:"triggered",name:`${card.name} — 戦場に出たとき（${label}）`,sourceCardId:card.id,sourceCardName:card.name,sourceOwner:card.owner,sourceController:p,controller:p,owner:p,abilityId:`v7950:etb:${card.id}`,abilityName:`戦場に出たとき（${label}）`,timing:"enterBattlefield",costText:"",manaCost:null,memo:"カード本文から安全に推定した簡単誘発",resolveNote:"選択完了後に自動で解決完了",targetRequired:false,targetKinds:[],targetIds:[],targetPlayerIds:[],targetZoneRefs:[],targetMemo:"",paymentStatus:"none",paymentCostText:"",consumedMana:{},paymentShortage:null,paymentNote:"",paymentAutoConsumed:false,zone:"stack",createdAt:typeof nowISO==="function"?nowISO():new Date().toISOString(),resolveChecklist:checks,resolveChecklistState:{},resolveChecklistNote:"",resolveChecklistCompletedAt:null,libraryActions:actions.map((a,i)=>({...a,id:a.id||`v7950lib:${card.id}:${i}`,enabled:true,targetMode:a.targetMode||"controller"})),autoEffects:[],castAutoEffects:[],_v7950Etb:true};
+  state.stack.push(obj);state.turn.priority=state.turn.active;
+  try{addLog(`[${card.name}] の戦場に出たときの誘発（${label}）をスタックへ置きました`);}catch(_){}
+  return true;
+}
+function queueRegisteredEtb50(card,oldZone,newZone){
+  let abs=[];try{abs=typeof getCardAbilities==="function"?getCardAbilities(card).filter(a=>a.kind==="triggered"&&a.timing==="enterBattlefield"):[];}catch(_){}
+  if(!abs.length||stackOrPendingEtb50(card))return false;
+  try{
+    if(typeof saEvent==="function"&&typeof saQueueTiming==="function"){
+      const ev=saEvent("enterBattlefield",card,{from:oldZone,to:newZone,v7950:true});
+      saQueueTiming("enterBattlefield",ev,card);return true;
     }
-    const checks={indexeddb:!!globalThis.CPT_V7940_CLIENT,settings:!!globalThis.CPT_V7942_CLIENT,land:!!globalThis.CPT_V7946_CLIENT,serum:!!globalThis.CPT_V7941_CLIENT};
-    const ok=Object.values(checks).every(Boolean);
-    b.textContent=ok?"単一HTML v7.9.49 有効":"単一HTML v7.9.49 初期化不足";
-    if(!ok){b.style.borderColor="#b34d4d";b.style.background="#3a2020";b.style.color="#ffd1d1";}
-    b.onclick=function(){
-      const lines=["IndexedDB: "+(checks.indexeddb?"有効":"未初期化"),"設定整理: "+(checks.settings?"有効":"未初期化"),"土地ルール: "+(checks.land?"有効":"未初期化"),"血清の粉末: "+(checks.serum?"有効":"未初期化")];
-      try{if(typeof openModal==="function")openModal("v7.9.49 稼働状態",'<div class="note">'+lines.join('<br>')+'</div>','<button class="btn" data-app="closem">閉じる</button>');else alert(lines.join("\n"));}catch(_){alert(lines.join("\n"));}
-    };
-    document.body.dataset.v7949="single-html-client";
-    document.title="カードゲーム練習卓 v7.9.49 単一HTML統合";
-    globalThis.CPT_V7949_SINGLE_HTML={version:VERSION,ok,checks};
+  }catch(_){}
+  try{
+    if(abs.length===1&&typeof makeAbilityObject==="function"){
+      const obj=makeAbilityObject(card,abs[0],card.controller||card.owner);state.stack.push(obj);state.turn.priority=state.turn.active;return true;
+    }
+  }catch(_){}
+  return false;
+}
+function handleEnter50(card,oldZone,newZone,viaMove){
+  let changed=false;
+  if(explicitEtbTapped50(card)&&!card.tapped){card.tapped=true;changed=true;try{addLog(`[${card.name}] はカード本文によりタップ状態で戦場に出ました`);}catch(_){}}
+  const inferred=simpleEtbActions50(card);
+  if(!viaMove)queueRegisteredEtb50(card,oldZone,newZone);
+  if(inferred.length&&!stackOrPendingEtb50(card))changed=syntheticEtb50(card,inferred)||changed;
+  return changed;
+}
+function collectZones50(){
+  const m=new Map();
+  for(const p of ["A","B"]){const pl=state.players?.[p];if(!pl)continue;for(const z of ["library","hand","creatures","lands","others","graveyard","exile","sideboard"]){for(const c of pl[z]||[])m.set(c.id,{zone:z,card:c,player:p});}}
+  for(const c of state.stack||[])m.set(c.id,{zone:"stack",card:c,player:c.controller||c.owner||"A"});
+  return m;
+}
+function rebase50(){zoneSnapshot=collectZones50();}
+function scan50(){
+  if(scanning)return false;scanning=true;let changed=false;
+  try{
+    const cur=collectZones50();
+    for(const[id,row]of cur){const prev=zoneSnapshot.get(id);if(prev&&!field50(prev.zone)&&field50(row.zone)){const viaMove=!!row.card._v7950EnteredViaMove;delete row.card._v7950EnteredViaMove;changed=handleEnter50(row.card,prev.zone,row.zone,viaMove)||changed;}else if(!prev&&armed&&field50(row.zone)){changed=handleEnter50(row.card,"new",row.zone,false)||changed;}}
+    zoneSnapshot=cur;
+  }finally{scanning=false;}
+  return changed;
+}
+/* Mark normal moveCard entries. The wrapped legacy move path has already emitted
+   its registered trigger event; the transition scanner still applies text-based
+   tapped state and can synthesize an unregistered simple ETB trigger. */
+if(typeof moveCard==="function"){
+  const moveBase50=moveCard;moveCard=function(id,destPlayer,destZone,pos,skipUndo){const before=findCard(id),old=before?.zone,r=moveBase50.apply(this,arguments);if(r&&!field50(old)&&field50(destZone))r._v7950EnteredViaMove=true;return r;};
+}
+if(typeof render==="function"){
+  const renderBase50=render;render=function(){if(!armed){rebase50();}else{const changed=scan50();if(changed)setTimeout(()=>{try{saveState(true);}catch(_){}},0);}return renderBase50.apply(this,arguments);};
+}
+/* IndexedDB restoration is asynchronous. Do not treat restored battlefield cards
+   as newly entering; arm transition detection only after its ready promise. */
+(function arm50(){
+  const ready=globalThis.CPT_V7940_CLIENT?.ready;
+  if(ready&&typeof ready.then==="function")Promise.resolve(ready).finally(()=>{rebase50();armed=true;});
+  else setTimeout(()=>{rebase50();armed=true;},300);
+})();
+for(const fn of ["loadState","snapshotRestore"]){try{if(typeof globalThis[fn]==="function"){const base=globalThis[fn];globalThis[fn]=function(){const r=base.apply(this,arguments);setTimeout(rebase50,0);return r;};}}catch(_){} }
+function fetchProfiles50(card){
+  let ps=[];try{ps=typeof searchProfilesForCard==="function"?searchProfilesForCard(card,true):[];}catch(_){}
+  return ps.filter(p=>{try{if(typeof _searchProfileAutoTag==="function"&&_searchProfileAutoTag(entry50(card),p)==="fetch")return true;}catch(_){}return API.fetchLike(p);});
+}
+function openFetch50(id,profiles){
+  const f=findCard(id);if(!f||!profiles.length)return false;
+  const rules=text50(f.card),needsTap=API.fetchNeedsTap(rules);
+  if(needsTap&&f.card.tapped){try{toast("このフェッチ能力はタップ・コストを含むため、タップ状態では起動できません");}catch(_){}return true;}
+  if(profiles.length===1){openCardSearchProfile(id,profiles[0].id);return true;}
+  const rows=profiles.map(p=>`<button class="btn primary" data-v7950fetch="${esc50(p.id)}">${esc50(p.label||"フェッチ能力")}</button>`).join("");
+  openModal(`フェッチ能力 — ${esc50(f.card.name)}`,`<div class="note">ダブルクリックで起動する能力を選択してください。</div><div class="menu-grid">${rows}</div>`,`<button class="btn" data-app="closem">キャンセル</button>`);
+  setModalHandler(function(e){const b=e.target.closest("[data-v7950fetch]");if(!b)return;openCardSearchProfile(id,b.dataset.v7950fetch);});return true;
+}
+if(typeof doubleClickCard==="function"){
+  const dblBase50=doubleClickCard;doubleClickCard=function(id){const f=findCard(id);if(f&&field50(f.zone)){const ps=fetchProfiles50(f.card);if(ps.length)return openFetch50(id,ps);}return dblBase50.apply(this,arguments);};
+}
+function guidedActions50(top){
+  if(!top)return[];let actions=[];
+  try{if(typeof autoLibraryActionsForSource==="function")actions=autoLibraryActionsForSource(top)||[];}catch(_){}
+  const ab=sourceAbility50(top);
+  if(!actions.length&&ab&&Array.isArray(ab.libraryActions))actions=ab.libraryActions.filter(a=>a&&a.enabled!==false);
+  if(!actions.length){try{actions=globalThis.CPT_V7945_CORE?.inferSimpleLibraryActions?.(top,ab||{})||[];}catch(_){} }
+  if(!actions.length&&top.timing==="enterBattlefield"&&top.sourceCardName){try{const e=dictGet(top.sourceCardName)||{};const seg=API.etbSegments(API.joinText(e));actions=globalThis.CPT_V7945_CORE?.parseSimpleLibraryActions?.(seg.join("\n"))||[];}catch(_){} }
+  return actions.filter(a=>a&&a.enabled!==false&&["scry","surveil","mill"].includes(a.kind));
+}
+function prepareGuided50(top){const actions=guidedActions50(top);if(actions.length&&(!Array.isArray(top.libraryActions)||!top.libraryActions.length))top.libraryActions=actions;return actions;}
+function markGuidedChecklist50(top,actions){
+  try{
+    const list=typeof getResolveChecklist==="function"?getResolveChecklist(top):(top.resolveChecklist||[]);
+    if(!top.resolveChecklistState||typeof top.resolveChecklistState!=="object")top.resolveChecklistState={};
+    for(const it of list||[]){
+      let match=false;
+      try{if(typeof globalThis.CPT_V7945_CORE?.checklistMatchesAction==="function")match=actions.some(a=>globalThis.CPT_V7945_CORE.checklistMatchesAction(it,a));}catch(_){}
+      if(!match){const t=`${it?.label||""} ${it?.memo||""}`;match=actions.some(a=>a.kind==="surveil"?/諜報|surveil/i.test(t):a.kind==="scry"?/占術|scry/i.test(t):a.kind==="mill"?/切削|mill/i.test(t):false);}
+      if(match)top.resolveChecklistState[it.id]=true;
+    }
+  }catch(_){}
+}
+function withChecklistGate50(fn){
+  if(typeof _rcGateOK==="undefined")return fn();
+  const old=_rcGateOK;_rcGateOK=true;try{return fn();}finally{_rcGateOK=old;}
+}
+let resolvingGuided50=false;
+function startGuidedResolution50(top,forceDest,autoChoice){
+  const actions=prepareGuided50(top);
+  if(!actions.length||resolvingGuided50||top._v7950GuidedHandled||top._v7950GuidedResolving)return false;
+  if(typeof runLibraryActionSequence!=="function")return false;
+  top._v7950GuidedResolving=true;
+  try{
+    runLibraryActionSequence(top,actions,ok=>{
+      top._v7950GuidedResolving=false;
+      if(!ok)return;
+      markGuidedChecklist50(top,actions);
+      top._autoLibraryHandled=true;
+      top._v7945SimpleHandled=true;
+      top._v7950GuidedHandled=true;
+      resolvingGuided50=true;
+      try{withChecklistGate50(()=>resolveTop(forceDest,autoChoice));}finally{resolvingGuided50=false;}
+    });
+    return true;
+  }catch(e){
+    top._v7950GuidedResolving=false;
+    try{toast(`解決処理を開始できません: ${e?.message||e}`);}catch(_){}
+    return false;
   }
-  install(); setTimeout(install,250); setTimeout(install,1200);
+}
+function resolutionLabel50(top){
+  if(!top)return"";const a=guidedActions50(top);if(a.length)return API.actionLabel(a)+(a.length>1?`ほか${a.length-1}件`:"");
+  try{const fx=typeof _sourceAutoEffects==="function"?_sourceAutoEffects(top):[];if(fx.length)return`自動効果${fx.length}件`;}catch(_){}
+  try{if(typeof isAbilityObj==="function"&&isAbilityObj(top))return"能力を処理";}catch(_){}
+  return"";
+}
+/* The standard quick path previously opened the destination wizard whenever an
+   ability had a checklist. For abilities and registered simple effects, route
+   directly into resolveTop so library actions, auto effects and checklists run in
+   their intended order. */
+if(typeof quickResolveTop==="function"){
+  const quickBase50=quickResolveTop;quickResolveTop=function(){const top=state.stack?.[state.stack.length-1];if(!top)return quickBase50.apply(this,arguments);const actions=prepareGuided50(top),ability=typeof isAbilityObj==="function"&&isAbilityObj(top),fx=(()=>{try{return typeof _sourceAutoEffects==="function"?_sourceAutoEffects(top):[];}catch(_){return[];}})();if(ability||actions.length||fx.length)return resolveTop();return quickBase50.apply(this,arguments);};
+}
+if(typeof confirmResolveTop==="function"){
+  const confirmBase50=confirmResolveTop;confirmResolveTop=function(){const top=state.stack?.[state.stack.length-1];if(top&&(typeof isAbilityObj==="function"&&isAbilityObj(top)||guidedActions50(top).length))return quickResolveTop();return confirmBase50.apply(this,arguments);};
+}
+if(typeof srwResolve==="function"){
+  const srwBase50=srwResolve;srwResolve=function(dest,choice){const top=state.stack?.[state.stack.length-1];if(top&&(typeof isAbilityObj==="function"&&isAbilityObj(top)||prepareGuided50(top).length)){try{closeModal();}catch(_){}return resolveTop();}return srwBase50.apply(this,arguments);};
+}
+/* Once all checklist items have been completed by an automated choice, do not
+   reopen an already-finished checklist before removing the ability from stack. */
+if(typeof resolveTop==="function"){
+  const resolveBase50=resolveTop;resolveTop=function(forceDest,autoChoice){
+    const top=state.stack?.[state.stack.length-1];
+    if(top&&!forceDest&&autoChoice==null&&!resolvingGuided50&&!top._v7950GuidedHandled&&startGuidedResolution50(top,forceDest,autoChoice))return;
+    if(top)prepareGuided50(top);
+    let allDone=false;try{const list=typeof getResolveChecklist==="function"?getResolveChecklist(top):[];allDone=!!list.length&&list.every(x=>top.resolveChecklistState&&top.resolveChecklistState[x.id]);}catch(_){}
+    if(allDone)return withChecklistGate50(()=>resolveBase50.apply(this,arguments));
+    return resolveBase50.apply(this,arguments);
+  };
+}
+function replaceResolveButton50(html,top,longLabel){const label=resolutionLabel50(top);if(!label)return html;const text=longLabel?`最上段を解決：${label}`:`解決：${label}`;return String(html).replace(/(<button[^>]*data-st="resolve"[^>]*>)[^<]*(<\/button>)/,`$1${text}$2`);}
+if(typeof stackMiniHTML==="function"){const base=stackMiniHTML;stackMiniHTML=function(){return replaceResolveButton50(base.apply(this,arguments),state.stack?.[state.stack.length-1],false);};}
+if(typeof stackListHTML==="function"){const base=stackListHTML;stackListHTML=function(){return replaceResolveButton50(base.apply(this,arguments),state.stack?.[state.stack.length-1],true);};}
+/* Settings note */
+if(typeof openSettings==="function"){
+  const base=openSettings;openSettings=function(){const r=base.apply(this,arguments);setTimeout(()=>{const body=document.querySelector("#modalRoot .mbody");if(!body||body.querySelector("#v7950GuidedPanel"))return;const box=document.createElement("section");box.id="v7950GuidedPanel";box.className="v7950-panel";box.innerHTML='<div><b>ダブルクリック・誘発解決</b><span class="viz-badge">v7.9.50</span></div><div class="note">戦場のフェッチランドはダブルクリックで登録フェッチ能力を開始します。諜報・占術・切削や登録済み自動効果は、スタックの「解決」から処理UIへ直接つながります。カード本文の「タップ状態で戦場に出る」も戦場入り時に反映します。</div>';body.prepend(box);},0);return r;};
+}
+const style=document.createElement("style");style.textContent="#v7950GuidedPanel{display:grid;gap:7px;border:1px solid var(--accent);border-radius:10px;padding:10px;margin:8px 0;background:rgba(80,130,210,.08)}#v7950GuidedPanel>div:first-child{display:flex;justify-content:space-between;align-items:center;gap:8px}";document.head.appendChild(style);
+/* Replace old fixed integrity badge with the current single-HTML status. */
+function installStatus50(){
+  document.getElementById("v7949SingleHtmlStatus")?.remove();
+  let b=document.getElementById("v7950SingleHtmlStatus");if(!b){b=document.createElement("button");b.type="button";b.id="v7950SingleHtmlStatus";b.style.cssText="position:fixed;top:8px;right:8px;z-index:2147483647;border:1px solid #4e8b62;border-radius:999px;padding:5px 10px;background:#173322;color:#d9ffe4;font:600 12px system-ui,sans-serif;box-shadow:0 2px 8px rgba(0,0,0,.35);cursor:pointer";document.body.appendChild(b);}const checks={indexeddb:!!globalThis.CPT_V7940_CLIENT,land:!!globalThis.CPT_V7946_CLIENT,serum:!!globalThis.CPT_V7941_CLIENT,fetchEtb:!!globalThis.CPT_V7950_CLIENT};const ok=Object.values(checks).every(Boolean);b.textContent=ok?"単一HTML v7.9.50 有効":"単一HTML v7.9.50 初期化不足";b.onclick=()=>{const lines=[`IndexedDB: ${checks.indexeddb?"有効":"未初期化"}`,`土地ルール: ${checks.land?"有効":"未初期化"}`,`血清の粉末: ${checks.serum?"有効":"未初期化"}`,`フェッチ・ETB・解決フロー: ${checks.fetchEtb?"有効":"未初期化"}`];try{openModal("v7.9.50 稼働状態",`<div class="note">${lines.join("<br>")}</div>`,`<button class="btn" data-app="closem">閉じる</button>`);}catch(_){alert(lines.join("\n"));}};}
+globalThis.CPT_V7950_CLIENT={version:API.VERSION,protocol:API.PROTOCOL,fetchProfiles:fetchProfiles50,guidedActions:guidedActions50,scan:scan50,rebase:rebase50,diagnose:API.diagnose};
+try{document.body.dataset.v7950="fetch-etb-guided-resolution";document.title="カードゲーム練習卓 v7.9.50 フェッチ・ETB・解決フロー";}catch(_){}
+installStatus50();setTimeout(installStatus50,300);setTimeout(installStatus50,1300);
 })();
 </script>
+
 </body>
 </html>
