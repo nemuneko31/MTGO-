@@ -30,6 +30,22 @@
    - v7.9.62: 続唱・発見の追放、条件一致、唱える／手札分岐、無作為下戻しを専用解決へ統合
    - v7.9.63: 自分の墓地・追放領域から条件一致カードを選び、手札・戦場・山札へ戻す処理を1画面へ統合
    - v7.9.64: 墓地・追放領域のカードへ期限付きの唱える／プレイ権を与え、既存v4.5使用権エンジンと安全に連携
+   - v7.9.65: 次のアップキープ／終了ステップの一回限り遅延誘発を予約し、該当フェイズで自動スタック化
+   - v7.9.66: 戦場の各／自分／対戦相手アップキープ・終了ステップ反復誘発を安全認識し、APNAP群順で自動スタック化
+   - v7.9.67: 同時反復誘発をプレイヤー別に保留し、APNAP群を固定したまま同一プレイヤー内の順番選択・保存復元・進行停止を追加
+   - v7.9.68: 公開情報だけで判定できる介在if付き反復誘発を、誘発時と解決時の両方で再確認
+   - v7.9.69: 公開情報から求める可変値付き反復誘発を、解決直前に再計算
+   - v7.9.70: 安全な任意反復誘発の実行／見送り選択と、実行後の可変値再計算
+   - v7.9.71: 固定マナ／固定ライフ支払い付き反復誘発、if-paid／unless分岐、解決直前再確認
+   - v7.9.72: 最大N個／固定N個の複数対象付き反復誘発、対象集合制約、解決直前の適正再確認
+   - v7.9.73: 公開情報で決まるX個／最大X個／望む数の対象、対象数のスタック配置時固定、24個安全上限
+   - v7.9.74: 固定合計ダメージ／カウンターの対象別割り振り、各対象1以上、解決時の不適正対象分は再配分せず失う
+   - v7.9.75: 公開情報で決まるXの割り振り合計をスタック配置時に固定し、0合計の安全な対象なし処理を追加
+   - v7.9.76: 反復誘発をドロー、戦闘前メイン、戦闘開始、戦闘終了、戦闘後メインへ拡張
+   - v7.9.77: 公開されている墓地・追放領域の反復誘発と戦場内外の同時APNAP統合を追加
+   - v7.9.78: 統率領域の保存・表示・移動と、統率領域からの反復誘発を同時APNAP処理へ統合
+   - v7.9.79: 待機をアップキープ誘発と最後の時間カウンター除去後の唱える誘発へ分離し、APNAP順・0コスト唱え・速攻を統合
+   - v7.10.0: ETB・死亡・唱える・攻撃・戦闘ダメージ・ドロー等のイベント誘発をAPNAP処理へ統合し、待機開始、モード選択、高度支払い、統率者ルール、アンタップ／クリンナップ安全処理を追加
    - v6.0～v6.4: オブジェクト世代/両面/合体、装着/支配、位相/LKI、同時領域移動/置換連鎖
    - v6.5～v6.9: 同時誘発チェーン/介在if、誘発ループ監視、任意/選択/分岐ループ、応答予約
    - v7.0～v7.4: 行動履歴、合意巻き戻し、秘密state復元、差分修復、リプレイ、レポート、チャプター/ハイライト
@@ -61,8 +77,8 @@ const HOST = process.env.HOST || "0.0.0.0"; // クラウドで外部公開する
 const ROOT = __dirname;
 
 const SERVER_VERSION = "7.9.20-integrated-play";
-const APP_RELEASE = "7.9.65-guided-delayed-phase-triggers";
-const PREVIOUS_APP_RELEASE = "7.9.64-guided-zone-play-permission";
+const APP_RELEASE = "7.10.0-unified-rules-automation";
+const PREVIOUS_APP_RELEASE = "7.9.79-guided-suspend-time-counters";
 const V49_PROTOCOL = "cpt-v4.9";
 const EFFECT_PROTOCOL = V7912_ENGINE.PROTOCOL;
 const AUTHORITY = Object.freeze({
@@ -190,6 +206,90 @@ const AUTHORITY = Object.freeze({
   delayedLinkedObjectIdentityV7965: true,
   existingSimpleTriggerResolutionReuseV7965: true,
   ambiguousDelayedTriggerManualFallbackV7965: true,
+  guidedRepeatingPhaseTriggersV7966: true,
+  eachUpkeepTriggerV7966: true,
+  controllerUpkeepTriggerV7966: true,
+  opponentUpkeepTriggerV7966: true,
+  eachEndStepTriggerV7966: true,
+  controllerEndStepTriggerV7966: true,
+  opponentEndStepTriggerV7966: true,
+  battlefieldSourceRescanV7966: true,
+  phasedOutSourceExclusionV7966: true,
+  apnapGroupOrderingV7966: true,
+  recurringLinkedObjectIdentityV7966: true,
+  existingAbilityTemplateReuseV7966: true,
+  ambiguousRepeatingTriggerManualFallbackV7966: true,
+  guidedSimultaneousTriggerOrderingV7967: true,
+  sameControllerTriggerOrderChoiceV7967: true,
+  lockedApnapControllerGroupsV7967: true,
+  persistedPendingTriggerOrderV7967: true,
+  forcedTriggerOrderPhaseStopV7967: true,
+  unambiguousTriggerAutoCommitV7967: true,
+  duplicateTriggerCommitGuardV7967: true,
+  existingTargetSelectionResumeV7967: true,
+  publicConditionalRepeatingTriggersV7968: true,
+  triggerTimePublicConditionFilterV7968: true,
+  resolutionTimeInterveningIfRecheckV7968: true,
+  publicVariableRepeatingTriggersV7969: true,
+  publicForEachCountV7969: true,
+  publicEqualNumberCountV7969: true,
+  publicDefinedXV7969: true,
+  resolutionTimeVariableRecountV7969: true,
+  existingApnapOrderingReuseV7969: true,
+  ambiguousVariableManualFallbackV7969: true,
+  optionalRepeatingTriggersV7970: true,
+  resolutionTimeOptionalChoiceV7970: true,
+  fixedCostPaymentRepeatingTriggersV7971: true,
+  resolutionTimePaymentRecheckV7971: true,
+  guidedMultiTargetRepeatingTriggersV7972: true,
+  upToNTargetChoiceV7972: true,
+  exactNTargetChoiceV7972: true,
+  targetSetConstraintValidationV7972: true,
+  resolutionTimeTargetLegalityRecheckV7972: true,
+  persistedPendingTargetChoiceV7972: true,
+  onlineMultiTargetManualFallbackV7972: true,
+  dynamicCountTargetRepeatingTriggersV7973: true,
+  publicXTargetCountV7973: true,
+  anyNumberTargetChoiceV7973: true,
+  targetingTimeBoundFreezeV7973: true,
+  dynamicTargetSafetyCapV7973: 24,
+  targetClauseCountDefinitionSeparationV7973: true,
+  onlineDynamicTargetManualFallbackV7973: true,
+  distributedTargetRepeatingTriggersV7974: true,
+  fixedAllocationAtTargetingV7974: true,
+  allocationMinimumOnePerTargetV7974: true,
+  illegalTargetAllocationLostV7974: true,
+  publicVariableDistributionRepeatingTriggersV7975: true,
+  publicAllocationTotalFreezeV7975: true,
+  publicGraveyardAllocationCountV7975: true,
+  zeroTotalNoTargetResolutionV7975: true,
+  hiddenRandomAllocationManualFallbackV7975: true,
+  extendedRepeatingPhaseTriggersV7976: true,
+  repeatingDrawStepV7976: true,
+  repeatingPrecombatMainV7976: true,
+  repeatingBeginCombatV7976: true,
+  repeatingEndCombatV7976: true,
+  repeatingPostcombatMainV7976: true,
+  untapCleanupManualFallbackV7976: true,
+  onlineExtendedPhaseManualFallbackV7976: true,
+  externalZoneRepeatingTriggersV7977: true,
+  publicGraveyardRepeatingTriggersV7977: true,
+  publicExileRepeatingTriggersV7977: true,
+  combinedBattlefieldExternalApnapV7977: true,
+  externalSourceZoneIdentityRecheckV7977: true,
+  hiddenCommandSuspendManualFallbackV7977: true,
+  commandZoneRepeatingTriggersV7978: true,
+  persistentCommandZoneStorageV7978: true,
+  combinedBattlefieldExternalCommandApnapV7978: true,
+  commandSourceZoneIdentityRecheckV7978: true,
+  commanderReplacementSuspendOnlineManualFallbackV7978: true,
+  guidedSuspendTimeCountersV7979: true,
+  stackBasedSuspendUpkeepV7979: true,
+  lastTimeCounterCastTriggerV7979: true,
+  suspendNoCostCastV7979: true,
+  suspendCreatureHasteV7979: true,
+  legacySuspendCounterMigrationV7979: true,
+  onlineSuspendAuthorityManualFallbackV7979: true,
   specialMechanicChecklistSuppressionV7956: true,
   ambiguousSpecialMechanicManualFallbackV7956: true,
   stage2V50V54Integrated: true,
@@ -1460,7 +1560,7 @@ wss.on("connection", (ws) => {
   ws.isAlive = true;
   ws.on("pong", () => { ws.isAlive = true; client.lastSeen = now(); });
   log(`connect ${client.clientId} (total ${clientsById.size})`);
-  send(ws, { type: "hello", clientId: client.clientId, reconnectToken: client.reconnectToken, server: "card-practice-table-server", serverVersion: SERVER_VERSION, appRelease: APP_RELEASE, authority: AUTHORITY, note: "v4.9厳密同期、v5.0～v7.9ルール進行・履歴・共同レビュー・通知、v7.9.36公開情報変数・ソーサリータイミング制御に対応。TLS・アカウント認証は別途必要です" });
+  send(ws, { type: "hello", clientId: client.clientId, reconnectToken: client.reconnectToken, server: "card-practice-table-server", serverVersion: SERVER_VERSION, appRelease: APP_RELEASE, authority: AUTHORITY, note: "v4.9厳密同期、v5.0～v7.9サーバー権限、v7.10.0ローカル統合自動化に対応。新規の本文推論イベントはオンラインでは安全停止し、既存サーバー権限経路を優先します。TLS・アカウント認証は別途必要です" });
 
   ws.on("message", (data) => {
     try {

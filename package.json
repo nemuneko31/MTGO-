@@ -1,8 +1,8 @@
 {
-  "name": "mtgo-style-v7-9-65-guided-delayed-phase-triggers",
-  "version": "7.9.65",
+  "name": "mtgo-style-v7-10-0-unified-rules-automation",
+  "version": "7.10.0",
   "private": true,
-  "description": "Render single-HTML release with one-shot delayed triggers for the next upkeep or end step, player-specific timing, forced due-phase stops, and linked-object identity checks.",
+  "description": "Render single-HTML release with unified safe event-trigger automation, modal choices, fixed and card-based payments, suspend initiation, commander rules, untap/cleanup handling, extensive compatibility guards, and explicit manual fallback for ambiguous or secret-information rules.",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
