@@ -1,8 +1,8 @@
 {
-  "name": "mtgo-style-v7-10-3-pre-release-durability",
-  "version": "7.10.3",
+  "name": "mtgo-style-v7-10-5-unified-london-serum-powder",
+  "version": "7.10.5",
   "private": true,
-  "description": "Render single-HTML pre-release durability release with atomic corrupted-save recovery, event-instance deduplication, public event-condition validation, single-delivery online notifications, and long-run state-integrity auditing.",
+  "description": "Render single-HTML release with one unified London mulligan workflow, separate Serum Powder action, deferred keep-bottom selection, and legacy mode migration.",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",

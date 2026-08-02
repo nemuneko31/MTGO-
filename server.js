@@ -49,6 +49,8 @@
    - v7.10.1: ETB二重登録、戦場入りタップ状態の上書き、スタック解決後の優先権残留、Unknown輸入カードの辞書型復元を修正
    - v7.10.2: 対象数・対象種別・コントローラー関係がローカル本文誘発／オンライン記述変換で失われる問題を修正し、対象選択の共通整合性検査を追加
    - v7.10.3: 破損保存の原子的修復、イベント単位の重複防止・条件照合、オンライン通知の二重配信防止、新規ルームstate表示修正を追加
+   - v7.10.4: 縦持ち5画面切替、固定状況バー・下部ナビ、横持ち操作ドック、スマホ用モーダルとカード詳細を追加
+   - v7.10.5: 初手練習をロンドン方式へ統一し、通常マリガンと血清の粉末を完全分離。キープ時ボトムと旧設定移行を追加
    - v6.0～v6.4: オブジェクト世代/両面/合体、装着/支配、位相/LKI、同時領域移動/置換連鎖
    - v6.5～v6.9: 同時誘発チェーン/介在if、誘発ループ監視、任意/選択/分岐ループ、応答予約
    - v7.0～v7.4: 行動履歴、合意巻き戻し、秘密state復元、差分修復、リプレイ、レポート、チャプター/ハイライト
@@ -80,7 +82,7 @@ const HOST = process.env.HOST || "0.0.0.0"; // クラウドで外部公開する
 const ROOT = __dirname;
 
 const SERVER_VERSION = "7.9.20-integrated-play";
-const APP_RELEASE = "7.10.3-pre-release-durability";
+const APP_RELEASE = "7.10.5-unified-london-serum-powder";
 const PREVIOUS_APP_RELEASE = "7.9.79-guided-suspend-time-counters";
 const V49_PROTOCOL = "cpt-v4.9";
 const EFFECT_PROTOCOL = V7912_ENGINE.PROTOCOL;
@@ -1563,7 +1565,7 @@ wss.on("connection", (ws) => {
   ws.isAlive = true;
   ws.on("pong", () => { ws.isAlive = true; client.lastSeen = now(); });
   log(`connect ${client.clientId} (total ${clientsById.size})`);
-  send(ws, { type: "hello", clientId: client.clientId, reconnectToken: client.reconnectToken, server: "card-practice-table-server", serverVersion: SERVER_VERSION, appRelease: APP_RELEASE, authority: AUTHORITY, note: "v4.9厳密同期、v5.0～v7.9サーバー権限、v7.10.3ローカル統合自動化・ETB／唱える信頼性修正・対象／状態整合性・公開前耐久修正に対応。新規の本文推論イベントはオンラインでは安全停止し、既存サーバー権限経路を優先します。TLS・アカウント認証は別途必要です" });
+  send(ws, { type: "hello", clientId: client.clientId, reconnectToken: client.reconnectToken, server: "card-practice-table-server", serverVersion: SERVER_VERSION, appRelease: APP_RELEASE, authority: AUTHORITY, note: "v4.9厳密同期、v5.0～v7.9サーバー権限、v7.10.5ローカル統合自動化・信頼性修正・公開前耐久修正・スマホ専用ワークスペース・ロンドンマリガン統一・血清の粉末分離に対応。新規の本文推論イベントはオンラインでは安全停止し、既存サーバー権限経路を優先します。TLS・アカウント認証は別途必要です" });
 
   ws.on("message", (data) => {
     try {
