@@ -1,8 +1,8 @@
 {
-  "name": "mtgo-style-v7-10-0-unified-rules-automation",
-  "version": "7.10.0",
+  "name": "mtgo-style-v7-10-3-pre-release-durability",
+  "version": "7.10.3",
   "private": true,
-  "description": "Render single-HTML release with unified safe event-trigger automation, modal choices, fixed and card-based payments, suspend initiation, commander rules, untap/cleanup handling, extensive compatibility guards, and explicit manual fallback for ambiguous or secret-information rules.",
+  "description": "Render single-HTML pre-release durability release with atomic corrupted-save recovery, event-instance deduplication, public event-condition validation, single-delivery online notifications, and long-run state-integrity auditing.",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",

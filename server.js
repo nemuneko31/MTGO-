@@ -46,6 +46,9 @@
    - v7.9.78: 統率領域の保存・表示・移動と、統率領域からの反復誘発を同時APNAP処理へ統合
    - v7.9.79: 待機をアップキープ誘発と最後の時間カウンター除去後の唱える誘発へ分離し、APNAP順・0コスト唱え・速攻を統合
    - v7.10.0: ETB・死亡・唱える・攻撃・戦闘ダメージ・ドロー等のイベント誘発をAPNAP処理へ統合し、待機開始、モード選択、高度支払い、統率者ルール、アンタップ／クリンナップ安全処理を追加
+   - v7.10.1: ETB二重登録、戦場入りタップ状態の上書き、スタック解決後の優先権残留、Unknown輸入カードの辞書型復元を修正
+   - v7.10.2: 対象数・対象種別・コントローラー関係がローカル本文誘発／オンライン記述変換で失われる問題を修正し、対象選択の共通整合性検査を追加
+   - v7.10.3: 破損保存の原子的修復、イベント単位の重複防止・条件照合、オンライン通知の二重配信防止、新規ルームstate表示修正を追加
    - v6.0～v6.4: オブジェクト世代/両面/合体、装着/支配、位相/LKI、同時領域移動/置換連鎖
    - v6.5～v6.9: 同時誘発チェーン/介在if、誘発ループ監視、任意/選択/分岐ループ、応答予約
    - v7.0～v7.4: 行動履歴、合意巻き戻し、秘密state復元、差分修復、リプレイ、レポート、チャプター/ハイライト
@@ -77,7 +80,7 @@ const HOST = process.env.HOST || "0.0.0.0"; // クラウドで外部公開する
 const ROOT = __dirname;
 
 const SERVER_VERSION = "7.9.20-integrated-play";
-const APP_RELEASE = "7.10.0-unified-rules-automation";
+const APP_RELEASE = "7.10.3-pre-release-durability";
 const PREVIOUS_APP_RELEASE = "7.9.79-guided-suspend-time-counters";
 const V49_PROTOCOL = "cpt-v4.9";
 const EFFECT_PROTOCOL = V7912_ENGINE.PROTOCOL;
@@ -559,7 +562,7 @@ function normRole(r) { return (r === "A" || r === "B" || r === "spectator") ? r 
 function roomSummary(room) {
   return {
     roomCode: room.roomCode, rev: room.rev, hostId: room.hostId,
-    createdAt: room.createdAt, updatedAt: room.updatedAt, hasState: room.state != null,
+    createdAt: room.createdAt, updatedAt: room.updatedAt, hasState: room.v49HasPublicState === true,
     passwordProtected: !!room.passwordHash, locked: !!room.locked, collaborativeMode: !!room.collaborativeMode, maxClients: MAX_ROOM_CLIENTS,
     clientCount: room.clients.size,
     privateReady: {
@@ -1171,7 +1174,7 @@ const handlers = {
     room.locked = !!msg.locked;
     pushRoomLog(room, { kind: "setLock", locked: room.locked });
     log(`room ${room.roomCode} locked=${room.locked}`);
-    broadcast(room, { type: "roomUpdate", roomSummary: roomSummary(room), authority: AUTHORITY, effectAuthority: V7912_ENGINE.publicRuntime(room) });
+    broadcast(room, { type: "roomUpdate", roomSummary: roomSummary(room), authority: AUTHORITY, effectAuthority: V7912_ENGINE.publicRuntime(room) }, client.clientId);
     send(client.ws, { type: "roomUpdate", roomSummary: roomSummary(room), authority: AUTHORITY, effectAuthority: V7912_ENGINE.publicRuntime(room) });
   },
 
@@ -1182,7 +1185,7 @@ const handlers = {
     room.collaborativeMode = !!msg.collaborativeMode;
     pushRoomLog(room, { kind: "setCollaborativeMode", on: room.collaborativeMode });
     log(`room ${room.roomCode} collaborativeMode=${room.collaborativeMode}`);
-    broadcast(room, { type: "roomUpdate", roomSummary: roomSummary(room), authority: AUTHORITY, effectAuthority: V7912_ENGINE.publicRuntime(room) });
+    broadcast(room, { type: "roomUpdate", roomSummary: roomSummary(room), authority: AUTHORITY, effectAuthority: V7912_ENGINE.publicRuntime(room) }, client.clientId);
     send(client.ws, { type: "roomUpdate", roomSummary: roomSummary(room), authority: AUTHORITY, effectAuthority: V7912_ENGINE.publicRuntime(room) });
   },
 
@@ -1193,7 +1196,7 @@ const handlers = {
     setRoomPassword(room, msg.password);
     pushRoomLog(room, { kind: "setPassword", protected: !!room.passwordHash }); // 値は残さない
     log(`room ${room.roomCode} password ${room.passwordHash ? "set" : "cleared"}`);
-    broadcast(room, { type: "roomUpdate", roomSummary: roomSummary(room), authority: AUTHORITY, effectAuthority: V7912_ENGINE.publicRuntime(room) });
+    broadcast(room, { type: "roomUpdate", roomSummary: roomSummary(room), authority: AUTHORITY, effectAuthority: V7912_ENGINE.publicRuntime(room) }, client.clientId);
     send(client.ws, { type: "roomUpdate", roomSummary: roomSummary(room), authority: AUTHORITY, effectAuthority: V7912_ENGINE.publicRuntime(room) });
   },
 
@@ -1204,7 +1207,7 @@ const handlers = {
     if (!wanted) { sendError(client.ws, "role は A / B / spectator です"); return; }
     client.role = (wanted === "spectator") ? "spectator" : assignRole(room, wanted);
     pushRoomLog(room, { kind: "setRole", clientId: client.clientId, role: client.role });
-    broadcast(room, { type: "roomUpdate", roomSummary: roomSummary(room), authority: AUTHORITY, effectAuthority: V7912_ENGINE.publicRuntime(room) });
+    broadcast(room, { type: "roomUpdate", roomSummary: roomSummary(room), authority: AUTHORITY, effectAuthority: V7912_ENGINE.publicRuntime(room) }, client.clientId);
     send(client.ws, { type: "roomUpdate", roomSummary: roomSummary(room), authority: AUTHORITY, effectAuthority: V7912_ENGINE.publicRuntime(room) });
   },
 
@@ -1429,7 +1432,7 @@ const handlers = {
     if (!text) return;
     const entry = { type: "chat", from: client.clientId, name: client.name, role: client.role, text, createdAt: now() };
     pushRoomLog(room, { kind: "chat", clientId: client.clientId, text });
-    broadcast(room, entry);
+    broadcast(room, entry, client.clientId);
     send(client.ws, entry);
   }
 };
@@ -1560,7 +1563,7 @@ wss.on("connection", (ws) => {
   ws.isAlive = true;
   ws.on("pong", () => { ws.isAlive = true; client.lastSeen = now(); });
   log(`connect ${client.clientId} (total ${clientsById.size})`);
-  send(ws, { type: "hello", clientId: client.clientId, reconnectToken: client.reconnectToken, server: "card-practice-table-server", serverVersion: SERVER_VERSION, appRelease: APP_RELEASE, authority: AUTHORITY, note: "v4.9厳密同期、v5.0～v7.9サーバー権限、v7.10.0ローカル統合自動化に対応。新規の本文推論イベントはオンラインでは安全停止し、既存サーバー権限経路を優先します。TLS・アカウント認証は別途必要です" });
+  send(ws, { type: "hello", clientId: client.clientId, reconnectToken: client.reconnectToken, server: "card-practice-table-server", serverVersion: SERVER_VERSION, appRelease: APP_RELEASE, authority: AUTHORITY, note: "v4.9厳密同期、v5.0～v7.9サーバー権限、v7.10.3ローカル統合自動化・ETB／唱える信頼性修正・対象／状態整合性・公開前耐久修正に対応。新規の本文推論イベントはオンラインでは安全停止し、既存サーバー権限経路を優先します。TLS・アカウント認証は別途必要です" });
 
   ws.on("message", (data) => {
     try {
