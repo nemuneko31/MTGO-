@@ -1,8 +1,8 @@
 {
-  "name": "mtgo-style-v7-17-1-click-hotfix",
-  "version": "7.17.1",
+  "name": "mtgo-style-v7-18-0-start-performance",
+  "version": "7.18.0",
   "private": true,
-  "description": "Single-HTML MTGO-style client with a guided pregame mulligan flow, persistent active-player and priority-player indicators, CPU thinking status, and online local/opponent action labels.",
+  "description": "Single-HTML MTGO-style client with an optional advanced pregame setup, true pregame mulligan gate before Untap, explicit CPU priority-wait behavior, and reduced background UI/CPU polling.",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
