@@ -1,8 +1,8 @@
 {
-  "name": "mtgo-style-v7-16-2-persistent-display-guard",
-  "version": "7.16.2",
+  "name": "mtgo-style-v7-17-0-turn-mulligan-clarity",
+  "version": "7.17.0",
   "private": true,
-  "description": "Single-HTML MTGO-style client with counterfactual CPU decisions and a persistent MutationObserver/interval release-identity guard that removes legacy v7.9.79 badges and prevents v7.14 title rewrites.",
+  "description": "Single-HTML MTGO-style client with a guided pregame mulligan flow, persistent active-player and priority-player indicators, CPU thinking status, and online local/opponent action labels.",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",

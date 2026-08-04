@@ -59,6 +59,7 @@
    - v7.16.0: 隠し情報の複数仮定、反実仮想シャドー探索、主変化・信頼度、文脈別経験学習、攻撃・ブロック組合せ探索を実際のCPU判断へ接続
    - v7.16.1: 旧v7.14 CPU更新処理が画面タイトルと稼働バッジを上書きする競合を解消し、最新リリース表示を固定
    - v7.16.2: MutationObserverと定期監視で旧v7.9.79独立バッジを除去し、旧モジュールの遅延上書き後も最新表示を維持
+   - v7.17.0: 対戦開始時のマリガン案内、両者キープ進捗、手番・優先権・CPU思考・オンライン操作待ちの常時表示を追加
    - v6.0～v6.4: オブジェクト世代/両面/合体、装着/支配、位相/LKI、同時領域移動/置換連鎖
    - v6.5～v6.9: 同時誘発チェーン/介在if、誘発ループ監視、任意/選択/分岐ループ、応答予約
    - v7.0～v7.4: 行動履歴、合意巻き戻し、秘密state復元、差分修復、リプレイ、レポート、チャプター/ハイライト
@@ -90,8 +91,8 @@ const HOST = process.env.HOST || "0.0.0.0"; // クラウドで外部公開する
 const ROOT = __dirname;
 
 const SERVER_VERSION = "7.9.20-integrated-play";
-const APP_RELEASE = "7.16.2-persistent-display-guard";
-const PREVIOUS_APP_RELEASE = "7.16.1-counterfactual-cpu-display-guard";
+const APP_RELEASE = "7.17.0-turn-mulligan-clarity";
+const PREVIOUS_APP_RELEASE = "7.16.2-persistent-display-guard";
 const V49_PROTOCOL = "cpt-v4.9";
 const EFFECT_PROTOCOL = V7912_ENGINE.PROTOCOL;
 const AUTHORITY = Object.freeze({
@@ -1573,7 +1574,7 @@ wss.on("connection", (ws) => {
   ws.isAlive = true;
   ws.on("pong", () => { ws.isAlive = true; client.lastSeen = now(); });
   log(`connect ${client.clientId} (total ${clientsById.size})`);
-  send(ws, { type: "hello", clientId: client.clientId, reconnectToken: client.reconnectToken, server: "card-practice-table-server", serverVersion: SERVER_VERSION, appRelease: APP_RELEASE, authority: AUTHORITY, note: "v4.9厳密同期、v5.0～v7.9サーバー権限、v7.10系の統合自動化・信頼性修正・スマホ専用ワークスペース・ロンドンマリガン統一に対応。v7.16.2のCounterfactual CPUはローカル1人テスト専用で、オンライン接続中は安全停止します。公開情報と公平な手札レンジから隠し情報を複数仮定し、応答・次手・危険側の結果を比較して実際の行動を選びます。主変化と信頼度、文脈別経験学習、攻撃・ブロック組合せ探索、デッキ専用戦略、初手、BO3サイドを統合しています。新規の本文推論イベントはオンラインでは既存サーバー権限経路を優先します。TLS・アカウント認証は別途必要です" });
+  send(ws, { type: "hello", clientId: client.clientId, reconnectToken: client.reconnectToken, server: "card-practice-table-server", serverVersion: SERVER_VERSION, appRelease: APP_RELEASE, authority: AUTHORITY, note: "v4.9厳密同期、v5.0～v7.9サーバー権限、v7.10系の統合自動化・信頼性修正・スマホ専用ワークスペース・ロンドンマリガン統一に対応。v7.17.0のCounterfactual CPUはローカル1人テスト専用で、オンライン接続中は安全停止します。公開情報と公平な手札レンジから隠し情報を複数仮定し、応答・次手・危険側の結果を比較して実際の行動を選びます。主変化と信頼度、文脈別経験学習、攻撃・ブロック組合せ探索、デッキ専用戦略、初手、BO3サイドを統合しています。対戦開始時はマリガン判断を段階表示し、手番・優先権・CPU思考中・オンラインの操作待ちを常時表示します。新規の本文推論イベントはオンラインでは既存サーバー権限経路を優先します。TLS・アカウント認証は別途必要です" });
 
   ws.on("message", (data) => {
     try {
