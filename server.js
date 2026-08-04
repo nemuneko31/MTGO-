@@ -51,6 +51,12 @@
    - v7.10.3: 破損保存の原子的修復、イベント単位の重複防止・条件照合、オンライン通知の二重配信防止、新規ルームstate表示修正を追加
    - v7.10.4: 縦持ち5画面切替、固定状況バー・下部ナビ、横持ち操作ドック、スマホ用モーダルとカード詳細を追加
    - v7.10.5: 初手練習をロンドン方式へ統一し、通常マリガンと血清の粉末を完全分離。キープ時ボトムと旧設定移行を追加
+   - v7.10.6: スマホ横向きのメニューと相手手札リサイズを修正し、縦向き手札を大カード横送り／2列一覧へ再設計
+   - v7.11.0: 公開情報だけを使う高度CPU対戦、合法手生成、対象選択、限定先読み、戦闘判断を追加
+   - v7.12.0: 公開情報の構え推定、動的役割、複数手探索、高度戦闘、CPUマリガン・BO3サイド判断を追加
+   - v7.13.0: 相手デッキの事後確率推定、時間制限付きモンテカルロ評価、複数ブロック戦闘、編集可能なデッキ専用戦略を追加
+   - v7.15.0: 公平な手札レンジ推定、相手最善応答探索、複数ターン計画、精密戦闘、BO3記憶、CPU同士実戦、自己対戦調整、視覚的戦略エディターを統合
+   - v7.16.0: 隠し情報の複数仮定、反実仮想シャドー探索、主変化・信頼度、文脈別経験学習、攻撃・ブロック組合せ探索を実際のCPU判断へ接続
    - v6.0～v6.4: オブジェクト世代/両面/合体、装着/支配、位相/LKI、同時領域移動/置換連鎖
    - v6.5～v6.9: 同時誘発チェーン/介在if、誘発ループ監視、任意/選択/分岐ループ、応答予約
    - v7.0～v7.4: 行動履歴、合意巻き戻し、秘密state復元、差分修復、リプレイ、レポート、チャプター/ハイライト
@@ -82,8 +88,8 @@ const HOST = process.env.HOST || "0.0.0.0"; // クラウドで外部公開する
 const ROOT = __dirname;
 
 const SERVER_VERSION = "7.9.20-integrated-play";
-const APP_RELEASE = "7.10.5-unified-london-serum-powder";
-const PREVIOUS_APP_RELEASE = "7.9.79-guided-suspend-time-counters";
+const APP_RELEASE = "7.16.0-counterfactual-cpu";
+const PREVIOUS_APP_RELEASE = "7.15.0-trained-cpu-lab";
 const V49_PROTOCOL = "cpt-v4.9";
 const EFFECT_PROTOCOL = V7912_ENGINE.PROTOCOL;
 const AUTHORITY = Object.freeze({
@@ -1565,7 +1571,7 @@ wss.on("connection", (ws) => {
   ws.isAlive = true;
   ws.on("pong", () => { ws.isAlive = true; client.lastSeen = now(); });
   log(`connect ${client.clientId} (total ${clientsById.size})`);
-  send(ws, { type: "hello", clientId: client.clientId, reconnectToken: client.reconnectToken, server: "card-practice-table-server", serverVersion: SERVER_VERSION, appRelease: APP_RELEASE, authority: AUTHORITY, note: "v4.9厳密同期、v5.0～v7.9サーバー権限、v7.10.5ローカル統合自動化・信頼性修正・公開前耐久修正・スマホ専用ワークスペース・ロンドンマリガン統一・血清の粉末分離に対応。新規の本文推論イベントはオンラインでは安全停止し、既存サーバー権限経路を優先します。TLS・アカウント認証は別途必要です" });
+  send(ws, { type: "hello", clientId: client.clientId, reconnectToken: client.reconnectToken, server: "card-practice-table-server", serverVersion: SERVER_VERSION, appRelease: APP_RELEASE, authority: AUTHORITY, note: "v4.9厳密同期、v5.0～v7.9サーバー権限、v7.10系の統合自動化・信頼性修正・スマホ専用ワークスペース・ロンドンマリガン統一に対応。v7.16.0のCounterfactual CPUはローカル1人テスト専用で、オンライン接続中は安全停止します。公開情報と公平な手札レンジから隠し情報を複数仮定し、応答・次手・危険側の結果を比較して実際の行動を選びます。主変化と信頼度、文脈別経験学習、攻撃・ブロック組合せ探索、デッキ専用戦略、初手、BO3サイドを統合しています。新規の本文推論イベントはオンラインでは既存サーバー権限経路を優先します。TLS・アカウント認証は別途必要です" });
 
   ws.on("message", (data) => {
     try {

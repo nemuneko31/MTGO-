@@ -1,8 +1,8 @@
 {
-  "name": "mtgo-style-v7-10-5-unified-london-serum-powder",
-  "version": "7.10.5",
+  "name": "mtgo-style-v7-16-0-counterfactual-cpu",
+  "version": "7.16.0",
   "private": true,
-  "description": "Render single-HTML release with one unified London mulligan workflow, separate Serum Powder action, deferred keep-bottom selection, and legacy mode migration.",
+  "description": "Single-HTML MTGO-style client with counterfactual CPU decisions, hidden-information determinizations, principal variations, confidence scoring, contextual experience learning, trained CPU lab, and combat combination search.",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
