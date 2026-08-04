@@ -1,8 +1,8 @@
 {
-  "name": "mtgo-style-v7-19-0-cpu-wake-image-mulligan",
-  "version": "7.19.0",
+  "name": "mtgo-style-v7-19-1-mulligan-bottom-hotfix",
+  "version": "7.19.1",
   "private": true,
-  "description": "Single-HTML MTGO-style client with reliable CPU wake scheduling, image-based London mulligan selection, explicit bottom confirmation, and counterfactual CPU.",
+  "description": "Single-HTML MTGO-style client with confirmed mulligan selection snapshots so chosen cards are removed from hand and placed on the library bottom only after explicit confirmation.",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",

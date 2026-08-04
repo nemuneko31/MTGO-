@@ -92,8 +92,8 @@ const HOST = process.env.HOST || "0.0.0.0"; // クラウドで外部公開する
 const ROOT = __dirname;
 
 const SERVER_VERSION = "7.9.20-integrated-play";
-const APP_RELEASE = "7.19.0-cpu-wake-image-mulligan";
-const PREVIOUS_APP_RELEASE = "7.18.0-start-performance";
+const APP_RELEASE = "7.19.1-mulligan-bottom-hotfix";
+const PREVIOUS_APP_RELEASE = "7.19.0-cpu-wake-image-mulligan";
 const V49_PROTOCOL = "cpt-v4.9";
 const EFFECT_PROTOCOL = V7912_ENGINE.PROTOCOL;
 const AUTHORITY = Object.freeze({
