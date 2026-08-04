@@ -1,8 +1,8 @@
 {
-  "name": "mtgo-style-v7-18-0-start-performance",
-  "version": "7.18.0",
+  "name": "mtgo-style-v7-19-0-cpu-wake-image-mulligan",
+  "version": "7.19.0",
   "private": true,
-  "description": "Single-HTML MTGO-style client with an optional advanced pregame setup, true pregame mulligan gate before Untap, explicit CPU priority-wait behavior, and reduced background UI/CPU polling.",
+  "description": "Single-HTML MTGO-style client with reliable CPU wake scheduling, image-based London mulligan selection, explicit bottom confirmation, and counterfactual CPU.",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
