@@ -1,8 +1,8 @@
 {
-  "name": "mtgo-style-v7-19-1-mulligan-bottom-hotfix",
-  "version": "7.19.1",
+  "name": "mtgo-style-v7-20-0-unified-match-cpu",
+  "version": "7.20.0",
   "private": true,
-  "description": "Single-HTML MTGO-style client with confirmed mulligan selection snapshots so chosen cards are removed from hand and placed on the library bottom only after explicit confirmation.",
+  "description": "Single-HTML MTGO-style client with one unified BO1/BO3 and Human/CPU match launcher, pregame mulligan flow for every BO3 game, and event-driven CPU wake recovery.",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
