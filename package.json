@@ -1,6 +1,6 @@
 {
-  "name": "mtgo-style-v7-17-0-turn-mulligan-clarity",
-  "version": "7.17.0",
+  "name": "mtgo-style-v7-17-1-click-hotfix",
+  "version": "7.17.1",
   "private": true,
   "description": "Single-HTML MTGO-style client with a guided pregame mulligan flow, persistent active-player and priority-player indicators, CPU thinking status, and online local/opponent action labels.",
   "main": "server.js",
