@@ -1,168 +1,301 @@
 {
-  "ponder_auto_path": {
+  "release": {
+    "title": "カードゲーム練習卓 v8.3.0 Bounded CPU / No Deadlock",
+    "badge": "単一HTML v8.3.0 有効",
+    "status": "Player A CPUが行動中",
+    "detail": "行動なし・優先権をパス"
+  },
+  "brainstorm_deadlock": {
     "stack": 0,
     "grave": [
-      "Ponder"
+      "Brainstorm"
     ],
-    "lib": 4,
-    "knownHistory": [
-      "[Ponder] をCPU専用手順で解決"
-    ],
-    "status": "paused",
-    "reason": "CPUを一時停止中",
-    "passed": true
-  },
-  "ponder_direct": {
-    "stack": 0,
     "hand": [
-      "Card-2"
+      "Hand-A",
+      "Lib-11",
+      "Lib-10"
     ],
-    "library": 4,
-    "grave": [
-      "Ponder"
-    ],
-    "passed": true
-  },
-  "pregame_cpu2": {
-    "started": true,
-    "pregame": false,
-    "stage": "done",
-    "phase": 3,
-    "leylineBattlefield": [
-      "Leyline of the Void"
-    ],
-    "handA": [
-      "Chancellor of the Forge",
-      "Chancellor of the Tangle",
-      "Chancellor of the Annex"
-    ],
-    "revealed": [
+    "library": 11,
+    "history": [
       {
-        "name": "Chancellor of the Forge",
-        "kind": "forge",
-        "controller": "A",
-        "resolved": true
+        "at": 1785934093633,
+        "turn": 1,
+        "phase": 3,
+        "kind": "resolve",
+        "text": "[Brainstorm] をCPU専用手順で解決",
+        "detail": {
+          "kind": "brainstorm",
+          "drawn": [
+            "Lib-12",
+            "Lib-11",
+            "Lib-10"
+          ],
+          "returned": [
+            "Hand-B",
+            "Lib-12"
+          ]
+        }
       },
       {
-        "name": "Chancellor of the Tangle",
-        "kind": "tangle",
-        "controller": "A",
-        "resolved": true
+        "at": 1785934093626,
+        "turn": 1,
+        "phase": 3,
+        "kind": "pass",
+        "text": "対応できる安全な行動がないためパス",
+        "detail": null
       },
       {
-        "name": "Chancellor of the Annex",
-        "kind": "annex",
-        "controller": "A",
-        "resolved": false
-      },
-      {
-        "name": "Chancellor of the Dross",
-        "kind": "dross",
-        "controller": "B",
-        "resolved": true
-      },
-      {
-        "name": "Chancellor of the Spires",
-        "kind": "spires",
-        "controller": "B",
-        "resolved": true
+        "at": 1785934093541,
+        "turn": 1,
+        "phase": 3,
+        "kind": "pass",
+        "text": "対応できる安全な行動がないためパス",
+        "detail": null
       }
     ],
-    "creaturesA": [
-      {
-        "name": "ファイレクシアン・ゴブリン・トークン",
-        "power": "1",
-        "toughness": "1",
-        "keywords": [
-          "haste"
-        ]
-      }
-    ],
-    "lifeA": 17,
-    "lifeB": 23,
-    "graveA": 7,
-    "graveB": 0,
-    "poolA": {
-      "W": 0,
-      "U": 0,
-      "B": 0,
-      "R": 0,
-      "G": 1,
-      "C": 0
-    },
-    "tangle": {
-      "A": true,
-      "B": false
+    "stats": {
+      "ticks": 2,
+      "lands": 0,
+      "spells": 0,
+      "passes": 2,
+      "resolves": 1,
+      "attacks": 0,
+      "blocks": 0,
+      "turns": 0,
+      "mulligans": 0,
+      "errors": 0,
+      "unsupportedSkipped": 0,
+      "approximateCasts": 0,
+      "fallbacks": 0
     },
     "passed": true
   },
-  "annex": {
-    "acted": true,
-    "stack": [],
+  "generic_checklist_fallback": {
+    "stack": 0,
     "grave": [
-      "First Spell"
+      "Unknown Mandatory Checklist"
     ],
-    "seen": {
-      "A": false,
-      "B": true
+    "fallbacks": 1,
+    "log": [
+      "注意: [Unknown Mandatory Checklist] はCPU未対応効果のため、停止回避として効果を適用せず解決しました",
+      "Player A が優先権をパス"
+    ],
+    "passed": true
+  },
+  "policy": {
+    "strict": {
+      "ok": false,
+      "kind": "unsupported",
+      "detail": "専用解決または構造化効果がありません"
+    },
+    "progress": {
+      "ok": true,
+      "kind": "approx",
+      "detail": "専用解決または構造化効果がありません"
     },
     "passed": true
   },
-  "human_choice_setup": {
-    "hand": 1,
-    "others": 0
-  },
-  "human_choice_ui": {
-    "text": "ゲーム開始前の選択 — Player A\n×\nマリガン後の最終手札です。各カードについて「使う／使わない」を明示してから確定してください。カードを選んだだけでは移動・公開されません。\n画像なし\nLeyline of Sanctity\n戦場に出した状態でゲームを開始\n使う\n使わない\nすべて使わない\n選択を確定",
-    "before": {
+  "cantrips": {
+    "Ponder": {
+      "grave": [
+        "Ponder"
+      ],
       "hand": 1,
-      "others": 0
+      "library": 7,
+      "fallbacks": 0,
+      "passed": true
     },
-    "has_use": true,
-    "has_skip": true,
-    "unchanged_before_confirm": true,
+    "Preordain": {
+      "grave": [
+        "Preordain"
+      ],
+      "hand": 1,
+      "library": 7,
+      "fallbacks": 0,
+      "passed": true
+    },
+    "Opt": {
+      "grave": [
+        "Opt"
+      ],
+      "hand": 1,
+      "library": 7,
+      "fallbacks": 0,
+      "passed": true
+    },
+    "Consider": {
+      "grave": [
+        "Consider"
+      ],
+      "hand": 1,
+      "library": 7,
+      "fallbacks": 0,
+      "passed": true
+    },
+    "Serum Visions": {
+      "grave": [
+        "Serum Visions"
+      ],
+      "hand": 1,
+      "library": 7,
+      "fallbacks": 0,
+      "passed": true
+    }
+  },
+  "full_cpu2_action": {
+    "turn": 4,
+    "phase": 3,
+    "priority": "B",
+    "lands": [
+      {
+        "name": "Island",
+        "tapped": true
+      },
+      {
+        "name": "Island",
+        "tapped": false
+      },
+      {
+        "name": "B-Lib",
+        "tapped": false
+      }
+    ],
+    "creatures": [
+      "Test Bear"
+    ],
+    "grave": [
+      "Unknown Ritual"
+    ],
+    "stack": [],
+    "stats": {
+      "ticks": 52,
+      "lands": 2,
+      "spells": 2,
+      "passes": 48,
+      "resolves": 2,
+      "attacks": 1,
+      "blocks": 0,
+      "turns": 2,
+      "mulligans": 0,
+      "errors": 0,
+      "unsupportedSkipped": 0,
+      "approximateCasts": 1,
+      "fallbacks": 1
+    },
+    "history": [
+      {
+        "at": 1785934099563,
+        "turn": 4,
+        "phase": 3,
+        "kind": "fallback",
+        "text": "[Unknown Ritual] を効果未適用で解決（停止回避）",
+        "detail": {
+          "reason": "専用解決または構造化効果がありません"
+        }
+      },
+      {
+        "at": 1785934099561,
+        "turn": 4,
+        "phase": 3,
+        "kind": "pass",
+        "text": "対応できる安全な行動がないためパス",
+        "detail": null
+      },
+      {
+        "at": 1785934099477,
+        "turn": 4,
+        "phase": 3,
+        "kind": "pass",
+        "text": "呪文を唱えた後、応答を待ちます",
+        "detail": null
+      },
+      {
+        "at": 1785934099398,
+        "turn": 4,
+        "phase": 3,
+        "kind": "spell",
+        "text": "[Unknown Ritual] を唱えた（簡易）",
+        "detail": {
+          "targets": {
+            "ids": [],
+            "players": [],
+            "ok": true,
+            "score": 0
+          },
+          "support": {
+            "ok": true,
+            "kind": "approx",
+            "detail": "専用解決または構造化効果がありません"
+          }
+        }
+      },
+      {
+        "at": 1785934099308,
+        "turn": 4,
+        "phase": 3,
+        "kind": "land",
+        "text": "[B-Lib] をプレイ",
+        "detail": null
+      },
+      {
+        "at": 1785934099218,
+        "turn": 4,
+        "phase": 2,
+        "kind": "pass",
+        "text": "行動なし・優先権をパス",
+        "detail": null
+      },
+      {
+        "at": 1785934099135,
+        "turn": 4,
+        "phase": 2,
+        "kind": "pass",
+        "text": "行動なし・優先権をパス",
+        "detail": null
+      },
+      {
+        "at": 1785934099048,
+        "turn": 4,
+        "phase": 1,
+        "kind": "pass",
+        "text": "行動なし・優先権をパス",
+        "detail": null
+      },
+      {
+        "at": 1785934098964,
+        "turn": 4,
+        "phase": 1,
+        "kind": "pass",
+        "text": "行動なし・優先権をパス",
+        "detail": null
+      },
+      {
+        "at": 1785934098859,
+        "turn": 3,
+        "phase": 11,
+        "kind": "pass",
+        "text": "行動なし・優先権をパス",
+        "detail": null
+      },
+      {
+        "at": 1785934098775,
+        "turn": 3,
+        "phase": 11,
+        "kind": "pass",
+        "text": "行動なし・優先権をパス",
+        "detail": null
+      },
+      {
+        "at": 1785934098691,
+        "turn": 3,
+        "phase": 10,
+        "kind": "pass",
+        "text": "行動なし・優先権をパス",
+        "detail": null
+      }
+    ],
     "passed": true
   },
   "errors": [],
-  "all_passed": true,
-  "human_choice_confirm": {
-    "before": {
-      "hand": [
-        "Leyline of Sanctity"
-      ],
-      "others": [],
-      "started": false
-    },
-    "after": {
-      "hand": [],
-      "others": [
-        "Leyline of Sanctity"
-      ],
-      "started": true,
-      "pregame": false
-    },
-    "passed": true
-  },
-  "annex_payment": {
-    "acted": true,
-    "stack": [
-      "First Spell Paid"
-    ],
-    "grave": [],
-    "pool": {
-      "W": 0,
-      "U": 0,
-      "B": 0,
-      "R": 0,
-      "G": 0,
-      "C": 0
-    },
-    "paid": true,
-    "seen": {
-      "A": false,
-      "B": true
-    },
-    "passed": true
-  },
-  "extra_errors": []
+  "all_passed": true
 }
