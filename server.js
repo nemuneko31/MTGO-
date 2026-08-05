@@ -97,8 +97,8 @@ const HOST = process.env.HOST || "0.0.0.0"; // クラウドで外部公開する
 const ROOT = __dirname;
 
 const SERVER_VERSION = "7.9.20-integrated-play";
-const APP_RELEASE = "8.3.0-bounded-cpu-no-deadlock";
-const PREVIOUS_APP_RELEASE = "8.1.0-cpu-duel-spirit-guide";
+const APP_RELEASE = "9.0.0-structured-card-runtime";
+const PREVIOUS_APP_RELEASE = "8.3.0-bounded-cpu-no-deadlock";
 const V49_PROTOCOL = "cpt-v4.9";
 const EFFECT_PROTOCOL = V7912_ENGINE.PROTOCOL;
 const AUTHORITY = Object.freeze({
@@ -1580,7 +1580,7 @@ wss.on("connection", (ws) => {
   ws.isAlive = true;
   ws.on("pong", () => { ws.isAlive = true; client.lastSeen = now(); });
   log(`connect ${client.clientId} (total ${clientsById.size})`);
-  send(ws, { type: "hello", clientId: client.clientId, reconnectToken: client.reconnectToken, server: "card-practice-table-server", serverVersion: SERVER_VERSION, appRelease: APP_RELEASE, authority: AUTHORITY, note: "v4.9厳密同期、v5.0～v7.9サーバー権限、v7.10系の統合自動化・信頼性修正・スマホ専用ワークスペース・ロンドンマリガン統一に対応。v8.3.0ではCPU対応範囲を明示して、未対応呪文を唱える前に除外し、既にスタック上にある未対応CPU呪文も停止回避フォールバックで処理します。《思案》《渦まく知識》《定業》《選択》《考慮》《血清の幻視》を専用解決し、必須チェックリストによる無限停止を防止します。マリガン後から第1ターン前に、力線を戦場に出すか、大長を公開するかを画像付きで明示選択できます。溶鉱炉・ドロス・尖塔・絡み森・別館の大長の開始時効果を自動処理します。v8.0.0で旧CPUの後付けモジュールを撤去し、CPU対戦を単一の状態機械として再構築しています。BO1／BO3／対人／CPUの開始設定、ゲーム開始前の画像付きロンドンマリガン、優先権の連続パス、スタック解決、フェーズとターン進行、土地、支払い可能な安全な呪文、攻撃、ブロック、戦闘ダメージを一つの実行経路で処理します。RenderへのWebSocket接続だけではCPUを停止せず、実際の対人ルーム参加中だけ停止します。フェッチは起動時にタップ／ライフ／生け贄コストを支払い、検索を保留・再開できます。未対応カードは「正確性優先」では唱えず、「進行優先」では未対応部分を適用せず解決して停止を回避します。これは汎用の完全ルールAIではありません。TLS・アカウント認証は別途必要です" });
+  send(ws, { type: "hello", clientId: client.clientId, reconnectToken: client.reconnectToken, server: "card-practice-table-server", serverVersion: SERVER_VERSION, appRelease: APP_RELEASE, authority: AUTHORITY, note: "v4.9厳密同期、v5.0～v7.9サーバー権限、v7.10系の統合自動化・信頼性修正・スマホ専用ワークスペース・ロンドンマリガン統一に対応。v9.0.0ではユーザーがエクスポートした実カード辞書219件を正本として、全カードへ名前・別名・タイプ・コスト・対象・解決ファミリー・開始時処理・ETB・起動型能力・CPU評価を持つ構造化スキーマを割り当てました。CPUの呪文解決は必須チェックリストを経由せず、v9構造化ランタイムへ送られます。複雑な継続効果や特殊な選択は境界付きヒューリスティックですが、辞書内カードを未登録扱いで停止させません。《思案》《渦まく知識》《定業》《選択》《考慮》《血清の幻視》を専用解決し、必須チェックリストによる無限停止を防止します。マリガン後から第1ターン前に、力線を戦場に出すか、大長を公開するかを画像付きで明示選択できます。溶鉱炉・ドロス・尖塔・絡み森・別館の大長の開始時効果を自動処理します。v8.0.0で旧CPUの後付けモジュールを撤去し、CPU対戦を単一の状態機械として再構築しています。BO1／BO3／対人／CPUの開始設定、ゲーム開始前の画像付きロンドンマリガン、優先権の連続パス、スタック解決、フェーズとターン進行、土地、支払い可能な安全な呪文、攻撃、ブロック、戦闘ダメージを一つの実行経路で処理します。RenderへのWebSocket接続だけではCPUを停止せず、実際の対人ルーム参加中だけ停止します。フェッチは起動時にタップ／ライフ／生け贄コストを支払い、検索を保留・再開できます。辞書外カードは「正確性優先」では唱えず、「進行優先」では効果未適用で解決して停止を回避します。辞書内219件はすべてv9スキーマへ登録済みです。これは汎用の完全ルールAIではありません。TLS・アカウント認証は別途必要です" });
 
   ws.on("message", (data) => {
     try {

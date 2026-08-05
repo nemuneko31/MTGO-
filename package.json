@@ -1,12 +1,12 @@
 {
-  "name": "mtgo-style-v8-3-0-bounded-cpu-no-deadlock",
-  "version": "8.3.0",
+  "name": "mtgo-style-v9-0-0-structured-card-runtime",
+  "version": "9.0.0",
   "private": true,
-  "description": "MTGO-style client with bounded CPU support, no-deadlock checklist handling, dedicated cantrip resolvers, CPU-vs-CPU, pregame Leyline/Chancellor choices, and Spirit Guide mana abilities.",
+  "description": "MTGO-style client with a data-driven structured runtime generated from the user's 219-card dictionary, CPU-safe spell resolution, targets, alternative costs, ETB effects, activated abilities, and no manual-checklist deadlocks.",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
-    "check": "node --check server.js && node --check mini-ws.js && node --check v7912-server-engine.js && node --check v50-v54-server-engine.js && node --check v55-v59-server-engine.js && node --check v60-v64-server-engine.js && node --check v65-v69-server-engine.js && node --check v70-v74-server-engine.js && node --check v75-v79-server-engine.js && node --check v7932-target-constraints.js && node --check v7936-reveal-context-sorcery-timing.js && node --check v7937-linked-delayed-serum.js"
+    "check": "node --check server.js && node --check mini-ws.js && node --check v7912-server-engine.js && node --check v50-v54-server-engine.js && node --check v55-v59-server-engine.js && node --check v60-v64-server-engine.js && node --check v65-v69-server-engine.js && node --check v70-v74-server-engine.js && node --check v75-v79-server-engine.js && node --check v7932-target-constraints.js && node --check v7936-reveal-context-sorcery-timing.js && node --check v7937-linked-delayed-serum.js && node --check v900-card-runtime.js"
   },
   "dependencies": {
     "pg": "^8.0.0",
