@@ -1,8 +1,8 @@
 {
-  "name": "mtgo-style-v7-20-0-unified-match-cpu",
-  "version": "7.20.0",
+  "name": "mtgo-style-v7-21-0-runtime-reliability",
+  "version": "7.21.0",
   "private": true,
-  "description": "Single-HTML MTGO-style client with one unified BO1/BO3 and Human/CPU match launcher, pregame mulligan flow for every BO3 game, and event-driven CPU wake recovery.",
+  "description": "Single-HTML MTGO-style client with reliable CPU combat routing, empty-combat prompt suppression, and resumable immediate-cost fetch activation.",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",

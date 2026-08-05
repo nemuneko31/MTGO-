@@ -61,6 +61,10 @@
    - v7.16.2: MutationObserverと定期監視で旧v7.9.79独立バッジを除去し、旧モジュールの遅延上書き後も最新表示を維持
    - v7.17.1: 対戦開始時のマリガン案内、両者キープ進捗、手番・優先権・CPU思考・オンライン操作待ちの常時表示を追加
    - v7.18.0: 高度な自動ゲーム開始、マリガン完了前の開始前状態、CPU優先権待機、常時監視と探索再実行の軽量化を追加
+   - v7.19.0: CPU再開通知と画像付きマリガン選択、確認後だけ行うロンドン・ボトム処理を追加
+   - v7.19.1: マリガン確認画面をまたいで選択カードを保持し、確定時に手札からボトムへ正しく移動
+   - v7.20.0: 対戦開始へBO1/BO3・対人/CPU・デッキ・先手・難易度・マリガン開始を統合
+   - v7.21.0: フェッチ起動時の即時コスト支払いと再開可能検索、CPU戦闘モーダル競合、空戦闘確認を修正
    - v6.0～v6.4: オブジェクト世代/両面/合体、装着/支配、位相/LKI、同時領域移動/置換連鎖
    - v6.5～v6.9: 同時誘発チェーン/介在if、誘発ループ監視、任意/選択/分岐ループ、応答予約
    - v7.0～v7.4: 行動履歴、合意巻き戻し、秘密state復元、差分修復、リプレイ、レポート、チャプター/ハイライト
@@ -92,8 +96,8 @@ const HOST = process.env.HOST || "0.0.0.0"; // クラウドで外部公開する
 const ROOT = __dirname;
 
 const SERVER_VERSION = "7.9.20-integrated-play";
-const APP_RELEASE = "7.20.0-unified-match-cpu";
-const PREVIOUS_APP_RELEASE = "7.19.1-mulligan-bottom-hotfix";
+const APP_RELEASE = "7.21.0-runtime-reliability";
+const PREVIOUS_APP_RELEASE = "7.20.0-unified-match-cpu";
 const V49_PROTOCOL = "cpt-v4.9";
 const EFFECT_PROTOCOL = V7912_ENGINE.PROTOCOL;
 const AUTHORITY = Object.freeze({
@@ -1575,7 +1579,7 @@ wss.on("connection", (ws) => {
   ws.isAlive = true;
   ws.on("pong", () => { ws.isAlive = true; client.lastSeen = now(); });
   log(`connect ${client.clientId} (total ${clientsById.size})`);
-  send(ws, { type: "hello", clientId: client.clientId, reconnectToken: client.reconnectToken, server: "card-practice-table-server", serverVersion: SERVER_VERSION, appRelease: APP_RELEASE, authority: AUTHORITY, note: "v4.9厳密同期、v5.0～v7.9サーバー権限、v7.10系の統合自動化・信頼性修正・スマホ専用ワークスペース・ロンドンマリガン統一に対応。v7.20.0のCounterfactual CPUはローカル1人テスト専用で、オンライン接続中は安全停止します。公開情報と公平な手札レンジから隠し情報を複数仮定し、応答・次手・危険側の結果を比較して実際の行動を選びます。主変化と信頼度、文脈別経験学習、攻撃・ブロック組合せ探索、デッキ専用戦略、初手、BO3サイドを統合しています。対戦開始時はマリガン判断を段階表示し、手番・優先権・CPU思考中・オンラインの操作待ちを常時表示します。新規の本文推論イベントはオンラインでは既存サーバー権限経路を優先します。TLS・アカウント認証は別途必要です" });
+  send(ws, { type: "hello", clientId: client.clientId, reconnectToken: client.reconnectToken, server: "card-practice-table-server", serverVersion: SERVER_VERSION, appRelease: APP_RELEASE, authority: AUTHORITY, note: "v4.9厳密同期、v5.0～v7.9サーバー権限、v7.10系の統合自動化・信頼性修正・スマホ専用ワークスペース・ロンドンマリガン統一に対応。v7.21.0のCounterfactual CPUはローカル1人テスト専用で、オンライン接続中は安全停止します。公開情報と公平な手札レンジから隠し情報を複数仮定し、応答・次手・危険側の結果を比較して実際の行動を選びます。主変化と信頼度、文脈別経験学習、攻撃・ブロック組合せ探索、デッキ専用戦略、初手、BO3サイドを統合しています。対戦開始時はマリガン判断を段階表示し、手番・優先権・CPU思考中・オンラインの操作待ちを常時表示します。v7.21.0ではフェッチのタップ／ライフ／生け贄コストを起動時に即時支払い、検索を保留・再開できます。CPU所有の攻撃・ブロック判断は人間向けモーダルを開かずCPUへ渡し、攻撃可能クリーチャーや合法ブロッカーが0体なら不要な確認を出しません。新規の本文推論イベントはオンラインでは既存サーバー権限経路を優先します。TLS・アカウント認証は別途必要です" });
 
   ws.on("message", (data) => {
     try {
