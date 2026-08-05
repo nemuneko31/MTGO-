@@ -1,8 +1,8 @@
 {
-  "name": "mtgo-style-v8-1-0-cpu-duel-spirit-guide",
-  "version": "8.1.0",
+  "name": "mtgo-style-v8-2-0-pregame-chancellor-ponder",
+  "version": "8.2.0",
   "private": true,
-  "description": "MTGO-style client with working human-vs-CPU safe priority auto-pass, CPU-vs-CPU spectator matches, and Elvish/Simian Spirit Guide mana abilities.",
+  "description": "MTGO-style client with CPU Ponder resolution, explicit Leyline opening-hand choices, all five Chancellor pregame effects, CPU-vs-CPU, and Spirit Guide mana abilities.",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",

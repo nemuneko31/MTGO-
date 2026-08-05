@@ -97,8 +97,8 @@ const HOST = process.env.HOST || "0.0.0.0"; // クラウドで外部公開する
 const ROOT = __dirname;
 
 const SERVER_VERSION = "7.9.20-integrated-play";
-const APP_RELEASE = "8.1.0-cpu-duel-spirit-guide";
-const PREVIOUS_APP_RELEASE = "8.0.0-cpu-core-rebuild";
+const APP_RELEASE = "8.2.0-pregame-chancellor-ponder";
+const PREVIOUS_APP_RELEASE = "8.1.0-cpu-duel-spirit-guide";
 const V49_PROTOCOL = "cpt-v4.9";
 const EFFECT_PROTOCOL = V7912_ENGINE.PROTOCOL;
 const AUTHORITY = Object.freeze({
@@ -1580,7 +1580,7 @@ wss.on("connection", (ws) => {
   ws.isAlive = true;
   ws.on("pong", () => { ws.isAlive = true; client.lastSeen = now(); });
   log(`connect ${client.clientId} (total ${clientsById.size})`);
-  send(ws, { type: "hello", clientId: client.clientId, reconnectToken: client.reconnectToken, server: "card-practice-table-server", serverVersion: SERVER_VERSION, appRelease: APP_RELEASE, authority: AUTHORITY, note: "v4.9厳密同期、v5.0～v7.9サーバー権限、v7.10系の統合自動化・信頼性修正・スマホ専用ワークスペース・ロンドンマリガン統一に対応。v8.1.0ではCPU対戦の優先権待ちを明示し、CPU手番中の安全な人間側自動パス、CPU同士の観戦対戦、エルフの指導霊／猿人の指導霊の追放マナ能力を追加しました。v8.0.0で旧CPUの後付けモジュールを撤去し、CPU対戦を単一の状態機械として再構築しています。BO1／BO3／対人／CPUの開始設定、ゲーム開始前の画像付きロンドンマリガン、優先権の連続パス、スタック解決、フェーズとターン進行、土地、支払い可能な安全な呪文、攻撃、ブロック、戦闘ダメージを一つの実行経路で処理します。RenderへのWebSocket接続だけではCPUを停止せず、実際の対人ルーム参加中だけ停止します。フェッチは起動時にタップ／ライフ／生け贄コストを支払い、検索を保留・再開できます。未構造化・任意選択・複雑なカード効果は誤操作を避けるため手動確認へ停止します。TLS・アカウント認証は別途必要です" });
+  send(ws, { type: "hello", clientId: client.clientId, reconnectToken: client.reconnectToken, server: "card-practice-table-server", serverVersion: SERVER_VERSION, appRelease: APP_RELEASE, authority: AUTHORITY, note: "v4.9厳密同期、v5.0～v7.9サーバー権限、v7.10系の統合自動化・信頼性修正・スマホ専用ワークスペース・ロンドンマリガン統一に対応。v8.2.0ではCPUが《思案／Ponder》の手動チェックリストで停止する問題を解消し、CPU専用の上3枚評価・並べ替え／切り直し・ドローを追加しました。マリガン後から第1ターン前に、力線を戦場に出すか、大長を公開するかを画像付きで明示選択できます。溶鉱炉・ドロス・尖塔・絡み森・別館の大長の開始時効果を自動処理します。v8.0.0で旧CPUの後付けモジュールを撤去し、CPU対戦を単一の状態機械として再構築しています。BO1／BO3／対人／CPUの開始設定、ゲーム開始前の画像付きロンドンマリガン、優先権の連続パス、スタック解決、フェーズとターン進行、土地、支払い可能な安全な呪文、攻撃、ブロック、戦闘ダメージを一つの実行経路で処理します。RenderへのWebSocket接続だけではCPUを停止せず、実際の対人ルーム参加中だけ停止します。フェッチは起動時にタップ／ライフ／生け贄コストを支払い、検索を保留・再開できます。未構造化・任意選択・複雑なカード効果は誤操作を避けるため手動確認へ停止します。TLS・アカウント認証は別途必要です" });
 
   ws.on("message", (data) => {
     try {
