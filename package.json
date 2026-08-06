@@ -1,8 +1,8 @@
 {
-  "name": "mtgo-style-v9-0-0-structured-card-runtime",
-  "version": "9.0.0",
+  "name": "mtgo-style-v9-2-0-cpu-control-card-automation",
+  "version": "9.2.0",
   "private": true,
-  "description": "MTGO-style client with a data-driven structured runtime generated from the user's 219-card dictionary, CPU-safe spell resolution, targets, alternative costs, ETB effects, activated abilities, and no manual-checklist deadlocks.",
+  "description": "Single-HTML MTGO-style client with visible CPU pause/resume/step/stop controls, stall recovery, automatic state-based actions, and the 219-card structured runtime.",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",

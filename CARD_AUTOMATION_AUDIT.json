@@ -1,0 +1,85 @@
+{
+  "release": "9.2.0-cpu-control-card-automation",
+  "diagnose": {
+    "version": "9.2.0",
+    "release": "9.2.0-cpu-control-card-automation",
+    "ok": true,
+    "count": 219,
+    "aliases": 436,
+    "levels": {
+      "exact": 176,
+      "bounded": 43
+    },
+    "missingHandlers": [],
+    "families": 182
+  },
+  "coverage": {
+    "cards": 219,
+    "families": 182,
+    "levels": {
+      "exact": 176,
+      "bounded": 43
+    },
+    "mechanics": {
+      "counter": 22,
+      "bounce": 12,
+      "damage": 22,
+      "exile": 44,
+      "sacrifice": 50,
+      "doubleStrike": 3,
+      "mana": 58,
+      "tap": 24,
+      "untap": 7,
+      "destroy": 27,
+      "discard": 11,
+      "reveal": 23,
+      "draw": 24,
+      "trample": 4,
+      "life": 34,
+      "flash": 7,
+      "mill": 4,
+      "lifelink": 4,
+      "surveil": 4,
+      "token": 16,
+      "indestructible": 4,
+      "flying": 11,
+      "suspend": 2,
+      "search": 25,
+      "tutor": 25,
+      "copy": 10,
+      "storm": 3,
+      "hexproof": 3,
+      "ward": 2,
+      "scry": 1,
+      "vigilance": 3,
+      "transform": 2
+    },
+    "nonblocking": 219,
+    "activatedFamilies": [
+      "walking_ballista",
+      "grindstone",
+      "expedition_map",
+      "grave_exile_artifact",
+      "nihil_spellbomb",
+      "soul_guide_lantern",
+      "wishclaw",
+      "sneak_attack",
+      "haywire_mite",
+      "one_ring",
+      "mishras_bauble",
+      "mystic_forge",
+      "lotus_petal"
+    ]
+  },
+  "commonAutomation": [
+    "state-based lethal/toughness processing",
+    "token disappearance outside battlefield",
+    "+1/+1 and -1/-1 counter cancellation",
+    "invalid attachment cleanup",
+    "structured spell resolution",
+    "structured activated abilities",
+    "structured phase hooks",
+    "post-action state-based recheck"
+  ],
+  "disclaimer": "exact means direct primary-card handling, not complete tournament-rules interaction coverage; bounded may use conservative approximation."
+}

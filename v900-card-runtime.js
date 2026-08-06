@@ -1,5 +1,5 @@
 /* ============================================================
-   v9.0.0 Structured Card Runtime
+   v9.2.0 Structured Card Runtime (CPU control/card automation compatible)
    Generated from the user's exported card dictionary.
    219 cards / data-driven schemas / CPU-safe nonblocking resolution.
    ============================================================ */
@@ -9,8 +9,8 @@
   if(typeof module==="object"&&module.exports)module.exports=api;
   root.CPT_V900_CARDS=api;
 })(typeof globalThis!=="undefined"?globalThis:this,function(root){
-  const VERSION="9.0.0";
-  const RELEASE="9.0.0-structured-card-runtime";
+  const VERSION="9.2.0";
+  const RELEASE="9.2.0-cpu-control-card-automation";
   /* The host client keeps `state` as a top-level lexical binding (`let state`).
      External runtime modules cannot reach it through globalThis.state unless we install
      a live accessor.  This bridge follows every later state reassignment and is the
@@ -480,10 +480,11 @@
     const levels=names.reduce((o,n)=>(o[SCHEMAS[n].support.level]=(o[SCHEMAS[n].support.level]||0)+1,o),{});
     return{version:VERSION,release:RELEASE,ok:names.length===219&&!missingHandlers.length,count:names.length,aliases,levels,missingHandlers,families:[...new Set(names.map(n=>SCHEMAS[n].family))].length};
   }
+  function automationCoverage(){const rows=Object.values(SCHEMAS),levels=rows.reduce((o,s)=>(o[s.support.level]=(o[s.support.level]||0)+1,o),{}),mechanics={};for(const s of rows)for(const m of arr(s.mechanics))mechanics[m]=(mechanics[m]||0)+1;return{cards:rows.length,families:new Set(rows.map(s=>s.family)).size,levels,mechanics,nonblocking:rows.filter(s=>HANDLERS.has(s.family)).length,activatedFamilies:["walking_ballista","grindstone","expedition_map","grave_exile_artifact","nihil_spellbomb","soul_guide_lantern","wishclaw","sneak_attack","haywire_mite","one_ring","mishras_bauble","mystic_forge","lotus_petal"]};}
   function dryRun(){
     const errors=[];for(const [name,s] of Object.entries(SCHEMAS)){if(!s.family||!HANDLERS.has(s.family))errors.push(`${name}: handler ${s.family}`);if(!arr(s.aliases).length)errors.push(`${name}: aliases`);if(!arr(s.types).length)errors.push(`${name}: types`);}
-    return{ok:!errors.length,count:Object.keys(SCHEMAS).length,errors};
+    return{ok:!errors.length,count:Object.keys(SCHEMAS).length,errors,coverage:automationCoverage()};
   }
 
-  return{version:VERSION,release:RELEASE,schemas:SCHEMAS,get:schemaOf,supportInfo,planTargets,altPayment,applyAltPayment,applyAdditionalCost,evaluateX,resolve,chooseActivated,executeActivated,onPhase,score,diagnose,dryRun};
+  return{version:VERSION,release:RELEASE,schemas:SCHEMAS,get:schemaOf,supportInfo,planTargets,altPayment,applyAltPayment,applyAdditionalCost,evaluateX,resolve,chooseActivated,executeActivated,onPhase,score,diagnose,dryRun,automationCoverage};
 });
